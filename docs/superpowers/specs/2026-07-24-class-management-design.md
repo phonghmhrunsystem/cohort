@@ -1,124 +1,169 @@
-# Class Management System — Design
+# Class Management System — Approved Design
 
 ## Goal
 
-Build a local web application for teachers and students to manage classes, assignments, submissions, rubric-based grading, and access control. The product must demonstrate a complete teacher-to-student workflow by 29 July 2026.
+Build a local-only application for an internal AI-training cohort. Administrators manage accounts, teachers manage their owned cohorts and assessments, and students submit work and receive feedback. The MVP demonstrates the complete flow by 29 July 2026.
 
 ## Scope
 
-### MVP
+### Included
 
-- Login and role-based access for `TEACHER` and `STUDENT`.
-- Teachers create classes, enroll students, create assignments and rubrics, view submissions, and grade them.
-- Students view their classes and assignments, submit one file before the deadline, and view rubric scores and feedback.
-- Role-focused dashboard: teacher sees pending grading; student sees upcoming work and recently graded submissions.
-- Server-side authorization, deadline enforcement, file validation, and automated tests.
+- Login with administrator-created accounts and JWT authentication.
+- Roles: `ADMIN`, `TEACHER`, and `STUDENT`.
+- Cohorts, enrollment, assignments, optional rubrics, versioned file submissions, grading, and immutable audit records.
+- DOC/DOCX, PDF, and video uploads up to 1 GB, stored locally.
+- React + Vite + TypeScript UI and Django REST API with SQLite.
 
-### Deferred / bonus
+### Excluded
 
-- CSV grade export for a teacher's class, only after the MVP and its test suite pass.
+- Self-registration, chat, notifications, AI grading, online deployment, cloud storage, microservices, and CSV export.
 
-### Explicitly excluded
-
-- Chat, realtime notifications, online deployment, automatic AI grading, and microservices.
+CSV export remains a post-MVP option only after the acceptance suite passes.
 
 ## Architecture
 
 ```text
 React + Vite + TypeScript + Tailwind CSS (localhost:5173)
-                | REST API with JWT
+                | REST API + JWT / multipart upload
 Django + Django REST Framework + SimpleJWT (localhost:8000)
-                | SQLite database and local media/ uploads
+                | Django ORM + transactions
+SQLite                         private local media directory
 ```
 
-The backend is the authorization and validation boundary. The frontend may hide unavailable actions, but it must never be relied upon to enforce role, ownership, deadline, file type, file size, or grades.
+This is a modular monolith. Django is the authorization and validation boundary; the frontend may hide unavailable actions but never enforces permissions, ownership, deadlines, file constraints, or scores.
 
-## Domain model
+### Backend modules
 
 ```text
-User(role: TEACHER | STUDENT)
-Classroom(teacher)
-Enrollment(classroom, student)
-Assignment(classroom, title, description, due_at, max_score)
-RubricCriterion(assignment, title, max_score)
-Submission(assignment, student, file, note, submitted_at)
-Grade(submission, teacher, feedback, total_score)
-CriterionScore(grade, criterion, score, feedback)
+config/        settings, URLs, JWT and media configuration
+accounts/      User model, authentication, administrator account management
+audit/         append-only audit model, audit writer, read policy
+cohorts/       Cohort, enrollment, ownership and enrollment policy
+assignments/   Assignment and rubric criteria
+submissions/   versioned uploads, protected download, latest-submission query
+grading/       grades, criterion scores, server-side total calculation
 ```
 
-Constraints:
+No repository abstraction, event bus, service container, or microservice is required. Domain services are limited to operations that must validate several models and write atomically: changing a rubric, creating a submission version, and grading.
 
-- `Enrollment(classroom, student)` is unique.
-- `Submission(assignment, student)` is unique.
-- The sum of criterion maximum scores equals the assignment maximum score.
-- A submission must belong to an enrolled student and be created no later than `due_at`.
-- A teacher may only manage classrooms and descendants that they own.
-- A student may only read their own submissions and grades.
-- `Grade.total_score` is calculated on the server from criterion scores; clients never supply it.
+## Roles and access policy
 
-## API surface
+| Role | Can do | Cannot do |
+|---|---|---|
+| `ADMIN` | Create, edit, activate, and deactivate accounts; read all audit records | Manage learning content or enrollments |
+| `TEACHER` | Manage owned cohorts, enroll students, manage descendant assignments/rubrics, view latest submissions, grade them | Read or mutate another teacher's cohort or student result outside an owned cohort |
+| `STUDENT` | Read enrolled cohorts and assignments, submit before the deadline, read own history and results | Read another student's files/results or un-enrolled cohorts |
 
-| Area | Endpoints |
-|---|---|
-| Identity | `POST /auth/login`, `GET /auth/me` |
-| Classes | `GET/POST /classes`, `GET/PATCH/DELETE /classes/{id}`, `POST /classes/{id}/students` |
-| Assignments | `GET/POST /assignments`, `GET/PATCH/DELETE /assignments/{id}`, `PUT /assignments/{id}/rubric` |
-| Submissions | `POST /assignments/{id}/submit`, `GET /assignments/{id}/submissions`, `GET /submissions/{id}` |
-| Grades | `PUT /submissions/{id}/grade` |
+List queries must be scoped in the backend, not filtered after serialization. Detail, download, update, and grade operations must re-check role and the target object's relationship to the actor.
 
-All endpoints require JWT except login. List/detail queries are filtered by the authenticated user's role and ownership.
+## Domain model and constraints
+
+```text
+User(email, password_hash, role, is_active)
+Cohort(teacher)
+Enrollment(cohort, student)
+Assignment(cohort, title, description, due_at, max_score=100)
+RubricCriterion(assignment, title, max_score)
+Submission(assignment, student, version, file metadata, note, submitted_at)
+Grade(submission, teacher, total_score, feedback, graded_at)
+CriterionScore(grade, criterion, score, feedback)
+AuditLog(actor, action, target_type, target_id, metadata, created_at)
+```
+
+- `User.email` is unique; passwords are only Django hashes.
+- `Enrollment(cohort, student)` is unique and `student` must have role `STUDENT`.
+- `Submission(assignment, student, version)` is unique. A resubmission creates `max(version) + 1`; no submission row is overwritten.
+- A rubric is optional. When it exists, criterion maxima total exactly 100.
+- A submission requires active enrollment, `now <= due_at`, and no existing grade for that student on the assignment.
+- A teacher may grade only the latest submission of a student in an owned cohort.
+- A rubric grade contains exactly one score per criterion, each between zero and its criterion maximum. `Grade.total_score` is server-calculated.
+- A rubric cannot change after any assignment submission has been graded.
+- Audit rows are append-only. Metadata is allow-listed and excludes password values/hashes, JWTs, raw uploaded content, and absolute storage paths.
+
+## API contract
+
+All endpoints except login require a JWT Bearer token. Return `401` for missing/invalid authentication, `403` for an authenticated but unauthorized actor, `404` for an absent resource, and `422` for a business-rule violation.
+
+| Area | Endpoints | Access |
+|---|---|---|
+| Identity | `POST /auth/login`, `GET /auth/me` | Public / authenticated |
+| Accounts | `GET/POST /users`, `PATCH /users/{id}` | Admin |
+| Audit | `GET /audit-logs` | Admin all; teacher events for owned cohorts only |
+| Cohorts | `GET/POST /cohorts`, `GET/PATCH /cohorts/{id}`, `POST /cohorts/{id}/enrollments` | Owning teacher; student read scope by enrollment |
+| Assignments | `GET/POST /cohorts/{id}/assignments`, `GET/PATCH /assignments/{id}`, `PUT /assignments/{id}/rubric` | Owning teacher; enrolled student read scope |
+| Submissions | `POST /assignments/{id}/submissions`, `GET /assignments/{id}/submissions`, `GET /assignments/{id}/my-submissions`, `GET /submissions/{id}` | Enrolled student submit/history; owner teacher latest list; owner student or teacher detail |
+| Files | `GET /submissions/{id}/download` | Owner student or owner teacher |
+| Grades | `PUT /submissions/{id}/grade`, `GET /assignments/{id}/my-result` | Owning teacher grade; owner student result |
+
+Upload uses `multipart/form-data`. The server validates extension, MIME type, and size before storage. File paths are never public URLs.
+
+## Domain operations
+
+### Submission version
+
+The submission service validates enrollment, deadline, and graded state before writing a file. It computes the next version under a database transaction, writes server-generated storage metadata, then appends the audit record. If the database operation fails after storage succeeds, it removes the just-created file.
+
+The teacher submission list returns only the greatest version per student. Student history returns every version belonging to that authenticated student.
+
+### Grading
+
+Grading runs in one transaction. The service confirms that the teacher owns the assignment's cohort and that the target is the student's latest submission. With a rubric it validates every criterion score and calculates the total; without a rubric it validates a manual total from 0 to 100. It writes the grade and criterion scores, then appends an audit record. Any grade locks future submissions for that student and assignment.
+
+### Audit
+
+Every account administration action, cohort/enrollment change, assignment/rubric change, submission, and grade writes an audit row in the same transaction as the domain change. No endpoint creates, edits, or deletes audit rows.
 
 ## UI
 
-- Login page.
-- Role-focused dashboard.
-- Class list and class detail with Assignments and Members tabs.
-- Assignment detail showing description, deadline, rubric, and submit form for students; submission list for teachers.
-- Grading page with one score and feedback input per criterion, plus automatically displayed total.
-- Result page showing the rubric breakdown and teacher feedback.
+- Login: email, password, readable authentication error.
+- Admin: account list/create/edit/activate state and read-only audit log.
+- Teacher dashboard: owned cohorts, deadlines, and submissions awaiting grades.
+- Cohort detail: cohort data, enrolled students, assignments.
+- Assignment detail: description, deadline, rubric, latest submissions for teacher; submit/history for student.
+- Grading: criterion score inputs or manual score, feedback, displayed calculated total.
+- Student dashboard and result: enrolled cohorts, open assignments, own grades, feedback, and rubric breakdown.
 
-Use one sidebar, breadcrumbs, loading states, empty states, deadline badges, contextual API errors, keyboard focus states, labels for inputs, and non-color-only status cues.
+Use a shared sidebar, breadcrumbs, labelled inputs, keyboard focus states, loading/empty states, deadline badges, and contextual API errors. Frontend totals are display-only and must match server responses.
 
-## Validation and failure behavior
+## Phased delivery
 
-- Reject unsupported file types and oversized files before storage; show a readable field error.
-- Reject late submissions with the deadline in the message.
-- Return `403` for an authenticated user without access and `404` for missing resources.
-- Keep score validation and total calculation in the backend; reject scores outside their criterion range.
+### Phase 0 — Contract and foundations
 
-## Test strategy
+Lock dependencies, `/api` URL prefix, UTC timestamps, error shape, supported MIME allow-list, and upload-size configuration. Trace each use case to an endpoint and policy before implementation.
 
-| Layer | Tool | Minimum evidence |
+### Phase 1 — Identity and administrator controls
+
+Create the custom user model before first migration; implement JWT, `/auth/me`, admin account management, inactive-login rejection, and account audit rows.
+
+### Phase 2 — Cohorts and enrollment
+
+Implement cohort ownership, enrollment uniqueness/role validation, scoped queries, and audit rows. Prove cross-teacher and un-enrolled access is denied.
+
+### Phase 3 — Assignments and rubrics
+
+Implement assignment ownership, deadline/max-score validation, atomic rubric replacement, 100-point validation, rubric-change lock after grades, and audit rows.
+
+### Phase 4 — Versioned private submissions
+
+Implement protected uploads/downloads, validation before storage, append-only versions, latest-per-student query, cleanup on failed persistence, and submission audit rows.
+
+### Phase 5 — Grading and results
+
+Implement atomic rubric/manual grading, server totals, latest-submission restriction, grade-lock behavior, result reads, and grading audit rows.
+
+### Phase 6 — Role-focused frontend
+
+Build vertical slices in workflow order: auth/admin, teacher cohort/assignment, student upload/history, teacher grade, student result. Use API errors as the source of business-rule feedback.
+
+### Phase 7 — Verification and handoff
+
+Complete API/unit coverage, Playwright workflow evidence, README setup/demo credentials, and UAT evidence.
+
+## Test and acceptance strategy
+
+| Layer | Tool | Required evidence |
 |---|---|---|
-| Unit | Django `TestCase` | 6–10 tests for deadline, ownership, enrollment, and score rules |
-| API | DRF `APIClient` | 10–15 tests for auth, RBAC, upload, submit, and grading endpoints |
-| E2E | Playwright | teacher creates assignment → student submits → teacher grades → student reads result; plus a denied-role path |
+| Domain/API | Django `TestCase` and DRF `APIClient` | Auth/role, ownership, enrollment, deadline, validation-before-storage, versioning/latest query, rubric/manual grading, audit writing |
+| Browser | Playwright | Admin creates accounts → Teacher cohort/enrollment/assignment → Student uploads twice → Teacher sees version 2 and grades → Student sees result; plus denied access |
 
-Key assertions cover cross-student data access, cross-teacher ownership, deadline enforcement, file validation, rubric score limits, and calculated totals.
-
-## Delivery schedule
-
-| Date | Deliverable |
-|---|---|
-| 24/07 | Scaffold, API contract, data model, authentication and RBAC |
-| 25/07 | Classes, enrollment, assignments, rubrics, unit/API tests |
-| 26/07 | Submission upload and grading, API tests |
-| 27/07 | React UI and Playwright happy path |
-| 28/07 | Bug fixing, UX/accessibility, optional CSV export |
-| 29/07 | Verification, README, demo accounts, screenshots/video |
-
-## AI and Superpowers workflow evidence
-
-1. Brainstorm requirements and approve this design.
-2. Convert the design into an ordered implementation plan with acceptance criteria.
-3. Implement small vertical slices using test-first checks for business rules and APIs.
-4. Use AI for focused code review and test-case suggestions; verify every result through local tests and browser flow.
-5. Record commands, test output, design decisions, and demo evidence in the README or development log.
-
-## Acceptance criteria
-
-1. A teacher can create a class, enroll a student, set an assignment and rubric, then grade that student's file submission.
-2. The enrolled student can see only their classes, submit before the deadline, and later see their own detailed grade.
-3. Role and ownership violations, invalid uploads, late submissions, and invalid rubric scores are rejected server-side.
-4. Unit, API, and E2E tests cover the primary workflow and an authorization failure.
-5. The repository includes local setup instructions and demo credentials.
+The acceptance suite must prove account activation behavior, role and ownership denial, invalid/late upload rejection without stored file, immutable submission history, correct score calculation, grade submission lock, protected result/file access, and immutable audit visibility.
