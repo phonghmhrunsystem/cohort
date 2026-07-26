@@ -1,4 +1,4 @@
-from pathlib import PurePath
+from pathlib import PurePosixPath, PureWindowsPath
 
 from django.db import transaction
 
@@ -12,7 +12,10 @@ def safe_metadata(metadata):
 
 
 def _safe_value(value):
-    if isinstance(value, bytes) or (isinstance(value, str) and PurePath(value).is_absolute()):
+    if isinstance(value, bytes) or (
+        isinstance(value, str)
+        and (PurePosixPath(value).is_absolute() or PureWindowsPath(value).is_absolute())
+    ):
         return _SKIP
     if isinstance(value, dict):
         clean = {}

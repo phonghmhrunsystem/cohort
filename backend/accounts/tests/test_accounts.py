@@ -32,3 +32,32 @@ class AccountApiTests(TestCase):
         self.admin_client.patch(f"/api/users/{self.student.id}", {"is_active": False})
 
         self.assertEqual(AuditLog.objects.get().action, "account.updated")
+
+    def test_unknown_account_patch_field_is_rejected(self):
+        response = self.admin_client.patch(
+            f"/api/users/{self.student.id}", {"password": "new-password"}
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(AuditLog.objects.count(), 0)
+
+    def test_noop_account_patch_is_rejected(self):
+        response = self.admin_client.patch(
+            f"/api/users/{self.student.id}", {"is_active": True}
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(AuditLog.objects.count(), 0)
+
+    def test_account_endpoints_return_auth_and_not_found_statuses(self):
+        self.assertEqual(self.client.get("/api/users").status_code, 401)
+
+        teacher_client = APIClient()
+        teacher_client.force_authenticate(
+            User.objects.create_user("teacher@example.test", "pw", role="TEACHER")
+        )
+        self.assertEqual(teacher_client.get("/api/users").status_code, 403)
+        self.assertEqual(
+            self.admin_client.patch("/api/users/999999", {"is_active": False}).status_code,
+            404,
+        )
