@@ -31,9 +31,32 @@ class AuditTests(TestCase):
 
         self.assertTrue(AuditLog.objects.filter(id=self.log.id).exists())
 
-    def test_metadata_excludes_posix_and_windows_absolute_paths(self):
+    def test_bulk_upsert_cannot_mutate_an_audit_row(self):
+        replacement = AuditLog(
+            id=self.log.id,
+            actor=self.admin,
+            action="changed",
+            target_type=self.log.target_type,
+            target_id=self.log.target_id,
+            metadata=self.log.metadata,
+        )
+
+        with self.assertRaises(RuntimeError):
+            AuditLog.objects.bulk_create(
+                [replacement], update_conflicts=True, update_fields=["action"], unique_fields=["id"]
+            )
+
+        self.log.refresh_from_db()
+        self.assertEqual(self.log.action, "account.created")
+
+    def test_metadata_excludes_sensitive_values(self):
         metadata = safe_metadata(
             {
+                "password": "secret",
+                "password_hash": "hash",
+                "hash": "hash",
+                "access_token": "token",
+                "bytes": b"content",
                 "posix_path": "/private/report.pdf",
                 "windows_path": r"C:\\private\\report.pdf",
                 "relative_path": "uploads/report.pdf",
