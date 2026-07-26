@@ -7,6 +7,6 @@ body { min-width: 320px; background: #f4f7fb; }
 @media (max-width: 767.98px) {
   .workspace { display: block; }
   .workspace-sidebar { width: auto; }
-  .workspace-nav { display: flex; overflow-x: auto; }
+  .workspace-nav { display: flex; flex-direction: row !important; overflow-x: auto; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
