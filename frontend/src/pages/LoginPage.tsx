@@ -30,11 +30,6 @@ export function LoginPage() {
           <label className="form-label mb-0">Email<input className="form-control mt-1" name="email" type="email" autoComplete="email" required /></label>
           <label className="form-label mb-0">Password<input className="form-control mt-1" name="password" type="password" autoComplete="current-password" required /></label>
           <button className="btn btn-primary w-100" disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button>
-          {/*
-          <button className="btn btn-primary w-100" disabled={loading}>{loading ? "Signing inâ€¦" : "Sign in"}</button>
-          {/*
-    <button disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button>
-          */}
           {error && <p className="alert alert-danger mb-0" role="alert">{error}</p>}
         </form>
       </div>
