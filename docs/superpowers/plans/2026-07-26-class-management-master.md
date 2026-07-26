@@ -6,7 +6,7 @@
 
 | Gate | Plan | Depends on | Stop condition |
 | --- | --- | --- | --- |
-| 1 | [Phase 1 — Identity and Admin](2026-07-26-phase-01-identity-admin.md) | None | Admin can create/deactivate accounts; inactive login is rejected; audit is visible. |
+| 1 | [Phase 1 — Identity and Admin](2026-07-26-phase-01-identity-admin.md) ✅ | None | Admin can create/deactivate accounts; inactive login is rejected; audit is visible. |
 | 2 | [Phase 2 — Cohorts and enrollment](2026-07-26-phase-02-cohorts-enrollment.md) | Phase 1 | Teacher enrolls one Student; only that Student can read the cohort. |
 | 3 | [Phase 3 — Assignments and rubric](2026-07-26-phase-03-assignments-rubrics.md) | Phase 2 | Enrolled Student reads a rubric assignment and its UTC+7 deadline. |
 | 4 | [Phase 4 — Versioned submissions](2026-07-26-phase-04-submissions-files.md) | Phase 3 | Student has v1/v2; Teacher sees only v2; rejected uploads create no file. |

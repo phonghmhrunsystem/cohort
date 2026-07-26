@@ -25,18 +25,18 @@
 
 **Produces:** `GET /api/health -> {"status":"ok"}` and `api<T>(path, options)` that sends the session token and throws `{status, detail}`.
 
-- [ ] **Step 1: Create Django settings with `USE_TZ=True`, `TIME_ZONE="UTC"`, SQLite, `MEDIA_ROOT`, `MAX_UPLOAD_BYTES=1073741824`, DRF, SimpleJWT, and `/api/` URL routing.**
+- [x] **Step 1: Create Django settings with `USE_TZ=True`, `TIME_ZONE="UTC"`, SQLite, `MEDIA_ROOT`, `MAX_UPLOAD_BYTES=1073741824`, DRF, SimpleJWT, and `/api/` URL routing.**
 
 ```python
 # config/urls.py
 urlpatterns = [path("api/health", lambda request: JsonResponse({"status": "ok"}))]
 ```
 
-- [ ] **Step 2: Start Django and check `GET http://127.0.0.1:8000/api/health` returns `200`.**
+- [x] **Step 2: Start Django and check `GET http://127.0.0.1:8000/api/health` returns `200`.**
 
 Run: `cd backend; python manage.py runserver`
 
-- [ ] **Step 3: Create the Vite TypeScript app, proxy `/api` to port `8000`, and add its one typed API wrapper.**
+- [x] **Step 3: Create the Vite TypeScript app, proxy `/api` to port `8000`, and add its one typed API wrapper.**
 
 ```ts
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -46,7 +46,7 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
 }
 ```
 
-- [ ] **Step 4: Start Vite and verify the browser request to `/api/health` is `200`. Commit.**
+- [x] **Step 4: Start Vite and verify the browser request to `/api/health` is `200`. Commit.**
 
 ```bash
 git add backend frontend README.md
@@ -62,7 +62,7 @@ git commit -m "chore: bootstrap class management demo"
 
 **Produces:** `POST /api/auth/login`, `GET /api/auth/me`, Admin `GET/POST /api/users`, `PATCH /api/users/{id}`, `GET /api/audit-logs`, and `write_audit(*, actor, action, target, metadata)`.
 
-- [ ] **Step 1: Write failing tests for inactive login and auditable account deactivation.**
+- [x] **Step 1: Write failing tests for inactive login and auditable account deactivation.**
 
 ```python
 def test_inactive_user_cannot_obtain_token(self):
@@ -75,9 +75,9 @@ def test_account_change_writes_audit_row(self):
     self.assertEqual(AuditLog.objects.get().action, "account.updated")
 ```
 
-- [ ] **Step 2: Run `cd backend; python manage.py test accounts.tests audit.tests`; expect failure because endpoints/models do not exist.**
+- [x] **Step 2: Run `cd backend; python manage.py test accounts.tests audit.tests`; expect failure because endpoints/models do not exist.**
 
-- [ ] **Step 3: Add the custom `User` before the first migration, JWT login/me, and Admin-only account views.**
+- [x] **Step 3: Add the custom `User` before the first migration, JWT login/me, and Admin-only account views.**
 
 ```python
 class User(AbstractUser):
@@ -89,9 +89,9 @@ class User(AbstractUser):
     REQUIRED_FIELDS = []
 ```
 
-- [ ] **Step 4: Add append-only `AuditLog`; wrap every account create/update and `write_audit` in `transaction.atomic()`; allow only `email`, `role`, `is_active` in account audit metadata.**
+- [x] **Step 4: Add append-only `AuditLog`; wrap every account create/update and `write_audit` in `transaction.atomic()`; allow only `email`, `role`, `is_active` in account audit metadata.**
 
-- [ ] **Step 5: Migrate and run the focused tests; expect PASS and no secret fields in audit metadata.**
+- [x] **Step 5: Migrate and run the focused tests; expect PASS and no secret fields in audit metadata.**
 
 Run: `cd backend; python manage.py makemigrations; python manage.py migrate; python manage.py test accounts.tests audit.tests`
 
@@ -103,15 +103,15 @@ Run: `cd backend; python manage.py makemigrations; python manage.py migrate; pyt
 
 **Consumes:** the Task 2 identity/account/audit endpoints.
 
-- [ ] **Step 1: Implement Login storing only the access token in `sessionStorage`, then fetch `/auth/me` to route an Admin to `/admin/users`.**
+- [x] **Step 1: Implement Login storing only the access token in `sessionStorage`, then fetch `/auth/me` to route an Admin to `/admin/users`.**
 
 ```tsx
 {user.role === "ADMIN" && <Navigate to="/admin/users" replace />}
 ```
 
-- [ ] **Step 2: Add labelled create/edit/active-state controls, loading/empty/error text, and a read-only audit table.**
+- [x] **Step 2: Add labelled create/edit/active-state controls, loading/empty/error text, and a read-only audit table.**
 
-- [ ] **Step 3: Browser-check: Admin creates Teacher + Student, deactivates Student, sees both actions in audit, and Student login is rejected. Commit.**
+- [x] **Step 3: Browser-check: Admin creates Teacher + Student, deactivates Student, sees both actions in audit, and Student login is rejected. Commit.**
 
 ```bash
 git add backend frontend
