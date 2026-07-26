@@ -49,14 +49,20 @@ class AccountApiTests(TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(AuditLog.objects.count(), 0)
 
-    def test_account_endpoints_return_auth_and_not_found_statuses(self):
-        self.assertEqual(self.client.get("/api/users").status_code, 401)
-
+    def test_teacher_lists_existing_student_accounts_only(self):
         teacher_client = APIClient()
         teacher_client.force_authenticate(
             User.objects.create_user("teacher@example.test", "pw", role="TEACHER")
         )
-        self.assertEqual(teacher_client.get("/api/users").status_code, 403)
+        User.objects.create_user("other-teacher@example.test", "pw", role="TEACHER")
+
+        response = teacher_client.get("/api/users")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([user["email"] for user in response.data], [self.student.email])
+
+    def test_account_endpoints_return_auth_and_not_found_statuses(self):
+        self.assertEqual(self.client.get("/api/users").status_code, 401)
         self.assertEqual(
             self.admin_client.patch("/api/users/999999", {"is_active": False}).status_code,
             404,

@@ -29,12 +29,18 @@ class MeView(APIView):
 
 
 class UsersView(APIView):
-    permission_classes = [IsAdmin]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.user.role == User.Role.TEACHER:
+            return Response(UserSerializer(User.objects.filter(role=User.Role.STUDENT).order_by("id"), many=True).data)
+        if request.user.role != User.Role.ADMIN:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         return Response(UserSerializer(User.objects.order_by("id"), many=True).data)
 
     def post(self, request):
+        if request.user.role != User.Role.ADMIN:
+            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = UserCreateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
