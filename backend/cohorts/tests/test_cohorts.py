@@ -1,5 +1,7 @@
 from django.test import TestCase
+from django.db import IntegrityError
 from rest_framework.test import APIClient
+from unittest.mock import patch
 
 from accounts.models import User
 from audit.models import AuditLog
@@ -63,6 +65,15 @@ class CohortApiTests(TestCase):
 
         self.assertEqual(response.status_code, 422)
         self.assertEqual(Enrollment.objects.filter(cohort=self.cohort, student=self.student).count(), 1)
+
+    @patch("cohorts.views.EnrollmentSerializer.save", side_effect=IntegrityError)
+    def test_concurrent_enrollment_constraint_conflict_returns_422(self, _save):
+        response = self.teacher_client.post(
+            f"/api/cohorts/{self.cohort.id}/enrollments", {"student_id": self.other_student.id}
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(AuditLog.objects.count(), 0)
 
     def test_create_cohort_and_enrollment_write_audit_rows(self):
         response = self.teacher_client.post(

@@ -24,6 +24,4 @@ class EnrollmentSerializer(serializers.ModelSerializer):
     def validate_student_id(self, student):
         if student.role != User.Role.STUDENT:
             raise serializers.ValidationError("Only Student accounts can be enrolled.")
-        if Enrollment.objects.filter(cohort=self.context["cohort"], student=student).exists():
-            raise serializers.ValidationError("This Student is already enrolled.")
         return student

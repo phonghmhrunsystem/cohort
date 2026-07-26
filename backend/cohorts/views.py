@@ -1,4 +1,4 @@
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -77,13 +77,19 @@ class EnrollmentView(APIView):
         serializer = EnrollmentSerializer(data=request.data, context={"cohort": cohort})
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        with transaction.atomic():
-            enrollment = serializer.save(cohort=cohort)
-            write_audit(
-                actor=request.user,
-                action="enrollment.created",
-                target=enrollment,
-                metadata={"cohort_id": cohort.id, "student_id": enrollment.student_id},
+        try:
+            with transaction.atomic():
+                enrollment = serializer.save(cohort=cohort)
+                write_audit(
+                    actor=request.user,
+                    action="enrollment.created",
+                    target=enrollment,
+                    metadata={"cohort_id": cohort.id, "student_id": enrollment.student_id},
+                )
+        except IntegrityError:
+            return Response(
+                {"student_id": ["This Student is already enrolled."]},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
             )
         return Response(EnrollmentSerializer(enrollment).data, status=status.HTTP_201_CREATED)
 
