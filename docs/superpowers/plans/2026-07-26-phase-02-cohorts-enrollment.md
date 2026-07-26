@@ -1,79 +1,81 @@
-# Phase 02 — Cohorts and Enrollment Implementation Plan
+# Phase 2 — Cohorts and Enrollment Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let teachers manage only their cohorts and enroll existing students while enforcing student read scope.
+**Goal:** Let a Teacher manage owned cohorts and enroll existing Students while scoping all reads and writes on the server.
 
-**Architecture:** `cohorts` owns `Cohort` and `Enrollment`. A queryset/policy helper scopes every list/detail operation before serialization; mutations append audit rows in their transaction.
+**Architecture:** A cohort has one teacher; an enrollment joins exactly one Student. Views construct role-scoped querysets before serialization and write audit records alongside cohort/enrollment mutations.
 
-**Tech Stack:** Django ORM, DRF APIClient, SQLite.
+**Tech Stack:** Django, DRF, SQLite, React, TypeScript.
 
 ## Global Constraints
 
-- Enrollment is unique by `(cohort, student)` and accepts only users with role `STUDENT`.
-- Teachers access only cohorts with `teacher=request.user`.
-- Students access only enrolled cohorts.
+- Reuse Phase 1 JWT identity and `write_audit`.
+- An enrollment is unique by `(cohort, student)` and accepts only `STUDENT` accounts.
+- Teacher can affect only owned cohorts; Student can read only enrolled cohorts; inaccessible detail is `404`.
 
-### Task 1: Model and scoped cohort API
+---
+
+### Task 1: Add Cohort and Enrollment domain/API
 
 **Files:**
 - Create: `backend/cohorts/models.py`, `backend/cohorts/serializers.py`, `backend/cohorts/views.py`, `backend/cohorts/urls.py`, `backend/cohorts/tests/test_cohorts.py`
-- Modify: `backend/config/urls.py`, `backend/audit/views.py`
+- Modify: `backend/config/urls.py`
 
-**Interfaces:**
-- Produces: `Cohort(teacher, name, description)`, `GET/POST /api/cohorts/`, `GET/PATCH /api/cohorts/{id}/`.
+**Produces:** `GET/POST /api/cohorts`, `GET/PATCH /api/cohorts/{id}`, `POST /api/cohorts/{id}/enrollments`.
 
-- [ ] **Step 1: Write failing ownership/read-scope tests**
+- [ ] **Step 1: Write failing ownership, role-validation, duplicate, and Student-scope tests.**
 
 ```python
-def test_teacher_cannot_read_another_teachers_cohort(self):
-    self.client.force_authenticate(self.teacher_b)
-    self.assertEqual(self.client.get(f'/api/cohorts/{self.cohort_a.id}/').status_code, 403)
+def test_only_enrolled_student_can_read_cohort(self):
+    response = self.other_student_client.get(f"/api/cohorts/{self.cohort.id}")
+    self.assertEqual(response.status_code, 404)
 
-def test_student_list_contains_only_enrolled_cohorts(self):
-    self.client.force_authenticate(self.student)
-    self.assertEqual([item['id'] for item in self.client.get('/api/cohorts/').data], [self.enrolled_cohort.id])
+def test_enrollment_rejects_teacher_account(self):
+    response = self.teacher_client.post(f"/api/cohorts/{self.cohort.id}/enrollments", {"student_id": self.other_teacher.id})
+    self.assertEqual(response.status_code, 422)
 ```
 
-- [ ] **Step 2: Run and verify failure**
-- [ ] **Step 3: Implement model, role-aware queryset, teacher create/update, student read serializer, and cohort audit writes**
-- [ ] **Step 4: Extend audit reads so a teacher receives only events whose target is an owned cohort or its descendant; keep the Phase 01 administrator list unchanged**
-- [ ] **Step 5: Apply migrations and rerun focused tests**
-- [ ] **Step 6: Commit**
+- [ ] **Step 2: Run `cd backend; python manage.py test cohorts.tests`; expect failure.**
+
+- [ ] **Step 3: Add `Cohort(teacher,name,description)` and `Enrollment(cohort,student)` with a unique constraint; scope lists/details at the queryset entry point.**
+
+```python
+if user.role == User.Role.TEACHER: return Cohort.objects.filter(teacher=user)
+if user.role == User.Role.STUDENT: return Cohort.objects.filter(enrollment__student=user)
+return Cohort.objects.none()
+```
+
+- [ ] **Step 4: Reject non-Student/duplicate enrollment with `422`; use transactions for cohort/enrollment plus audit row.**
+
+- [ ] **Step 5: Migrate and run `python manage.py test cohorts.tests`; expect PASS. Commit.**
 
 ```bash
-git add backend/cohorts backend/config
-git commit -m "feat: add scoped cohort management"
+git add backend
+git commit -m "feat: add cohorts and enrollment api"
 ```
 
-### Task 2: Enrollment API and role validation
+### Task 2: Add Teacher and Student cohort screens
 
 **Files:**
-- Modify: `backend/cohorts/models.py`, `backend/cohorts/serializers.py`, `backend/cohorts/views.py`
-- Create: `backend/cohorts/tests/test_enrollments.py`
+- Create: `frontend/src/pages/TeacherCohortsPage.tsx`, `frontend/src/pages/CohortPage.tsx`, `frontend/src/pages/StudentCohortsPage.tsx`
+- Modify: `frontend/src/main.tsx`
 
-**Interfaces:**
-- Produces: `Enrollment(cohort, student)`, `POST /api/cohorts/{id}/enrollments`.
+**Consumes:** Phase 2 cohort API.
 
-- [ ] **Step 1: Write failing enrollment tests**
+- [ ] **Step 1: Add Teacher list/create/edit/detail screens, with enrollment control that lists existing Student accounts only.**
 
-```python
-def test_teacher_can_enroll_student_once(self):
-    self.client.force_authenticate(self.owner)
-    self.assertEqual(self.client.post(self.url, {'student_id': self.student.id}).status_code, 201)
-    self.assertEqual(self.client.post(self.url, {'student_id': self.student.id}).status_code, 422)
+- [ ] **Step 2: Add Student read-only cohort list/detail and display the server error for unavailable cohort links.**
 
-def test_teacher_cannot_enroll_an_admin(self):
-    self.client.force_authenticate(self.owner)
-    self.assertEqual(self.client.post(self.url, {'student_id': self.admin.id}).status_code, 422)
-```
-
-- [ ] **Step 2: Run tests and verify failure**
-- [ ] **Step 3: Add uniqueness constraint, serializer validation, owner check, and enrollment audit write**
-- [ ] **Step 4: Apply migrations; rerun tests**
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Browser-check Teacher creates a cohort and enrolls Student A; Student A sees it and Student B does not. Commit.**
 
 ```bash
-git add backend/cohorts
-git commit -m "feat: add cohort enrollment"
+git add frontend
+git commit -m "feat: add cohort screens"
 ```
+
+## Phase Gate
+
+Run: `cd backend; python manage.py test cohorts.tests`
+
+Expected: PASS. Browser proof confirms server-enforced teacher ownership and Student enrollment scope. Stop before Phase 3.

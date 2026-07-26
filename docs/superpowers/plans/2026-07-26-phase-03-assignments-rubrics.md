@@ -1,81 +1,84 @@
-# Phase 03 — Assignments and Rubrics Implementation Plan
+# Phase 3 — Assignments and Rubrics Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give cohort owners assignment management and optional, consistently valid rubrics.
+**Goal:** Let an owning Teacher create assignments with a future UTC+7 deadline and an optional, immutable 100-point rubric.
 
-**Architecture:** `assignments` owns assignment and criterion persistence. A rubric replacement service validates the whole candidate rubric and replaces it in a single transaction.
+**Architecture:** Assignment creation atomically creates its optional rubric criteria. No rubric mutation route exists; deadline updates validate against the current UTC instant and are audited.
 
-**Tech Stack:** Django ORM transactions, DRF serializers, Django TestCase.
+**Tech Stack:** Django, DRF, SQLite, React, TypeScript.
 
 ## Global Constraints
 
-- Every assignment has `max_score=100` and belongs to one cohort.
-- Only the cohort owner mutates an assignment/rubric; enrolled students may read it.
-- A non-empty rubric's criterion maxima total exactly 100.
-- Phase 05 adds the rubric-change lock after `Grade` exists.
+- `Assignment.max_score` is always `100`.
+- A rubric has one or more criteria totalling exactly `100` and cannot change after assignment creation.
+- Store `due_at` in UTC; accept/display it in `Asia/Ho_Chi_Minh`; Teacher may only move it to a future time.
 
-### Task 1: Assignment model and role-scoped endpoints
+---
+
+### Task 1: Add Assignment/Rubric API
 
 **Files:**
 - Create: `backend/assignments/models.py`, `backend/assignments/serializers.py`, `backend/assignments/views.py`, `backend/assignments/urls.py`, `backend/assignments/tests/test_assignments.py`
 - Modify: `backend/config/urls.py`
 
-**Interfaces:**
-- Consumes: `Cohort` and its owner/enrollment scope.
-- Produces: `Assignment`, `GET/POST /api/cohorts/{id}/assignments/`, `GET/PATCH /api/assignments/{id}/`.
+**Produces:** `GET/POST /api/cohorts/{id}/assignments`, `GET/PATCH /api/assignments/{id}` with optional `rubric` in its payload.
 
-- [ ] **Step 1: Write failing owner/enrolled-reader tests**
+- [ ] **Step 1: Write failing tests for past deadlines, invalid rubric total, Teacher ownership, and enrolled Student reads.**
 
 ```python
-def test_enrolled_student_can_read_assignment(self):
-    self.client.force_authenticate(self.enrolled_student)
-    self.assertEqual(self.client.get(f'/api/assignments/{self.assignment.id}/').status_code, 200)
+def test_rubric_must_total_100(self):
+    response = self.teacher_client.post(self.url, {"title": "A", "due_at": future_iso(), "rubric": [{"title": "Code", "max_score": 90}]}, format="json")
+    self.assertEqual(response.status_code, 422)
 
-def test_other_teacher_cannot_patch_assignment(self):
-    self.client.force_authenticate(self.other_teacher)
-    self.assertEqual(self.client.patch(self.url, {'title': 'Changed'}).status_code, 403)
+def test_deadline_must_be_future(self):
+    response = self.teacher_client.patch(self.assignment_url, {"due_at": past_iso()})
+    self.assertEqual(response.status_code, 422)
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
-- [ ] **Step 3: Implement model, serializers, scoped views, deadline validation, and assignment audit writes**
-- [ ] **Step 4: Apply migration and rerun focused tests**
-- [ ] **Step 5: Commit**
+- [ ] **Step 2: Run `cd backend; python manage.py test assignments.tests`; expect failure.**
+
+- [ ] **Step 3: Add `Assignment` and `RubricCriterion`; create all criteria in the assignment transaction and do not register a rubric update endpoint.**
+
+```python
+if rubric and sum(item["max_score"] for item in rubric) != 100:
+    raise ValidationError({"rubric": "Criterion maxima must total 100."}, code="business_rule")
+```
+
+- [ ] **Step 4: Validate `due_at > timezone.now()`, scope all access through the cohort ownership/enrollment relationship, and audit creates/deadline updates.**
+
+- [ ] **Step 5: Migrate and run `python manage.py test assignments.tests`; expect PASS. Commit.**
 
 ```bash
-git add backend/assignments backend/config
-git commit -m "feat: add cohort assignments"
+git add backend
+git commit -m "feat: add assignments and immutable rubrics"
 ```
 
-### Task 2: Atomic rubric replacement
+### Task 2: Add assignment screens and UTC+7 rendering
 
 **Files:**
-- Create: `backend/assignments/services.py`, `backend/assignments/tests/test_rubrics.py`
-- Modify: `backend/assignments/models.py`, `backend/assignments/serializers.py`, `backend/assignments/views.py`
+- Create: `frontend/src/pages/AssignmentPage.tsx`, `frontend/src/lib/time.ts`
+- Modify: `frontend/src/pages/CohortPage.tsx`, `frontend/src/main.tsx`
 
-**Interfaces:**
-- Produces: `replace_rubric(*, assignment, criteria, actor)`, `PUT /api/assignments/{id}/rubric`.
+**Consumes:** Phase 3 assignment API.
 
-- [ ] **Step 1: Write failing rubric tests**
+- [ ] **Step 1: Add Teacher create/detail UI, using `datetime-local` and helpers that convert its value to UTC ISO on submit and render API ISO dates in `Asia/Ho_Chi_Minh`.**
 
-```python
-def test_rubric_total_must_equal_100(self):
-    response = self.client.put(self.url, {'criteria': [{'title': 'A', 'max_score': 99}]}, format='json')
-    self.assertEqual(response.status_code, 422)
-
-def test_replacing_rubric_is_atomic_when_total_is_invalid(self):
-    old_ids = list(self.assignment.rubric_criteria.values_list('id', flat=True))
-    response = self.client.put(self.url, {'criteria': [{'title': 'A', 'max_score': 99}]}, format='json')
-    self.assertEqual(response.status_code, 422)
-    self.assertEqual(list(self.assignment.rubric_criteria.values_list('id', flat=True)), old_ids)
+```ts
+export const displayDeadline = (iso: string) => new Intl.DateTimeFormat("vi-VN", { timeZone: "Asia/Ho_Chi_Minh", dateStyle: "short", timeStyle: "short" }).format(new Date(iso));
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
-- [ ] **Step 3: Validate all criteria before deleting old criteria; replace in `transaction.atomic`; append audit row**
-- [ ] **Step 4: Apply migration and rerun focused tests**
-- [ ] **Step 5: Commit**
+- [ ] **Step 2: Render rubric criteria read-only after creation; do not show an edit-rubric control. Add Student title/description/deadline/rubric detail.**
+
+- [ ] **Step 3: Browser-check an enrolled Student sees a rubric assignment and deadline; verify a past deadline error is readable. Commit.**
 
 ```bash
-git add backend/assignments
-git commit -m "feat: add validated assignment rubrics"
+git add frontend
+git commit -m "feat: add assignment and rubric screens"
 ```
+
+## Phase Gate
+
+Run: `cd backend; python manage.py test assignments.tests`
+
+Expected: PASS. Browser proof matches the Phase 3 demo proof. Stop before Phase 4.

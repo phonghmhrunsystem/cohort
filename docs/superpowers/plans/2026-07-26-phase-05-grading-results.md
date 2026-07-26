@@ -1,83 +1,84 @@
-# Phase 05 — Grading and Results Implementation Plan
+# Phase 5 — Grading and Results Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let an owning teacher grade the latest submission and let only its student read the result.
+**Goal:** Let an owning Teacher grade only the newest submission and let its Student read the resulting total, feedback, and rubric breakdown.
 
-**Architecture:** `grading` owns grade persistence and one atomic service. It verifies the target relationship, validates rubric/manual input, calculates the score server-side, persists the grade, and appends audit data.
+**Architecture:** One grading transaction validates ownership/latest state and grade mode, calculates rubric totals on the server, writes grade/scores/audit, and thereby blocks more submissions for that Student/assignment.
 
-**Tech Stack:** Django ORM transactions, DRF serializers, Django TestCase.
+**Tech Stack:** Django, DRF, SQLite, React, TypeScript.
 
 ## Global Constraints
 
-- One `Grade` exists per submission.
-- Only the latest submission can be graded.
-- Rubric requests contain every criterion exactly once; score range is `0..criterion.max_score`.
-- Without a rubric, manual total is `0..100`; with a rubric the client cannot supply total.
+- Feedback is required for manual and rubric grades.
+- Rubric grade: exactly one score per criterion, `0..criterion.max_score`; server calculates total.
+- Manual grade: only without rubric; `0..100`.
+- A teacher can grade only latest version; successful grade rejects future uploads; result is private to owner Student/Teacher.
 
-### Task 1: Grade models and atomic service
+---
+
+### Task 1: Add grading/result API
 
 **Files:**
 - Create: `backend/grading/models.py`, `backend/grading/services.py`, `backend/grading/serializers.py`, `backend/grading/views.py`, `backend/grading/urls.py`, `backend/grading/tests/test_grading.py`
-- Modify: `backend/config/urls.py`
+- Modify: `backend/config/urls.py`, `backend/submissions/services.py`
 
-**Interfaces:**
-- Produces: `Grade`, `CriterionScore`, `grade_submission(*, submission, actor, payload)`, `PUT /api/submissions/{id}/grade/`.
+**Produces:** `PUT /api/submissions/{id}/grade`, `GET /api/assignments/{id}/my-result`, and `grade_submission(*, teacher, submission, payload)`.
 
-- [ ] **Step 1: Write failing rubric-grade tests**
+- [ ] **Step 1: Write failing tests for required feedback, calculated rubric total, manual range, non-latest denial, grade lock, and private result.**
 
 ```python
-def test_server_calculates_total_from_criteria(self):
-    response = self.client.put(self.url, {'criteria': [{'criterion_id': self.a.id, 'score': 40}, {'criterion_id': self.b.id, 'score': 50}]}, format='json')
+def test_rubric_grade_total_is_calculated_server_side(self):
+    response = self.teacher_client.put(self.grade_url, {"feedback": "Good work", "scores": [{"criterion_id": self.c1.id, "score": 40}, {"criterion_id": self.c2.id, "score": 50}]}, format="json")
     self.assertEqual(response.status_code, 200)
-    self.assertEqual(response.data['total_score'], 90)
+    self.assertEqual(response.json()["total_score"], 90)
 
-def test_grade_rejects_score_over_criterion_maximum(self):
-    response = self.client.put(self.url, {'criteria': [{'criterion_id': self.a.id, 'score': 51}, {'criterion_id': self.b.id, 'score': 50}]}, format='json')
+def test_only_latest_submission_can_be_graded(self):
+    response = self.teacher_client.put(self.old_submission_grade_url, {"total_score": 80, "feedback": "x"})
     self.assertEqual(response.status_code, 422)
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
-- [ ] **Step 3: Implement grade/criterion models, full criterion-set validation, transaction, server total, owner/latest check, and grading audit row**
-- [ ] **Step 4: Apply migrations and rerun focused tests**
-- [ ] **Step 5: Commit**
+- [ ] **Step 2: Run `cd backend; python manage.py test grading.tests`; expect failure.**
 
-```bash
-git add backend/grading backend/config
-git commit -m "feat: add rubric grading"
-```
-
-### Task 2: Manual grade and student result policy
-
-**Files:**
-- Create: `backend/grading/tests/test_results.py`
-- Modify: `backend/grading/serializers.py`, `backend/grading/views.py`, `backend/grading/urls.py`, `backend/submissions/services.py`, `backend/assignments/services.py`
-
-**Interfaces:**
-- Produces: manual-grade payload `{total_score, feedback}`, `GET /api/assignments/{id}/my-result/`.
-
-- [ ] **Step 1: Write failing manual/result/lock tests**
+- [ ] **Step 3: Add `Grade`/`CriterionScore` and a single atomic grade service that confirms owned cohort and newest version.**
 
 ```python
-def test_manual_grade_accepts_0_and_100_only_within_range(self):
-    self.assertEqual(self.put_manual(0).status_code, 200)
-    self.assertEqual(self.put_manual(101).status_code, 422)
-
-def test_student_cannot_read_another_students_result(self):
-    self.client.force_authenticate(self.other_student)
-    self.assertEqual(self.client.get(self.result_url).status_code, 403)
-
-def test_rubric_cannot_change_after_grade(self):
-    self.create_grade()
-    self.assertEqual(self.client.put(self.rubric_url, {'criteria': []}, format='json').status_code, 422)
+if assignment.rubric_criteria.exists():
+    total = sum(validated_scores.values())
+else:
+    total = validated_data["total_score"]
 ```
 
-- [ ] **Step 2: Run tests and verify failure**
-- [ ] **Step 3: Add no-rubric validation, result serializer/view, grade-exists check in submission creation service, and rubric-change lock in rubric replacement service**
-- [ ] **Step 4: Rerun grading/submission tests and full backend suite**
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Require non-blank feedback; validate all-and-only rubric criterion IDs/scores or manual `0..100`; write grade, scores, and audit in the transaction.**
+
+- [ ] **Step 5: Make submission creation reject when any grade exists for the Student/assignment; return criterion breakdown in own-result. Migrate and run `python manage.py test grading.tests`; expect PASS. Commit.**
 
 ```bash
-git add backend/grading backend/submissions
-git commit -m "feat: expose protected grades and lock submissions"
+git add backend
+git commit -m "feat: add grading and student results api"
 ```
+
+### Task 2: Add grading and result UI
+
+**Files:**
+- Create: `frontend/src/pages/GradePage.tsx`, `frontend/src/pages/ResultPage.tsx`
+- Modify: `frontend/src/components/LatestSubmissions.tsx`, `frontend/src/pages/AssignmentPage.tsx`, `frontend/src/main.tsx`
+
+**Consumes:** Phase 5 grade/result API.
+
+- [ ] **Step 1: Render Teacher inputs for every rubric criterion or one manual total, a required feedback field, and the server-returned total after submit.**
+
+- [ ] **Step 2: Render Student total, feedback, and rubric-score breakdown; hide grade actions for Students.**
+
+- [ ] **Step 3: Browser-check Teacher grades v2, Student sees result, and next upload is rejected. Commit.**
+
+```bash
+git add frontend
+git commit -m "feat: add grading and result screens"
+```
+
+## Phase Gate
+
+Run: `cd backend; python manage.py test grading.tests`
+
+Expected: PASS. Browser proof completes the core demo. Stop before Phase 6.

@@ -1,76 +1,87 @@
-# Phase 06 — Role-Focused Frontend Implementation Plan
+# Phase 6 — Demo Hardening Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver the browser UI for admin, teacher, and student workflows using the completed API.
+**Goal:** Make the complete demo readable, repeatable, and proven by business-rule API tests plus one Playwright journey.
 
-**Architecture:** React Router holds public/protected routes; a small auth context holds the access token/current user; feature pages call an API client. Route guards improve UX only—each API remains the authority.
+**Architecture:** Compose role dashboards from existing scoped endpoints, centralize only shared async display states, and add no new domain capability. Verify the same end-to-end sequence the presenter will perform.
 
-**Tech Stack:** React, TypeScript, Vite, Tailwind CSS, React Router, browser Fetch API.
+**Tech Stack:** React, TypeScript, Playwright, Django test runner, DRF APIClient.
 
 ## Global Constraints
 
-- Never duplicate server business rules as an authorization mechanism.
-- Every input has a visible label, keyboard focus state, loading state, empty state, and field/API error rendering.
-- Send multipart `FormData` without manually setting its `Content-Type`.
-- Store no password beyond the submitted login form and never display raw storage paths.
+- Preserve existing server authorization; UI hides unavailable actions but never replaces authorization.
+- Provide readable loading, empty, and field/action error states.
+- Test all stated business rules and one denied-access result/file read.
 
-### Task 1: Shared auth, shell, and API client
+---
+
+### Task 1: Finish role dashboards and shared visible states
 
 **Files:**
-- Create: `frontend/src/api/client.ts`, `frontend/src/auth/AuthProvider.tsx`, `frontend/src/auth/RequireRole.tsx`, `frontend/src/layout/AppShell.tsx`, `frontend/src/pages/LoginPage.tsx`, `frontend/src/pages/ForbiddenPage.tsx`, `frontend/src/router.tsx`
-- Modify: `frontend/src/main.tsx`, `frontend/src/App.tsx`, `frontend/src/index.css`
+- Create: `frontend/src/pages/TeacherDashboard.tsx`, `frontend/src/pages/StudentDashboard.tsx`, `frontend/src/components/AsyncState.tsx`
+- Modify: `frontend/src/main.tsx`, existing role pages
 
-**Interfaces:**
-- Consumes: `POST /api/auth/login/`, `GET /api/auth/me/`.
-- Produces: `useAuth()`, `apiFetch(path, options)`, role-aware routes and authenticated shell.
+**Consumes:** existing cohort, assignment, submission, and result list endpoints. **Produces:** role landing pages without new business API.
 
-- [ ] **Step 1: Implement typed API error handling, token persistence, `/auth/me` bootstrap, login form, and role guard**
-- [ ] **Step 2: Build the shared sidebar/breadcrumb shell and verify keyboard navigation manually**
-- [ ] **Step 3: Run `npm run build`; Phase 07 supplies the browser regression check**
-- [ ] **Step 4: Commit**
+- [ ] **Step 1: Add one shared loading/empty/error component and use it on every existing role screen.**
+
+```tsx
+export function AsyncState({ error, empty, children }: Props) {
+  if (error) return <p role="alert">{error}</p>;
+  if (empty) return <p>No items yet.</p>;
+  return <>{children}</>;
+}
+```
+
+- [ ] **Step 2: Add Teacher dashboard from owned cohorts, upcoming deadlines, and latest submissions needing grades; add Student dashboard from enrolled cohorts, open assignments, and recent grades.**
+
+- [ ] **Step 3: Browser-check empty and populated state for each role, keyboard focus on inputs, and a readable API action error. Commit.**
 
 ```bash
 git add frontend
-git commit -m "feat: add frontend authentication shell"
+git commit -m "feat: add role dashboards and async states"
 ```
 
-### Task 2: Admin and teacher management slices
+### Task 2: Complete API rule coverage and browser journey
 
 **Files:**
-- Create: `frontend/src/features/admin/UsersPage.tsx`, `frontend/src/features/admin/AuditLogPage.tsx`, `frontend/src/features/cohorts/CohortListPage.tsx`, `frontend/src/features/cohorts/CohortDetailPage.tsx`, `frontend/src/features/assignments/AssignmentEditorPage.tsx`
-- Modify: `frontend/src/router.tsx`, `frontend/src/api/client.ts`
+- Modify: `backend/accounts/tests/test_accounts.py`, `backend/audit/tests/test_audit.py`, `backend/cohorts/tests/test_cohorts.py`, `backend/assignments/tests/test_assignments.py`, `backend/submissions/tests/test_submissions.py`, `backend/grading/tests/test_grading.py`
+- Create: `frontend/e2e/demo.spec.ts`, `frontend/playwright.config.ts`
+- Modify: `README.md`
 
-**Interfaces:**
-- Consumes: account/audit, cohort/enrollment, assignment/rubric API endpoints.
-- Produces: admin account controls and teacher cohort/assignment/rubric screens.
+**Produces:** one repeatable test command for backend rules and one complete browser demo proof.
 
-- [ ] **Step 1: Implement account create/edit/deactivation and read-only audit list with API errors**
-- [ ] **Step 2: Implement teacher cohort create/detail, student enrollment, assignment editor, and rubric editor**
-- [ ] **Step 3: Show rubric total and disable submit until it equals 100; preserve server `422` error display**
-- [ ] **Step 4: Run `npm run build` and commit**
+- [ ] **Step 1: Add any missing API assertions: account status, role/ownership, enrollment, future deadline, rejected upload stores no file, version/latest, rubric/manual grading, audit write, and cross-Student result denial.**
 
-```bash
-git add frontend
-git commit -m "feat: add admin and teacher management screens"
+```python
+def test_student_cannot_read_another_students_result(self):
+    response = self.other_student_client.get(f"/api/assignments/{self.assignment.id}/my-result")
+    self.assertIn(response.status_code, (403, 404))
 ```
 
-### Task 3: Student submission and grading/result slices
+- [ ] **Step 2: Write the Playwright flow: Admin creates Teacher/Student; Teacher creates cohort/enrollment/rubric assignment; Student uploads twice; Teacher grades v2; Student sees result; unrelated Student is denied.**
 
-**Files:**
-- Create: `frontend/src/features/dashboard/TeacherDashboard.tsx`, `frontend/src/features/dashboard/StudentDashboard.tsx`, `frontend/src/features/submissions/StudentAssignmentPage.tsx`, `frontend/src/features/grading/GradingPage.tsx`, `frontend/src/features/grading/ResultPage.tsx`
-- Modify: `frontend/src/router.tsx`, `frontend/src/api/client.ts`
+```ts
+await expect(page.getByText("Version 2")).toBeVisible();
+await expect(page.getByText("Total: 90")).toBeVisible();
+```
 
-**Interfaces:**
-- Consumes: submission history/latest list/upload/download and grading/result endpoints.
-- Produces: complete teacher-to-student browser flow.
+- [ ] **Step 3: Run the full suites against clean SQLite/media state.**
 
-- [ ] **Step 1: Implement student assignment details, labelled file upload, version history, deadline/graded state, and protected download link**
-- [ ] **Step 2: Implement teacher latest-submission list and grade form for rubric/manual assignments**
-- [ ] **Step 3: Implement student result with feedback and criterion breakdown**
-- [ ] **Step 4: Run `npm run build` and commit**
+Run: `cd backend; python manage.py test`
+
+Run: `cd frontend; npx playwright test`
+
+Expected: both PASS.
+
+- [ ] **Step 4: Document setup, migrations, both dev servers, test commands, and the exact six-step demo flow. Commit.**
 
 ```bash
-git add frontend
-git commit -m "feat: add submission grading and result screens"
+git add backend frontend README.md
+git commit -m "test: harden end-to-end class demo"
 ```
+
+## Phase Gate
+
+Both full suites pass and README reproduces the demo from a clean checkout. This is the final handoff gate.
