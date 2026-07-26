@@ -13,8 +13,7 @@ export function LoginPage() {
     setError("");
     try {
       const user = await login(String(data.get("email")), String(data.get("password")));
-      if (user.role === "ADMIN") window.location.assign("/admin/users");
-      else setError("This account does not have admin access.");
+      window.location.assign(user.role === "ADMIN" ? "/admin/users" : user.role === "TEACHER" ? "/teacher/cohorts" : "/student/cohorts");
     } catch (response) {
       setError((response as { detail?: string }).detail ?? "Unable to sign in.");
     } finally {
