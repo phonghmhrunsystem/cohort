@@ -8,7 +8,7 @@ class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
         if not email:
             raise ValueError("An email address is required.")
-        user = self.model(email=self.normalize_email(email), **extra_fields)
+        user = self.model(email=email.strip().lower(), **extra_fields)
         user.set_password(password)
         user.save(using=self._db)
         return user
@@ -29,6 +29,11 @@ class User(AbstractUser):
     username = None
     email = models.EmailField(unique=True)
     role = models.CharField(max_length=7, choices=Role.choices)
+    full_name = models.CharField(max_length=100, null=True, blank=True)
+    phone = models.CharField(max_length=16, null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    gender = models.CharField(max_length=4, null=True, blank=True)
+    address = models.CharField(max_length=255, null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []

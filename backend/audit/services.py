@@ -14,13 +14,21 @@ def safe_metadata(metadata):
 def _safe_value(value):
     if isinstance(value, bytes) or (
         isinstance(value, str)
-        and (PurePosixPath(value).is_absolute() or PureWindowsPath(value).is_absolute())
+        and (
+            PurePosixPath(value).is_absolute()
+            or PureWindowsPath(value).is_absolute()
+            or "/" in value
+            or "\\" in value
+        )
     ):
         return _SKIP
     if isinstance(value, dict):
         clean = {}
         for key, item in value.items():
-            if any(secret in key.lower() for secret in ("password", "hash", "token", "secret", "authorization", "jwt", "access", "refresh")):
+            if any(secret in key.lower() for secret in (
+                "password", "hash", "token", "secret", "authorization", "jwt", "access", "refresh",
+                "file", "path", "storage", "upload", "content", "bytes", "blob", "data",
+            )):
                 continue
             item = _safe_value(item)
             if item is not _SKIP:
