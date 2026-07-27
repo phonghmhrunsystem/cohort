@@ -18,6 +18,7 @@ INSTALLED_APPS = [
     "accounts",
     "audit",
     "classes",
+    "assignments",
 ]
 
 MIDDLEWARE = [

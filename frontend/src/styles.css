@@ -9,6 +9,7 @@ body { min-width: 320px; background: #f4f7fb; }
 .account-dialog::backdrop { background: rgb(16 42 67 / 55%); }
 .account-form-grid { display: grid; gap: 0 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .account-address { grid-column: 1 / -1; }
+.teacher-tabs { display: flex; gap: .5rem; }
 .min-w-0 { min-width: 0; }
 .workspace-nav a { color: #d9e2ec; }
 .workspace-nav a[aria-current="page"] { background: #243b53; color: #fff; }
