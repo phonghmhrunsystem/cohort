@@ -22,6 +22,49 @@ Replace the earlier phase roadmap with feature-based implementation plans. The r
 - Student assignments use status cards, not a separate dashboard.
 - Teacher grading uses one page: submission details on the left and grading form on the right. File download is a primary button; Student navigation is a compact previous/next icon-button pair with visible position.
 
+## Screen design contract
+
+This section is the implementation source of truth for the selected UI. Each implementation plan must name the affected screen IDs, its route, the state it changes, and the validation cases from this document. Do not introduce an alternate route, page form, table/card layout, or modal flow unless this spec changes first.
+
+| ID | Route / role | Selected layout and purpose | Features and visible attributes |
+|---|---|---|---|
+| `LOGIN` | `/login` / public | Centered sign-in card on a plain responsive page. | Email and password fields; Sign in button; loading state; inline API error; authenticated users redirect to their role home. |
+| `ADMIN-USERS` | `/admin/users` / Admin | Shared application shell; desktop sidebar, mobile horizontally scrollable nav; page header, filters, results list, and a native dialog modal above the list. | Title/subtitle; `All`/`Teacher`/`Student` role filter; name/email search; Create button; active-account rows/cards with full name, email, role badge, Edit, and Deactivate; empty state; confirmation before deactivation. |
+| `ADMIN-AUDIT` | `/admin/audit-logs` / Admin | Same shell; responsive audit table, its only permitted horizontal-scrolling region. | Timestamp, actor, event, target, and safe metadata; loading, empty, and request-error states; no password, token, raw file content, or private file path. |
+| `TEACHER-COHORTS` | `/teacher/cohorts` / Teacher | Shared shell; searchable grid of cohort cards, never a table. | Search field; Create Cohort button; each card has name, description summary, enrolled-student count, assignment count, Edit, and Open Cohort; loading, empty, and request-error states. |
+| `TEACHER-COHORT-DETAIL` | `/teacher/cohorts/:id?tab=students|assignments` / owning Teacher | Same route with native tab buttons; default tab is `students`; create/edit forms and student enrollment use native dialog modals. | Header and Edit Cohort action; Students tab has search, Add Student, active enrolled-student list; Assignments tab has assignment cards and Create Assignment; invalid/missing tab normalizes to `students`; ownership/not-found error is not rendered as another Teacher's data. |
+| `STUDENT-COHORTS` | `/student/cohorts` / Student | Shared shell; enrolled-cohort cards only. | Cohort name, description summary, assignment count, and Open Cohort; loading, empty, and request-error states. |
+| `STUDENT-ASSIGNMENTS` | `/student/cohorts/:id` / enrolled Student | Cohort header followed by assignment status cards; no separate dashboard. | Title, due date/time, score where available, and exactly one state/action: Open/Submit; Submitted/View History; Graded/score/View Result; Closed/no submission action. Submit, History, and Result use native dialogs. |
+| `TEACHER-GRADING` | `/teacher/assignments/:id/submissions` / owning Teacher | One responsive page: selected submission detail left, grade form right; stacks vertically at narrow widths. | Student name; filename, size, submitted time, version; primary Download Submission File button; labelled previous/next icon buttons with tooltips; `current / total`; manual score/feedback or rubric criterion fields; Save Grade; empty-submission state. |
+
+### Form and interaction contract
+
+| UI element | Required behavior |
+|---|---|
+| Native dialogs | Create/edit account, create/edit cohort, enroll student, create/edit assignment/rubric, submit work, submission history, and result use accessible native `<dialog>` elements with visible title, Cancel, focus management, and Escape/overlay close unless an upload/save is pending. |
+| Submit controls | Disable while their request is pending; prevent double submission; retain user-entered values after a `422`; surface the returned field or business-rule message near the relevant form control. |
+| Search and filters | Account search is debounced 300 ms; cohort/student searches update the scoped list without changing the route. Empty results are distinct from loading and API errors. |
+| Navigation | Sidebar is persistent on desktop. At narrow widths it becomes a horizontally scrollable navigation bar; Logout is its final action. All non-table page content fits 320 px without horizontal overflow. |
+| Destructive action | Deactivate asks for confirmation and removes the account from the current list only after a successful response. There are no cohort or assignment delete controls. |
+
+## Validation design contract
+
+Frontend validation gives immediate feedback; the backend repeats every rule below and is authoritative. A `422` response keeps the form open, preserves safe input, and displays the server message. Authentication/authorization failures follow the route/session rules rather than exposing protected data.
+
+| Surface | Client-side validation before request | Server-side validation and response |
+|---|---|---|
+| Login | Required email and password; valid email format. | Active account and password verification; invalid credentials return `401`. |
+| Account create/edit modal | Trim strings; show required/length/format errors for editable fields; disable Save while pending. | Enforce the account field table below, unique lowercase email, immutable email/role on edit, and Teacher/Student-only target; field/business violation is `422`. |
+| Cohort create/edit modal | Required trimmed name; description maximum. | Enforce name/description limits and Teacher ownership; invalid data is `422`, inaccessible resource is `403`/`404`. |
+| Enrollment dialog | A Student selection is required; do not offer inactive/non-Student choices. | Require an active Student and unique enrollment; return `422` for duplicate/ineligible input. |
+| Assignment/rubric modal | Required title/description/due date; numeric criterion maxima; show current rubric total and block Save unless it is 100. | Enforce trimmed limits, future deadline on creation, fixed maximum score, integer 1–100 criteria, and total exactly 100; return `422`. |
+| Submission dialog | A file is required; show selected name and size; allow only DOC, DOCX, PDF, MP4, MOV; note maximum 1,000 characters. | Re-check extension, MIME, 1 GB limit, enrollment, deadline, and graded lock before storage; invalid input leaves no stored file and returns `422`. |
+| Grade form | Manual score is integer 0–100; rubric fields accept only each criterion's range; feedback limit is shown; Save disabled while pending. | Re-check ownership/latest submission, manual/rubric shape, every criterion range, and server-calculated rubric total; invalid input returns `422`. |
+
+### Required implementation evidence
+
+Every plan that changes a screen must specify the files that implement the page/component, API client/types, style/responsive rules, backend serializer/service/view, and focused tests. Its acceptance steps must prove: valid submission, one representative client-side invalid case, matching `422` server rejection, loading/double-submit behavior where applicable, an empty/error state, and the role/ownership boundary for that screen.
+
 ## Authentication and session
 
 1. `POST /auth/login` accepts `{email, password}` and returns `{access_token, user}` for an active account only.
