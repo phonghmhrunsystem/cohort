@@ -21,11 +21,18 @@ export function LoginPage() {
     }
   }
 
-  return <main><h1>Class Management Demo</h1><form onSubmit={submit} aria-busy={loading}>
-    <h2>Sign in</h2>
-    <label>Email <input name="email" type="email" autoComplete="email" required /></label>
-    <label>Password <input name="password" type="password" autoComplete="current-password" required /></label>
-    <button disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button>
-    {error && <p role="alert">{error}</p>}
-  </form></main>;
+  return <main className="min-vh-100 d-flex align-items-center bg-body-tertiary py-4">
+    <section className="card shadow-sm border-0 mx-auto w-100" style={{ maxWidth: "28rem" }}>
+      <div className="card-body p-4 p-md-5">
+        <p className="text-primary fw-semibold mb-2">Class Management</p>
+        <h1 className="h3 mb-4">Sign in</h1>
+        <form onSubmit={submit} aria-busy={loading} className="d-grid gap-3">
+          <label className="form-label mb-0">Email<input className="form-control mt-1" name="email" type="email" autoComplete="email" required /></label>
+          <label className="form-label mb-0">Password<input className="form-control mt-1" name="password" type="password" autoComplete="current-password" required /></label>
+          <button className="btn btn-primary w-100" disabled={loading}>{loading ? "Signing in…" : "Sign in"}</button>
+          {error && <p className="alert alert-danger mb-0" role="alert">{error}</p>}
+        </form>
+      </div>
+    </section>
+  </main>;
 }
