@@ -6,5 +6,6 @@ test("Admin Class screens use a Teacher selector and omit Class deletion", () =>
 
   expect(source).toContain("Teacher");
   expect(source).toContain("Remove Student");
+  expect(source).toContain("?edit=${class_.id}");
   expect(source).not.toContain("Delete Class");
 });

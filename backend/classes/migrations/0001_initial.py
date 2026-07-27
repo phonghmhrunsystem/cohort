@@ -3,6 +3,36 @@
 import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
+from django.utils import timezone
+from datetime import timedelta
+
+
+def create_or_rename_class_tables(apps, schema_editor):
+    Class = apps.get_model("classes", "Class")
+    Enrollment = apps.get_model("classes", "Enrollment")
+    tables = set(schema_editor.connection.introspection.table_names())
+    legacy_class_table = "cohorts_cohort"
+    legacy_enrollment_table = "cohorts_enrollment"
+
+    if legacy_class_table in tables and legacy_enrollment_table in tables:
+        schema_editor.alter_db_table(Class, legacy_class_table, Class._meta.db_table)
+        schema_editor.alter_db_table(Enrollment, legacy_enrollment_table, Enrollment._meta.db_table)
+        fields = {field.name: field for field in Class._meta.local_fields}
+        now = timezone.now()
+        for name, default in (("starts_at", now - timedelta(days=1)), ("ends_at", now + timedelta(days=30))):
+            field = fields[name]
+            previous_default = field.default
+            field.default = default
+            schema_editor.add_field(Class, field)
+            field.default = previous_default
+        with schema_editor.connection.cursor() as cursor:
+            cursor.execute(f"ALTER TABLE {Enrollment._meta.db_table} RENAME COLUMN cohort_id TO classroom_id")
+        return
+
+    if Class._meta.db_table not in tables:
+        schema_editor.create_model(Class)
+    if Enrollment._meta.db_table not in tables:
+        schema_editor.create_model(Enrollment)
 
 
 class Migration(migrations.Migration):
@@ -14,7 +44,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
+        migrations.SeparateDatabaseAndState(
+            database_operations=[],
+            state_operations=[
+                migrations.CreateModel(
             name='Class',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
@@ -24,8 +57,8 @@ class Migration(migrations.Migration):
                 ('ends_at', models.DateTimeField()),
                 ('teacher', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='classes', to=settings.AUTH_USER_MODEL)),
             ],
-        ),
-        migrations.CreateModel(
+                ),
+                migrations.CreateModel(
             name='Enrollment',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
@@ -35,5 +68,8 @@ class Migration(migrations.Migration):
             options={
                 'constraints': [models.UniqueConstraint(fields=('classroom', 'student'), name='unique_class_enrollment')],
             },
+                ),
+            ],
         ),
+        migrations.RunPython(create_or_rename_class_tables, migrations.RunPython.noop),
     ]

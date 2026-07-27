@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from audit.models import AuditLog
 from classes.models import Class, Enrollment
 
 
@@ -47,6 +48,16 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.post("/api/classes", payload, format="json").status_code, 403)
         self.assertEqual(self.teacher_client.patch(f"/api/classes/{self.course.id}", {"name": "Changed"}, format="json").status_code, 403)
         self.assertEqual(self.teacher_client.post(f"/api/classes/{self.course.id}/enrollments", {"student_id": self.other_student.id}, format="json").status_code, 403)
+        self.assertEqual(self.teacher_client.delete(f"/api/classes/{self.course.id}/enrollments/{self.student.id}").status_code, 403)
+
+    def test_successful_class_and_enrollment_mutations_are_audited(self):
+        response = self.admin_client.post("/api/classes", self.class_payload(), format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(AuditLog.objects.get(target_type="classes.class", target_id=response.data["id"]).action, "class.created")
+
+        response = self.admin_client.post(f"/api/classes/{self.course.id}/enrollments", {"student_id": self.other_student.id}, format="json")
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(AuditLog.objects.get(target_type="classes.enrollment", target_id=response.data["id"]).action, "enrollment.created")
 
     def test_create_requires_an_active_teacher_and_teacher_cannot_change(self):
         self.teacher.is_active = False
