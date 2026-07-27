@@ -1,6 +1,6 @@
 import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
 
-import { ApiFailure, api } from "../api";
+import { ApiFailure, api, apiResponse } from "../api";
 import { User } from "../auth";
 
 type ManageableRole = "TEACHER" | "STUDENT";
@@ -134,8 +134,8 @@ export function AdminUsersPage() {
     if (!confirm(`Deactivate ${user.full_name || user.email}?`)) return;
     setError("");
     try {
-      await api<void>(`/users/${user.id}`, { method: "DELETE" });
-      setUsers((current) => current.filter((account) => account.id !== user.id));
+      const response = await apiResponse<void>(`/users/${user.id}`, { method: "DELETE" });
+      if (response.status === 204) setUsers((current) => current.filter((account) => account.id !== user.id));
     } catch (response) {
       setError(message(response));
     }

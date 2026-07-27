@@ -40,7 +40,7 @@ test.each([
   expect(render(states)).toContain(message);
 });
 
-test("renders one responsive audit table and never renders sensitive metadata", () => {
+test("renders one responsive audit table with only known safe audit metadata", () => {
   const html = render([[
     {
       id: 1,
@@ -50,7 +50,8 @@ test("renders one responsive audit table and never renders sensitive metadata", 
       target_type: "accounts.user",
       target_id: 7,
       metadata: {
-        score: 95,
+        is_active: true,
+        student_id: 95,
         password: "secret-password",
         access_token: "secret-token",
         raw_file_data: "raw-data",
@@ -63,6 +64,32 @@ test("renders one responsive audit table and never renders sensitive metadata", 
   expect(html.match(/table-responsive/g)).toHaveLength(1);
   expect(html).toContain("Admin User");
   expect(html).toContain("account.updated");
-  expect(html).toContain("score");
+  expect(html).toContain('&quot;is_active&quot;:true');
+  expect(html).toContain('&quot;student_id&quot;:95');
   expect(html).not.toMatch(/secret-password|secret-token|raw-data|private|storage_path/);
+});
+
+test("fails closed for neutral-key secrets, text, bytes, arrays, and nested payloads", () => {
+  const html = render([[
+    {
+      id: 2,
+      actor_id: null,
+      actor: null,
+      action: "account.updated",
+      target_type: "accounts.user",
+      target_id: 8,
+      metadata: {
+        is_active: false,
+        value: "RawPassword123!",
+        credential: "still-secret",
+        bytes_value: "encoded-secret",
+        payload: ["array-secret", 1],
+        nested: { value: "nested-secret" },
+      },
+      created_at: "2026-07-27T08:00:00Z",
+    },
+  ], "", false]);
+
+  expect(html).toContain('&quot;is_active&quot;:false');
+  expect(html).not.toMatch(/RawPassword|still-secret|encoded-secret|array-secret|nested-secret|credential|payload|nested/);
 });

@@ -4,13 +4,14 @@ import { beforeEach, expect, test, vi } from "vitest";
 
 const harness = vi.hoisted(() => ({
   api: vi.fn(),
+  apiResponse: vi.fn(),
   effects: [] as Array<() => void | (() => void)>,
   index: 0,
   setters: [] as ReturnType<typeof vi.fn>[],
   states: [] as unknown[],
 }));
 
-vi.mock("../api", () => ({ api: harness.api }));
+vi.mock("../api", () => ({ api: harness.api, apiResponse: harness.apiResponse }));
 vi.mock("react", async (importActual) => {
   const actual = await importActual<typeof import("react")>();
   return {
@@ -61,8 +62,21 @@ function findByText(node: ReactNode, text: string): ReactElement | undefined {
   return undefined;
 }
 
+function findByType(node: ReactNode, type: string): ReactElement | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  const element = node as ReactElement<{ children?: ReactNode }>;
+  if (element.type === type) return element;
+  const children = element.props?.children;
+  for (const child of Array.isArray(children) ? children : [children]) {
+    const found = findByType(child, type);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 beforeEach(() => {
   harness.api.mockReset();
+  harness.apiResponse.mockReset();
   vi.useRealTimers();
   vi.stubGlobal("confirm", vi.fn());
 });
@@ -104,24 +118,29 @@ test("edit mode makes email and role immutable and offers an optional password r
   expect(html).not.toContain('name="password" required=""');
 });
 
-test("a 422 keeps entered values in the open dialog and shows field feedback", async () => {
+test("a submitted dialog keeps its values and field feedback after a 422", async () => {
   const draft = { full_name: "Retained Name", email: "taken@example.test", role: "TEACHER", password: "password1", phone: "", date_of_birth: "", gender: "", address: "" };
   const failure = { status: 422, detail: "Request failed.", fields: { email: ["Already registered."] } };
-  const { html, tree } = render([[], "", false, "", "", null, draft, failure, false, true]);
+  harness.api.mockRejectedValueOnce(failure);
+  const { tree } = render([[], "", false, "", "", null, draft, null, false, true]);
+  const form = findByType(tree, "form");
 
+  expect(form).toBeDefined();
+  await (form!.props as { onSubmit: (event: { preventDefault: () => void }) => Promise<void> }).onSubmit({ preventDefault: vi.fn() });
+  expect(harness.api).toHaveBeenCalledWith("/users", expect.objectContaining({ method: "POST" }));
+  expect(harness.setters[6]).not.toHaveBeenCalled();
+  expect(harness.setters[9]).not.toHaveBeenCalled();
+  expect(harness.setters[7]).toHaveBeenLastCalledWith(failure);
+
+  const { html } = render([[], "", false, "", "", null, draft, failure, false, true]);
   expect(html).toContain('value="Retained Name"');
   expect(html).toContain('value="taken@example.test"');
   expect(html).toContain("Already registered.");
   expect(html).toContain("<dialog open=");
-
-  harness.api.mockRejectedValueOnce(failure);
-  const form = findByText(tree, "Create account")?.props;
-  expect(form).toBeDefined();
 });
 
-test("deactivation confirms and removes a row only after the 204 request resolves", async () => {
-  let resolve!: () => void;
-  harness.api.mockReturnValue(new Promise<void>((done) => { resolve = done; }));
+test("deactivation retains the card after a non-204 success response", async () => {
+  harness.apiResponse.mockResolvedValueOnce({ status: 200, data: undefined });
   vi.mocked(confirm).mockReturnValue(true);
   const { tree } = render([[user], "", false, "", "", null]);
   const button = findByText(tree, "Deactivate");
@@ -129,10 +148,19 @@ test("deactivation confirms and removes a row only after the 204 request resolve
   expect(button).toBeDefined();
   (button!.props as { onClick: () => void }).onClick();
   expect(confirm).toHaveBeenCalledWith("Deactivate Ada Teacher?");
-  expect(harness.api).toHaveBeenCalledWith("/users/7", { method: "DELETE" });
+  expect(harness.apiResponse).toHaveBeenCalledWith("/users/7", { method: "DELETE" });
+  await Promise.resolve();
+  await Promise.resolve();
   expect(harness.setters[0]).not.toHaveBeenCalled();
+});
 
-  resolve();
+test("deactivation removes the card only after an exact 204 response", async () => {
+  harness.apiResponse.mockResolvedValueOnce({ status: 204, data: undefined });
+  vi.mocked(confirm).mockReturnValue(true);
+  const { tree } = render([[user], "", false, "", "", null]);
+  const button = findByText(tree, "Deactivate");
+
+  (button!.props as { onClick: () => void }).onClick();
   await Promise.resolve();
   await Promise.resolve();
   expect(harness.setters[0]).toHaveBeenCalledOnce();
@@ -140,7 +168,7 @@ test("deactivation confirms and removes a row only after the 204 request resolve
 });
 
 test("a rejected deactivation retains the active row", async () => {
-  harness.api.mockRejectedValueOnce({ status: 422, detail: "Account is assigned to an active Class." });
+  harness.apiResponse.mockRejectedValueOnce({ status: 422, detail: "Account is assigned to an active Class." });
   vi.mocked(confirm).mockReturnValue(true);
   const { tree } = render([[user], "", false, "", "", null]);
   const button = findByText(tree, "Deactivate");

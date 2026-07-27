@@ -1,6 +1,8 @@
 import { beforeEach, expect, test, vi } from "vitest";
 
-import { api } from "./api";
+import * as apiModule from "./api";
+
+const { api } = apiModule;
 
 const storage = new Map<string, string>();
 
@@ -35,6 +37,16 @@ test("api accepts a successful 204 response without a body", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
 
   await expect(api<void>("/auth/logout", { method: "POST" })).resolves.toBeUndefined();
+});
+
+test("apiResponse preserves a successful HTTP status", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 1 }), { status: 201 })));
+  const apiResponse = (apiModule as typeof apiModule & {
+    apiResponse?: (path: string) => Promise<{ status: number; data: { id: number } }>;
+  }).apiResponse;
+
+  expect(apiResponse).toBeTypeOf("function");
+  await expect(apiResponse!("/users")).resolves.toEqual({ status: 201, data: { id: 1 } });
 });
 
 test("api exposes 422 field errors", async () => {

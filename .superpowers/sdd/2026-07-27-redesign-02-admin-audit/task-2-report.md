@@ -19,4 +19,21 @@
 
 ## Caveats
 
-- Delete success is determined by the shared API helper resolving; that helper resolves only for HTTP 2xx and returns `undefined` for the backend's expected `204`. The backend contract is covered separately.
+- Deactivation now checks the shared helper's retained status and only removes after the backend's expected `204`.
+
+## Round 1 follow-up
+
+- `apiResponse` now retains the HTTP status. Deactivation removes a card only when that status is exactly `204`; a successful `200` leaves it present.
+- The `422` test now invokes the actual dialog form handler, rejects the request, and verifies that neither the draft nor open-dialog state is cleared before rendering the retained values and field error.
+- Audit display now fails closed: it renders only flat `is_active`, `teacher_id`, `cohort_id`, and `student_id` values when they are boolean, finite numbers, or null. Text, bytes, arrays, nested data, and unknown/neutral-key values are omitted.
+
+### TDD and verification evidence
+
+- Focused RED: `npx vitest run src/api.test.ts src/pages/AdminUsersPage.test.tsx src/pages/AuditLogPage.test.tsx` failed as expected before the implementation: `apiResponse` was missing, the `200` delete path did not preserve the card, and neutral-key metadata was rendered.
+- Focused GREEN: the same command passed with 18 tests after the implementation.
+- Final verification: `npm test` passed with 7 test files / 29 tests; `npm run build` passed with TypeScript and Vite production build.
+
+### 320 px and desktop inspection alternative
+
+- No local browser executable was available on `PATH`; the installed `frontend/node_modules/.bin` contains `vite` and `vitest`, but no Playwright, Puppeteer, or Cypress runner.
+- The available renderer/tests and CSS were inspected instead: the default desktop rules use the account grid and two-column filters/form; the verified `@media (max-width: 479.98px)` rules stack the account header, full-width create button, filters, and form to one column. The audit tests render the page and assert exactly one responsive table region. This is structural evidence, not a screenshot-based visual inspection.

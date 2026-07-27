@@ -13,24 +13,13 @@ type AuditLog = {
   created_at: string;
 };
 
-const sensitive = ["password", "hash", "token", "secret", "authorization", "jwt", "access", "refresh", "file", "path", "storage", "upload", "content", "bytes", "blob", "data"];
-const omitted = Symbol("omitted");
-
-function safeValue(value: unknown, key = ""): unknown | typeof omitted {
-  if (sensitive.some((word) => key.toLowerCase().includes(word))) return omitted;
-  if (typeof value === "string" && (/^(?:[a-z]:[\\/]|\/)/i.test(value) || value.includes("\\") || value.includes("/"))) return omitted;
-  if (Array.isArray(value)) return value.map((item) => safeValue(item)).filter((item) => item !== omitted);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).flatMap(([childKey, item]) => {
-      const clean = safeValue(item, childKey);
-      return clean === omitted ? [] : [[childKey, clean]];
-    }));
-  }
-  return value;
-}
+const safeMetadataKeys = new Set(["is_active", "teacher_id", "cohort_id", "student_id"]);
 
 function displayMetadata(metadata: Record<string, unknown>) {
-  return JSON.stringify(safeValue(metadata));
+  const safe = Object.fromEntries(Object.entries(metadata).filter(([key, value]) =>
+    safeMetadataKeys.has(key) && (typeof value === "boolean" || value === null || typeof value === "number" && Number.isFinite(value)),
+  ));
+  return Object.keys(safe).length ? JSON.stringify(safe) : "â€”";
 }
 
 export function AuditLogPage() {
