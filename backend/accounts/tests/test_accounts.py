@@ -4,13 +4,14 @@ from unittest.mock import patch
 from datetime import date, timedelta
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.tokens import AccessToken
 
 from accounts.models import User
 from audit.models import AuditLog
-from cohorts.models import Cohort, Enrollment
+from classes.models import Class, Enrollment
 from config import settings as project_settings
 
 
@@ -269,7 +270,7 @@ class AccountApiTests(TestCase):
 
     def test_delete_rejects_teacher_assigned_to_a_class(self):
         teacher = User.objects.create_user("teacher@example.test", "pw", role="TEACHER")
-        Cohort.objects.create(teacher=teacher, name="Class")
+        Class.objects.create(teacher=teacher, name="Class", starts_at=timezone.now(), ends_at=timezone.now() + timedelta(days=1))
 
         response = self.admin_client.delete(f"/api/users/{teacher.id}")
 
@@ -278,8 +279,8 @@ class AccountApiTests(TestCase):
 
     def test_delete_rejects_student_enrolled_in_a_class(self):
         teacher = User.objects.create_user("teacher@example.test", "pw", role="TEACHER")
-        cohort = Cohort.objects.create(teacher=teacher, name="Class")
-        Enrollment.objects.create(cohort=cohort, student=self.student)
+        class_ = Class.objects.create(teacher=teacher, name="Class", starts_at=timezone.now(), ends_at=timezone.now() + timedelta(days=1))
+        Enrollment.objects.create(classroom=class_, student=self.student)
 
         response = self.admin_client.delete(f"/api/users/{self.student.id}")
 

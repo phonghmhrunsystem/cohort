@@ -13,7 +13,7 @@ type AuditLog = {
   created_at: string;
 };
 
-const safeMetadataKeys = new Set(["is_active", "teacher_id", "cohort_id", "student_id"]);
+const safeMetadataKeys = new Set(["is_active", "teacher_id", "class_id", "student_id"]);
 
 function displayMetadata(metadata: Record<string, unknown>) {
   const safe = Object.fromEntries(Object.entries(metadata).filter(([key, value]) =>

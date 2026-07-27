@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny, BasePermission, IsAuthenticated
 from rest_framework.response import Response
@@ -101,7 +102,7 @@ class UserDetailView(APIView):
             ),
             id=user_id,
         )
-        if user.cohorts.exists() or user.enrollments.exists():
+        if user.classes.filter(ends_at__gt=timezone.now()).exists() or user.enrollments.filter(classroom__ends_at__gt=timezone.now()).exists():
             return Response(
                 {"detail": "Accounts assigned to or enrolled in an active Class cannot be deactivated."},
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,

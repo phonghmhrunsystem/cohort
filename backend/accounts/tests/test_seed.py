@@ -9,12 +9,12 @@ class DemoSeedMigrationTests(TransactionTestCase):
 
     def migrate_to_pre_seed_state(self):
         executor = MigrationExecutor(connection)
-        executor.migrate([("accounts", "0001_initial"), ("cohorts", "0001_initial")])
+        executor.migrate([("accounts", "0001_initial"), ("classes", "0001_initial")])
         apps = executor.loader.project_state(
-            [("accounts", "0001_initial"), ("cohorts", "0001_initial")]
+            [("accounts", "0001_initial"), ("classes", "0001_initial")]
         ).apps
-        apps.get_model("cohorts", "Enrollment").objects.all().delete()
-        apps.get_model("cohorts", "Cohort").objects.all().delete()
+        apps.get_model("classes", "Enrollment").objects.all().delete()
+        apps.get_model("classes", "Class").objects.all().delete()
         apps.get_model("accounts", "User").objects.all().delete()
 
     def test_seed_migration_creates_loginable_demo_data(self):
@@ -24,8 +24,8 @@ class DemoSeedMigrationTests(TransactionTestCase):
 
         apps = executor.loader.project_state([("accounts", "0002_seed_demo_data")]).apps
         User = apps.get_model("accounts", "User")
-        Cohort = apps.get_model("cohorts", "Cohort")
-        Enrollment = apps.get_model("cohorts", "Enrollment")
+        Class = apps.get_model("classes", "Class")
+        Enrollment = apps.get_model("classes", "Enrollment")
         admin = User.objects.get(email="phong@gmail.com")
 
         self.assertTrue(check_password("Admin@123", admin.password))
@@ -33,7 +33,7 @@ class DemoSeedMigrationTests(TransactionTestCase):
         self.assertTrue(admin.is_superuser)
         self.assertEqual(User.objects.filter(role="TEACHER").count(), 2)
         self.assertEqual(User.objects.filter(role="STUDENT").count(), 4)
-        self.assertEqual(Cohort.objects.count(), 2)
+        self.assertEqual(Class.objects.count(), 2)
         self.assertEqual(Enrollment.objects.count(), 4)
 
     def test_seed_migration_keeps_an_existing_admin_unchanged(self):

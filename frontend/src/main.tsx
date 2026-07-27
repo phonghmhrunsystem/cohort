@@ -2,10 +2,13 @@ import { createRoot } from "react-dom/client";
 import { AppShell } from "./AppShell";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
-import { CohortPage } from "./pages/CohortPage";
+import { AdminClassPage } from "./pages/AdminClassPage";
+import { AdminClassesPage } from "./pages/AdminClassesPage";
 import { LoginPage } from "./pages/LoginPage";
-import { StudentCohortsPage } from "./pages/StudentCohortsPage";
-import { TeacherCohortsPage } from "./pages/TeacherCohortsPage";
+import { StudentClassPage } from "./pages/StudentClassPage";
+import { StudentClassesPage } from "./pages/StudentClassesPage";
+import { TeacherClassPage } from "./pages/TeacherClassPage";
+import { TeacherClassesPage } from "./pages/TeacherClassesPage";
 import { api, ApiFailure } from "./api";
 import { User } from "./auth";
 import { accessToken, canAccess, clearSession, redirectToLogin, roleHome } from "./session";
@@ -14,7 +17,7 @@ import "./styles.css";
 const root = createRoot(document.getElementById("root")!);
 
 function pageFor(path: string) {
-  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/teacher/classes" ? <TeacherCohortsPage /> : path === "/student/classes" ? <StudentCohortsPage /> : /^\/cohorts\/\d+$/.test(path) ? <CohortPage /> : undefined;
+  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/admin/classes" ? <AdminClassesPage /> : /^\/admin\/classes\/\d+$/.test(path) ? <AdminClassPage /> : path === "/teacher/classes" ? <TeacherClassesPage /> : /^\/teacher\/classes\/\d+$/.test(path) ? <TeacherClassPage /> : path === "/student/classes" ? <StudentClassesPage /> : /^\/student\/classes\/\d+$/.test(path) ? <StudentClassPage /> : undefined;
 }
 
 async function render() {

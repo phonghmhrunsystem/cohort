@@ -1,11 +1,13 @@
 from django.contrib.auth.hashers import make_password
 from django.db import migrations
+from django.utils import timezone
+from datetime import timedelta
 
 
 def seed_demo_data(apps, schema_editor):
     User = apps.get_model("accounts", "User")
-    Cohort = apps.get_model("cohorts", "Cohort")
-    Enrollment = apps.get_model("cohorts", "Enrollment")
+    Class = apps.get_model("classes", "Class")
+    Enrollment = apps.get_model("classes", "Enrollment")
 
     def user(email, password, role, **extra):
         return User.objects.get_or_create(
@@ -21,16 +23,18 @@ def seed_demo_data(apps, schema_editor):
     student_chi = user("student.chi@example.com", "Student@123", "STUDENT")
     student_dung = user("student.dung@example.com", "Student@123", "STUDENT")
 
-    python, _ = Cohort.objects.get_or_create(
-        teacher=teacher_anh, name="Python Foundations", defaults={"description": "Python basics"}
+    starts_at = timezone.now() - timedelta(days=1)
+    ends_at = timezone.now() + timedelta(days=30)
+    python, _ = Class.objects.get_or_create(
+        teacher=teacher_anh, name="Python Foundations", defaults={"description": "Python basics", "starts_at": starts_at, "ends_at": ends_at}
     )
-    django, _ = Cohort.objects.get_or_create(
-        teacher=teacher_binh, name="Django Fundamentals", defaults={"description": "Django basics"}
+    django, _ = Class.objects.get_or_create(
+        teacher=teacher_binh, name="Django Fundamentals", defaults={"description": "Django basics", "starts_at": starts_at, "ends_at": ends_at}
     )
-    for cohort, student in ((python, student_an), (python, student_bao), (django, student_chi), (django, student_dung)):
-        Enrollment.objects.get_or_create(cohort=cohort, student=student)
+    for class_, student in ((python, student_an), (python, student_bao), (django, student_chi), (django, student_dung)):
+        Enrollment.objects.get_or_create(classroom=class_, student=student)
 
 
 class Migration(migrations.Migration):
-    dependencies = [("accounts", "0001_initial"), ("cohorts", "0001_initial")]
+    dependencies = [("accounts", "0001_initial"), ("classes", "0001_initial")]
     operations = [migrations.RunPython(seed_demo_data, migrations.RunPython.noop)]

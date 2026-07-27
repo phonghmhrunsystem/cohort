@@ -19,7 +19,7 @@ export function roleHome(role: Role) {
 }
 
 export function canAccess(path: string, role: Role) {
-  return role === "ADMIN" ? path === "/admin/users" || path === "/admin/audit-logs" : role === "TEACHER" ? path === "/teacher/classes" || /^\/cohorts\/\d+$/.test(path) : path === "/student/classes" || /^\/cohorts\/\d+$/.test(path);
+  return role === "ADMIN" ? path === "/admin/users" || path === "/admin/audit-logs" || /^\/admin\/classes(?:\/\d+)?$/.test(path) : role === "TEACHER" ? /^\/teacher\/classes(?:\/\d+)?$/.test(path) : /^\/student\/classes(?:\/\d+)?$/.test(path);
 }
 
 export function redirectToLogin() {

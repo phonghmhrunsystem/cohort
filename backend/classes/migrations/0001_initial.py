@@ -15,23 +15,25 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Cohort',
+            name='Class',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=255)),
-                ('description', models.TextField(blank=True)),
-                ('teacher', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='cohorts', to=settings.AUTH_USER_MODEL)),
+                ('name', models.CharField(max_length=100)),
+                ('description', models.TextField(blank=True, max_length=1000)),
+                ('starts_at', models.DateTimeField()),
+                ('ends_at', models.DateTimeField()),
+                ('teacher', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='classes', to=settings.AUTH_USER_MODEL)),
             ],
         ),
         migrations.CreateModel(
             name='Enrollment',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('cohort', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='enrollment', to='cohorts.cohort')),
+                ('classroom', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='enrollments', to='classes.class')),
                 ('student', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='enrollments', to=settings.AUTH_USER_MODEL)),
             ],
             options={
-                'constraints': [models.UniqueConstraint(fields=('cohort', 'student'), name='unique_enrollment')],
+                'constraints': [models.UniqueConstraint(fields=('classroom', 'student'), name='unique_class_enrollment')],
             },
         ),
     ]

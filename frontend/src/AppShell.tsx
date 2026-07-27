@@ -4,9 +4,9 @@ import { logout, User } from "./auth";
 import { redirectToLogin } from "./session";
 
 const links = {
-  ADMIN: [["/admin/users", "Accounts"], ["/admin/audit-logs", "Audit log"]],
-  TEACHER: [["/teacher/classes", "My cohorts"]],
-  STUDENT: [["/student/classes", "My cohorts"]],
+  ADMIN: [["/admin/users", "Accounts"], ["/admin/classes", "Classes"], ["/admin/audit-logs", "Audit log"]],
+  TEACHER: [["/teacher/classes", "My Classes"]],
+  STUDENT: [["/student/classes", "My Classes"]],
 } as const;
 
 export function AppShell({ user, children }: { user: User; children: ReactNode }) {
