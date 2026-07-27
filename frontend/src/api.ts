@@ -15,5 +15,5 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     if (response.status === 401) redirectToLogin();
     throw failure;
   }
-  return response.json() as Promise<T>;
+  return response.status === 204 ? undefined as T : response.json() as Promise<T>;
 }

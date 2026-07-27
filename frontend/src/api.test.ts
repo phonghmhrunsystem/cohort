@@ -31,6 +31,12 @@ test("api throws the response status and detail", async () => {
   await expect(api("/protected")).rejects.toEqual({ status: 403, detail: "Forbidden" });
 });
 
+test("api accepts a successful 204 response without a body", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+
+  await expect(api<void>("/auth/logout", { method: "POST" })).resolves.toBeUndefined();
+});
+
 test("api exposes 422 field errors", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ email: ["Enter a valid email address."] }), { status: 422 })));
 
