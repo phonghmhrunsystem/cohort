@@ -48,7 +48,7 @@ class AssignmentSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"maximum_score": ["Maximum score is fixed at 100."]})
         due_at = attrs.get("due_at", getattr(self.instance, "due_at", None))
         classroom = self.context["classroom"]
-        if self.instance is None and due_at <= timezone.now():
+        if due_at <= timezone.now():
             raise serializers.ValidationError({"due_at": ["Due date must be in the future."]})
         if not classroom.starts_at <= due_at <= classroom.ends_at:
             raise serializers.ValidationError({"due_at": ["Due date must be within the Class period."]})

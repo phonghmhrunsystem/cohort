@@ -69,6 +69,15 @@ class AssignmentApiTests(TestCase):
         ):
             self.assertEqual(self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", payload, format="json").status_code, 422)
 
+    def test_assignment_update_rejects_a_past_deadline(self):
+        assignment = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").data
+        response = self.teacher_client.patch(
+            f"/api/assignments/{assignment['id']}",
+            {"due_at": (timezone.now() - timedelta(minutes=1)).isoformat()},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 422)
+
     def test_rubric_replacement_is_atomic_and_must_total_100(self):
         assignment = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").data
         valid = {"criteria": [{"title": "Code", "maximum_score": 60}, {"title": "Tests", "maximum_score": 40}]}
