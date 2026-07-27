@@ -14,7 +14,7 @@ import "./styles.css";
 const root = createRoot(document.getElementById("root")!);
 
 function pageFor(path: string) {
-  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/teacher/cohorts" ? <TeacherCohortsPage /> : path === "/student/cohorts" ? <StudentCohortsPage /> : /^\/cohorts\/\d+$/.test(path) ? <CohortPage /> : undefined;
+  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/teacher/classes" ? <TeacherCohortsPage /> : path === "/student/classes" ? <StudentCohortsPage /> : /^\/cohorts\/\d+$/.test(path) ? <CohortPage /> : undefined;
 }
 
 async function render() {

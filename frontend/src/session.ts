@@ -1,6 +1,6 @@
 export type Role = "ADMIN" | "TEACHER" | "STUDENT";
 
-const accessTokenKey = "accessToken";
+const accessTokenKey = "access_token";
 
 export function startSession(token: string) {
   sessionStorage.setItem(accessTokenKey, token);
@@ -15,11 +15,11 @@ export function clearSession() {
 }
 
 export function roleHome(role: Role) {
-  return role === "ADMIN" ? "/admin/users" : role === "TEACHER" ? "/teacher/cohorts" : "/student/cohorts";
+  return role === "ADMIN" ? "/admin/users" : role === "TEACHER" ? "/teacher/classes" : "/student/classes";
 }
 
 export function canAccess(path: string, role: Role) {
-  return role === "ADMIN" ? path === "/admin/users" || path === "/admin/audit-logs" : role === "TEACHER" ? path === "/teacher/cohorts" || /^\/cohorts\/\d+$/.test(path) : path === "/student/cohorts" || /^\/cohorts\/\d+$/.test(path);
+  return role === "ADMIN" ? path === "/admin/users" || path === "/admin/audit-logs" : role === "TEACHER" ? path === "/teacher/classes" || /^\/cohorts\/\d+$/.test(path) : path === "/student/classes" || /^\/cohorts\/\d+$/.test(path);
 }
 
 export function redirectToLogin() {

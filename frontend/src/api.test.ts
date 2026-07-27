@@ -15,7 +15,7 @@ beforeEach(() => {
 });
 
 test("api sends the session access token", async () => {
-  sessionStorage.setItem("accessToken", "token-123");
+  sessionStorage.setItem("access_token", "token-123");
   const fetchSpy = vi.fn().mockResolvedValue(new Response(JSON.stringify({ status: "ok" }), { status: 200 }));
   vi.stubGlobal("fetch", fetchSpy);
 
@@ -49,11 +49,11 @@ test("api exposes 422 field errors", async () => {
 
 test("a 401 clears the stale token and redirects to login", async () => {
   const assign = vi.fn();
-  sessionStorage.setItem("accessToken", "stale-token");
+  sessionStorage.setItem("access_token", "stale-token");
   vi.stubGlobal("location", { assign });
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Expired" }), { status: 401 })));
 
   await expect(api("/auth/me")).rejects.toEqual({ status: 401, detail: "Expired" });
-  expect(sessionStorage.getItem("accessToken")).toBeNull();
+  expect(sessionStorage.getItem("access_token")).toBeNull();
   expect(assign).toHaveBeenCalledWith("/login");
 });

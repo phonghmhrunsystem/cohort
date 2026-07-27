@@ -13,20 +13,22 @@ beforeEach(() => {
   });
 });
 
-test("session keeps only the access token", () => {
+test("session keeps the access token under the browser contract key", () => {
   startSession("access-token");
-  expect(sessionStorage.getItem("accessToken")).toBe("access-token");
-  clearSession();
+  expect(sessionStorage.getItem("access_token")).toBe("access-token");
   expect(sessionStorage.getItem("accessToken")).toBeNull();
+  clearSession();
+  expect(sessionStorage.getItem("access_token")).toBeNull();
 });
 
 test("unknown paths and wrong roles are not allowed", () => {
   expect(canAccess("/missing", "ADMIN")).toBe(false);
-  expect(canAccess("/teacher/cohorts", "STUDENT")).toBe(false);
+  expect(canAccess("/teacher/classes", "STUDENT")).toBe(false);
+  expect(canAccess("/teacher/classes", "TEACHER")).toBe(true);
 });
 
 test("roleHome sends every role to its workspace", () => {
   expect(roleHome("ADMIN")).toBe("/admin/users");
-  expect(roleHome("TEACHER")).toBe("/teacher/cohorts");
-  expect(roleHome("STUDENT")).toBe("/student/cohorts");
+  expect(roleHome("TEACHER")).toBe("/teacher/classes");
+  expect(roleHome("STUDENT")).toBe("/student/classes");
 });

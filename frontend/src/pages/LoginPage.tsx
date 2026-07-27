@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 
 import { login } from "../auth";
 import { ApiFailure } from "../api";
+import { roleHome } from "../session";
 
 export function LoginPage() {
   const [error, setError] = useState("");
@@ -16,7 +17,7 @@ export function LoginPage() {
     setFields({});
     try {
       const user = await login(String(data.get("email")), String(data.get("password")));
-      window.location.assign(user.role === "ADMIN" ? "/admin/users" : user.role === "TEACHER" ? "/teacher/cohorts" : "/student/cohorts");
+      window.location.assign(roleHome(user.role));
     } catch (response) {
       const failure = response as ApiFailure;
       setError(failure.detail || "Unable to sign in.");

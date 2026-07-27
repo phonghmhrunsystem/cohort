@@ -29,7 +29,7 @@ test("an unknown route clears the session and redirects to login", async () => {
 
   await import("./main");
 
-  expect(sessionStorage.getItem("accessToken")).toBeNull();
+  expect(sessionStorage.getItem("access_token")).toBeNull();
   expect(assign).toHaveBeenCalledWith("/login");
 });
 
@@ -37,11 +37,28 @@ test("a route for another role clears the session and redirects to login", async
   const assign = vi.fn();
   startSession("access-token");
   harness.api.mockResolvedValue({ id: 1, email: "student@example.test", role: "STUDENT", is_active: true });
-  vi.stubGlobal("location", { pathname: "/teacher/cohorts", assign });
+  vi.stubGlobal("location", { pathname: "/teacher/classes", assign });
 
   await import("./main");
   await Promise.resolve();
 
-  expect(sessionStorage.getItem("accessToken")).toBeNull();
+  expect(sessionStorage.getItem("access_token")).toBeNull();
   expect(assign).toHaveBeenCalledWith("/login");
+});
+
+test.each([
+  ["teacher", "/teacher/classes", "TEACHER"],
+  ["student", "/student/classes", "STUDENT"],
+])("a %s classes route keeps a valid session", async (_, path, role) => {
+  const assign = vi.fn();
+  sessionStorage.setItem("access_token", "access-token");
+  harness.api.mockResolvedValue({ id: 1, email: `${role.toLowerCase()}@example.test`, role, is_active: true });
+  vi.stubGlobal("location", { pathname: path, assign });
+
+  await import("./main");
+  await Promise.resolve();
+
+  expect(sessionStorage.getItem("access_token")).toBe("access-token");
+  expect(assign).not.toHaveBeenCalled();
+  expect(harness.render).toHaveBeenCalledOnce();
 });

@@ -23,7 +23,7 @@ test("login stores the access token and returns the user from the login response
   vi.mocked(api).mockResolvedValueOnce({ access_token: "access-token", user });
 
   await expect(login("admin@example.com", "correct-password")).resolves.toEqual(user);
-  expect(sessionStorage.getItem("accessToken")).toBe("access-token");
+  expect(sessionStorage.getItem("access_token")).toBe("access-token");
   expect(api).toHaveBeenNthCalledWith(1, "/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -33,9 +33,9 @@ test("login stores the access token and returns the user from the login response
 });
 
 test("logout clears the token when the logout request fails", async () => {
-  sessionStorage.setItem("accessToken", "stale-token");
+  sessionStorage.setItem("access_token", "stale-token");
   vi.mocked(api).mockRejectedValueOnce({ status: 500, detail: "Unable to log out." });
 
   await expect(logout()).rejects.toEqual({ status: 500, detail: "Unable to log out." });
-  expect(sessionStorage.getItem("accessToken")).toBeNull();
+  expect(sessionStorage.getItem("access_token")).toBeNull();
 });
