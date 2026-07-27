@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 
-import { User } from "../auth";
 import { api } from "../api";
 import { Cohort, listCohorts } from "../cohorts";
 
@@ -15,14 +14,12 @@ export function StudentCohortsPage() {
 
   useEffect(() => { void (async () => {
     try {
-      const me = await api<User>("/auth/me");
-      if (me.role !== "STUDENT") throw { detail: "Student access is required." };
       setCohorts(await listCohorts());
     } catch (response) { setError(message(response)); }
     finally { setLoading(false); }
   })(); }, []);
 
-  return <main><nav><a href="/student/cohorts">My cohorts</a></nav><h1>My cohorts</h1>
+  return <><h1>My cohorts</h1>
     {loading ? <p>Loading cohorts…</p> : error ? <p role="alert">{error}</p> : cohorts.length === 0 ? <p>No cohorts yet.</p> : <ul>{cohorts.map((cohort) => <li key={cohort.id}><a href={`/cohorts/${cohort.id}`}>{cohort.name}</a></li>)}</ul>}
-  </main>;
+  </>;
 }

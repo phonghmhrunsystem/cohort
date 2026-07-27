@@ -4,9 +4,11 @@ body { min-width: 320px; background: #f4f7fb; }
 .workspace-content { min-width: 0; flex: 1; }
 .workspace-nav a { color: #d9e2ec; }
 .workspace-nav a[aria-current="page"] { background: #243b53; color: #fff; }
+.workspace-logout { color: #d9e2ec; margin-top: auto; }
 @media (max-width: 767.98px) {
   .workspace { display: block; }
   .workspace-sidebar { width: auto; }
   .workspace-nav { display: flex; flex-direction: row !important; overflow-x: auto; }
+  .workspace-logout { margin-top: 0; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }

@@ -9,6 +9,7 @@ beforeEach(() => {
   vi.stubGlobal("sessionStorage", {
     clear: () => storage.clear(),
     getItem: (key: string) => storage.get(key) ?? null,
+    removeItem: (key: string) => storage.delete(key),
     setItem: (key: string, value: string) => storage.set(key, value),
   });
 });
@@ -28,4 +29,25 @@ test("api throws the response status and detail", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Forbidden" }), { status: 403 })));
 
   await expect(api("/protected")).rejects.toEqual({ status: 403, detail: "Forbidden" });
+});
+
+test("api exposes 422 field errors", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ email: ["Enter a valid email address."] }), { status: 422 })));
+
+  await expect(api("/auth/login")).rejects.toEqual({
+    status: 422,
+    detail: "Request failed.",
+    fields: { email: ["Enter a valid email address."] },
+  });
+});
+
+test("a 401 clears the stale token and redirects to login", async () => {
+  const assign = vi.fn();
+  sessionStorage.setItem("accessToken", "stale-token");
+  vi.stubGlobal("location", { assign });
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Expired" }), { status: 401 })));
+
+  await expect(api("/auth/me")).rejects.toEqual({ status: 401, detail: "Expired" });
+  expect(sessionStorage.getItem("accessToken")).toBeNull();
+  expect(assign).toHaveBeenCalledWith("/login");
 });

@@ -1,6 +1,7 @@
 import { api } from "./api";
+import { clearSession, Role, startSession } from "./session";
 
-export type Role = "ADMIN" | "TEACHER" | "STUDENT";
+export type { Role } from "./session";
 
 export type User = {
   id: number;
@@ -10,11 +11,19 @@ export type User = {
 };
 
 export async function login(email: string, password: string): Promise<User> {
-  const token = await api<{ access: string }>("/auth/login", {
+  const response = await api<{ access_token: string; user: User }>("/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   });
-  sessionStorage.setItem("accessToken", token.access);
-  return api<User>("/auth/me");
+  startSession(response.access_token);
+  return response.user;
+}
+
+export async function logout() {
+  try {
+    await api<void>("/auth/logout", { method: "POST" });
+  } finally {
+    clearSession();
+  }
 }

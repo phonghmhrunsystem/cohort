@@ -1,12 +1,46 @@
 import { createRoot } from "react-dom/client";
+import { AppShell } from "./AppShell";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { CohortPage } from "./pages/CohortPage";
 import { LoginPage } from "./pages/LoginPage";
 import { StudentCohortsPage } from "./pages/StudentCohortsPage";
 import { TeacherCohortsPage } from "./pages/TeacherCohortsPage";
+import { api, ApiFailure } from "./api";
+import { User } from "./auth";
+import { accessToken, canAccess, clearSession, redirectToLogin, roleHome } from "./session";
 import "./styles.css";
 
-const page = location.pathname === "/admin/users" ? <AdminUsersPage /> : location.pathname === "/admin/audit-logs" ? <AuditLogPage /> : location.pathname === "/teacher/cohorts" ? <TeacherCohortsPage /> : location.pathname === "/student/cohorts" ? <StudentCohortsPage /> : /^\/cohorts\/\d+$/.test(location.pathname) ? <CohortPage /> : <LoginPage />;
+const root = createRoot(document.getElementById("root")!);
 
-createRoot(document.getElementById("root")!).render(page);
+function pageFor(path: string) {
+  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/teacher/cohorts" ? <TeacherCohortsPage /> : path === "/student/cohorts" ? <StudentCohortsPage /> : /^\/cohorts\/\d+$/.test(path) ? <CohortPage /> : undefined;
+}
+
+async function render() {
+  const path = location.pathname;
+  if (path === "/login") {
+    if (accessToken()) {
+      try {
+        location.assign(roleHome((await api<User>("/auth/me")).role));
+        return;
+      } catch (error) {
+        if ((error as ApiFailure).status !== 401) clearSession();
+      }
+    }
+    root.render(<LoginPage />);
+    return;
+  }
+
+  const page = pageFor(path);
+  if (!page || !accessToken()) return redirectToLogin();
+  try {
+    const user = await api<User>("/auth/me");
+    if (!canAccess(path, user.role)) return redirectToLogin();
+    root.render(<AppShell user={user}>{page}</AppShell>);
+  } catch (error) {
+    if ((error as ApiFailure).status !== 401) redirectToLogin();
+  }
+}
+
+void render();
