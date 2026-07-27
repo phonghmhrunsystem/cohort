@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import User
 
@@ -7,6 +9,14 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "email", "role", "is_active")
+
+
+class LoginSerializer(TokenObtainPairSerializer):
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if not self.user.is_active:
+            raise AuthenticationFailed("No active account found with the given credentials")
+        return {"access_token": data["access"], "user": UserSerializer(self.user).data}
 
 
 class UserCreateSerializer(UserSerializer):

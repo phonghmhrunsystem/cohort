@@ -1,5 +1,10 @@
+import warnings
+
+from django.conf import settings
 from django.test import TestCase
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.backends import TokenBackend
+from rest_framework_simplejwt.tokens import AccessToken
 
 from accounts.models import User
 from audit.models import AuditLog
@@ -24,6 +29,46 @@ class AccountApiTests(TestCase):
 
         response = self.client.post(
             "/api/auth/login", {"email": user.email, "password": "pw"}
+        )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_login_returns_access_token_and_user(self):
+        response = self.client.post(
+            "/api/auth/login", {"email": self.student.email, "password": "pw"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.data), {"access_token", "user"})
+        self.assertEqual(response.data["user"], {
+            "id": self.student.id,
+            "email": self.student.email,
+            "role": "STUDENT",
+            "is_active": True,
+        })
+
+    def test_authenticated_logout_returns_no_content(self):
+        login = self.client.post(
+            "/api/auth/login", {"email": self.student.email, "password": "pw"}
+        )
+
+        response = self.client.post(
+            "/api/auth/logout",
+            HTTP_AUTHORIZATION=f"Bearer {login.data['access_token']}",
+        )
+
+        self.assertEqual(response.status_code, 204)
+
+    def test_token_signed_with_previous_process_secret_is_rejected(self):
+        token = AccessToken.for_user(self.student)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            token = TokenBackend(
+                algorithm="HS256", signing_key=settings.SECRET_KEY
+            ).encode(token.payload)
+
+        response = self.client.get(
+            "/api/auth/me", HTTP_AUTHORIZATION=f"Bearer {token}"
         )
 
         self.assertEqual(response.status_code, 401)

@@ -9,7 +9,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from audit.services import write_audit
 
 from .models import User
-from .serializers import UserCreateSerializer, UserSerializer, UserUpdateSerializer
+from .serializers import LoginSerializer, UserCreateSerializer, UserSerializer, UserUpdateSerializer
 
 
 class IsAdmin(BasePermission):
@@ -19,6 +19,14 @@ class IsAdmin(BasePermission):
 
 class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
+    serializer_class = LoginSerializer
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class MeView(APIView):
