@@ -5,8 +5,13 @@ export type { Role } from "./session";
 
 export type User = {
   id: number;
+  full_name: string | null;
   email: string;
   role: Role;
+  phone: string | null;
+  date_of_birth: string | null;
+  gender: "NAM" | "NU" | "KHAC" | null;
+  address: string | null;
   is_active: boolean;
 };
 

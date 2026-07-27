@@ -63,7 +63,14 @@ class AuditTests(TestCase):
             }
         )
 
-        self.assertEqual(metadata, {"relative_path": "uploads/report.pdf"})
+        self.assertEqual(metadata, {})
+
+    def test_metadata_rejects_root_scalars_and_neutral_key_secrets(self):
+        self.assertEqual(safe_metadata("RawPassword123!"), {})
+        self.assertEqual(
+            safe_metadata({"value": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOjF9.signature", "count": 1}),
+            {"count": 1},
+        )
 
     def test_audit_logs_require_an_admin(self):
         client = APIClient()
@@ -76,3 +83,25 @@ class AuditTests(TestCase):
         response = client.get("/api/audit-logs")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[0]["id"], self.log.id)
+
+    def test_audit_api_scrubs_preexisting_sensitive_metadata_and_shows_actor_display_data(self):
+        log = AuditLog.objects.create(
+            actor=self.admin,
+            action="account.updated",
+            target_type="accounts.user",
+            target_id=self.teacher.id,
+            metadata={
+            "password": "secret",
+            "file": "raw file data",
+            "relative_path": "uploads/report.pdf",
+            "safe": 1,
+            },
+        )
+        client = APIClient()
+        client.force_authenticate(self.admin)
+
+        response = client.get("/api/audit-logs")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["metadata"], {"safe": 1})
+        self.assertEqual(response.data[0]["actor"], {"id": self.admin.id, "full_name": None, "email": self.admin.email})

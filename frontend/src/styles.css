@@ -2,6 +2,14 @@ body { min-width: 320px; background: #f4f7fb; }
 .workspace { display: flex; min-height: 100vh; }
 .workspace-sidebar { width: 15rem; flex: 0 0 15rem; background: #102a43; }
 .workspace-content { min-width: 0; flex: 1; }
+.account-header { min-width: 0; }
+.account-filters .card-body { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.3fr); }
+.account-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); }
+.account-dialog { box-sizing: border-box; max-height: calc(100vh - 2rem); max-width: 42rem; overflow-y: auto; width: calc(100% - 2rem); }
+.account-dialog::backdrop { background: rgb(16 42 67 / 55%); }
+.account-form-grid { display: grid; gap: 0 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.account-address { grid-column: 1 / -1; }
+.min-w-0 { min-width: 0; }
 .workspace-nav a { color: #d9e2ec; }
 .workspace-nav a[aria-current="page"] { background: #243b53; color: #fff; }
 .workspace-logout { color: #d9e2ec; margin-top: auto; }
@@ -10,5 +18,11 @@ body { min-width: 320px; background: #f4f7fb; }
   .workspace-sidebar { width: auto; }
   .workspace-nav { display: flex; flex-direction: row !important; overflow-x: auto; }
   .workspace-logout { margin-top: 0; }
+}
+@media (max-width: 479.98px) {
+  .account-header { align-items: stretch !important; flex-direction: column; }
+  .account-header .btn { width: 100%; }
+  .account-filters .card-body, .account-form-grid { grid-template-columns: minmax(0, 1fr); }
+  .account-address { grid-column: auto; }
 }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
