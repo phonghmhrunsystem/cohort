@@ -9,9 +9,9 @@ test("Teacher Class tabs normalize missing or invalid values to the read-only st
 });
 
 test("assignment edit datetime values round-trip without changing the instant", () => {
-  const instant = "2026-01-15T12:34:56.000Z";
+  const instant = "2026-01-15T12:34:56.789Z";
   const local = new Date(instant);
-  const expected = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, "0")}-${String(local.getDate()).padStart(2, "0")}T${String(local.getHours()).padStart(2, "0")}:${String(local.getMinutes()).padStart(2, "0")}:${String(local.getSeconds()).padStart(2, "0")}`;
+  const expected = `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, "0")}-${String(local.getDate()).padStart(2, "0")}T${String(local.getHours()).padStart(2, "0")}:${String(local.getMinutes()).padStart(2, "0")}:${String(local.getSeconds()).padStart(2, "0")}.${String(local.getMilliseconds()).padStart(3, "0")}`;
 
   expect(toLocalDateTime(instant)).toBe(expected);
   expect(toUtcIso(toLocalDateTime(instant))).toBe(instant);
