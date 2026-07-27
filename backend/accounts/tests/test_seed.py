@@ -7,9 +7,18 @@ from django.test import TransactionTestCase
 class DemoSeedMigrationTests(TransactionTestCase):
     reset_sequences = True
 
-    def test_seed_migration_creates_loginable_demo_data(self):
+    def migrate_to_pre_seed_state(self):
         executor = MigrationExecutor(connection)
         executor.migrate([("accounts", "0001_initial"), ("cohorts", "0001_initial")])
+        apps = executor.loader.project_state(
+            [("accounts", "0001_initial"), ("cohorts", "0001_initial")]
+        ).apps
+        apps.get_model("cohorts", "Enrollment").objects.all().delete()
+        apps.get_model("cohorts", "Cohort").objects.all().delete()
+        apps.get_model("accounts", "User").objects.all().delete()
+
+    def test_seed_migration_creates_loginable_demo_data(self):
+        self.migrate_to_pre_seed_state()
         executor = MigrationExecutor(connection)
         executor.migrate([("accounts", "0002_seed_demo_data")])
 
@@ -28,8 +37,8 @@ class DemoSeedMigrationTests(TransactionTestCase):
         self.assertEqual(Enrollment.objects.count(), 4)
 
     def test_seed_migration_keeps_an_existing_admin_unchanged(self):
+        self.migrate_to_pre_seed_state()
         executor = MigrationExecutor(connection)
-        executor.migrate([("accounts", "0001_initial"), ("cohorts", "0001_initial")])
         apps = executor.loader.project_state([("accounts", "0001_initial")]).apps
         User = apps.get_model("accounts", "User")
         User.objects.create(
