@@ -58,6 +58,17 @@ class CohortApiTests(TestCase):
 
         self.assertEqual(response.status_code, 422)
 
+    def test_enrollment_rejects_inactive_student_account(self):
+        self.other_student.is_active = False
+        self.other_student.save(update_fields=("is_active",))
+
+        response = self.teacher_client.post(
+            f"/api/cohorts/{self.cohort.id}/enrollments", {"student_id": self.other_student.id}
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertFalse(Enrollment.objects.filter(cohort=self.cohort, student=self.other_student).exists())
+
     def test_duplicate_enrollment_is_rejected(self):
         response = self.teacher_client.post(
             f"/api/cohorts/{self.cohort.id}/enrollments", {"student_id": self.student.id}

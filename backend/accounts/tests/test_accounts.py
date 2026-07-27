@@ -149,6 +149,28 @@ class AccountApiTests(TestCase):
         self.assertIn("full_name", response.data)
         self.assertIn("password", response.data)
 
+    def test_create_rejects_invalid_profile_formats_and_upper_bounds(self):
+        payload = {"full_name": "Valid User", "email": "new@example.test", "password": "password", "role": "TEACHER"}
+        cases = (
+            ("phone", "12345678"),
+            ("phone", "+1234567890123456"),
+            ("phone", "123-456-789"),
+            ("date_of_birth", str(date.today())),
+            ("date_of_birth", str(date.today() + timedelta(days=1))),
+            ("gender", "OTHER"),
+            ("address", "x" * 256),
+            ("full_name", "x" * 101),
+            ("password", "x" * 129),
+        )
+
+        for field, value in cases:
+            with self.subTest(field=field, value=value):
+                response = self.admin_client.post(
+                    "/api/users", {**payload, field: value}, format="json"
+                )
+                self.assertEqual(response.status_code, 422)
+                self.assertIn(field, response.data)
+
     def test_email_is_unique_without_regard_to_case(self):
         User.objects.create_user("case@example.test", "pw", role="TEACHER")
 
@@ -191,6 +213,24 @@ class AccountApiTests(TestCase):
                 "is_active": True,
             }
         ])
+
+    def test_list_excludes_admin_and_inactive_accounts(self):
+        inactive = User.objects.create_user("inactive@example.test", "pw", role="STUDENT", is_active=False)
+
+        response = self.admin_client.get("/api/users")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(self.admin.id, [user["id"] for user in response.data])
+        self.assertNotIn(inactive.id, [user["id"] for user in response.data])
+
+    def test_inactive_account_is_unavailable_for_mutation(self):
+        inactive = User.objects.create_user("inactive@example.test", "pw", role="STUDENT", is_active=False)
+
+        self.assertEqual(
+            self.admin_client.patch(f"/api/users/{inactive.id}", {"full_name": "Changed"}).status_code,
+            404,
+        )
+        self.assertEqual(self.admin_client.delete(f"/api/users/{inactive.id}").status_code, 404)
 
     def test_patch_rejects_immutable_email_and_role(self):
         response = self.admin_client.patch(

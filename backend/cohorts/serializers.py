@@ -22,6 +22,6 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         fields = ("id", "cohort_id", "student_id")
 
     def validate_student_id(self, student):
-        if student.role != User.Role.STUDENT:
-            raise serializers.ValidationError("Only Student accounts can be enrolled.")
+        if student.role != User.Role.STUDENT or not student.is_active:
+            raise serializers.ValidationError("Only active Student accounts can be enrolled.")
         return student

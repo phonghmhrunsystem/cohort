@@ -35,3 +35,15 @@ Migration check: `python manage.py makemigrations --check --dry-run` reported `N
 ## Concerns
 
 The current `cohorts.Cohort` schema has neither an active flag nor an end time. The deactivation guard correctly protects every current teacher assignment/enrollment, but a future Class lifecycle field must be included in the guard to allow deactivation after a Class ends.
+
+## Round 1 fixes
+
+- `safe_metadata` now fails closed: root values that are not objects become `{}`, and all textual metadata values are omitted. This prevents raw scalar passwords/JWTs, neutral-key secrets, file text, and storage paths from being returned by the audit API; numeric, boolean, null, and nested structural metadata remain available.
+- Enrollment now requires an active Student at the shared serializer validation point.
+- Added account validation coverage for phone formatting/bounds, present/future DOB, gender, address, and upper name/password bounds, plus direct Admin/inactive list and mutation coverage.
+
+### Round 1 evidence
+
+RED: `cd backend && python manage.py test accounts audit cohorts -v 2` exited 1 with two expected failures: root scalar audit metadata was returned unchanged, and inactive Student enrollment returned `201`.
+
+GREEN: the same extended suite exited 0: 40 tests passed in 47.444 seconds. The required `cd backend && python manage.py test accounts audit -v 2` then exited 0: 32 tests passed in 35.376 seconds. `git diff --check` exited 0.

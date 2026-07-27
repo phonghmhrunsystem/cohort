@@ -8,7 +8,8 @@ _SKIP = object()
 
 
 def safe_metadata(metadata):
-    return _safe_value(metadata)
+    metadata = _safe_value(metadata)
+    return metadata if isinstance(metadata, dict) else {}
 
 
 def _safe_value(value):
@@ -21,6 +22,8 @@ def _safe_value(value):
             or "\\" in value
         )
     ):
+        return _SKIP
+    if isinstance(value, str):
         return _SKIP
     if isinstance(value, dict):
         clean = {}
