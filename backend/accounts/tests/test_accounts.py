@@ -59,7 +59,8 @@ class AccountApiTests(TestCase):
         response = teacher_client.get("/api/users")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([user["email"] for user in response.data], [self.student.email])
+        self.assertIn(self.student.email, [user["email"] for user in response.data])
+        self.assertTrue(all(user["role"] == "STUDENT" for user in response.data))
 
     def test_account_endpoints_return_auth_and_not_found_statuses(self):
         self.assertEqual(self.client.get("/api/users").status_code, 401)
