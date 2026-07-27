@@ -1,3 +1,5 @@
+import secrets
+
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -47,3 +49,6 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 
 REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"]}
+
+JWT_SIGNING_KEY = secrets.token_urlsafe(64)
+SIMPLE_JWT = {"SIGNING_KEY": JWT_SIGNING_KEY}

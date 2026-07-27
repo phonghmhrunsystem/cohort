@@ -47,7 +47,7 @@ export function CohortPage() {
   if (loading) return <main><p>Loading cohort…</p></main>;
   if (error || !cohort) return <main><p role="alert">{error || "Unable to load this cohort."}</p></main>;
 
-  return <main><nav><a href={role === "TEACHER" ? "/teacher/cohorts" : "/student/cohorts"}>My cohorts</a></nav><h1>{cohort.name}</h1>
+  return <main><nav><a href={role === "TEACHER" ? "/teacher/classes" : "/student/classes"}>My cohorts</a></nav><h1>{cohort.name}</h1>
     {role === "TEACHER" ? <><form onSubmit={update}><h2>Edit cohort</h2>
       <label>Name <input name="name" defaultValue={cohort.name} required /></label>
       <label>Description <textarea name="description" defaultValue={cohort.description} /></label>

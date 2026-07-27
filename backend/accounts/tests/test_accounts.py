@@ -1,8 +1,14 @@
+import importlib
+from unittest.mock import patch
+
 from django.test import TestCase
 from rest_framework.test import APIClient
+from rest_framework_simplejwt.backends import TokenBackend
+from rest_framework_simplejwt.tokens import AccessToken
 
 from accounts.models import User
 from audit.models import AuditLog
+from config import settings as project_settings
 
 
 class AccountApiTests(TestCase):
@@ -25,6 +31,51 @@ class AccountApiTests(TestCase):
         response = self.client.post(
             "/api/auth/login", {"email": user.email, "password": "pw"}
         )
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_login_returns_access_token_and_user(self):
+        response = self.client.post(
+            "/api/auth/login", {"email": self.student.email, "password": "pw"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(set(response.data), {"access_token", "user"})
+        self.assertEqual(response.data["user"], {
+            "id": self.student.id,
+            "email": self.student.email,
+            "role": "STUDENT",
+            "is_active": True,
+        })
+
+    def test_authenticated_logout_returns_no_content(self):
+        login = self.client.post(
+            "/api/auth/login", {"email": self.student.email, "password": "pw"}
+        )
+
+        response = self.client.post(
+            "/api/auth/logout",
+            HTTP_AUTHORIZATION=f"Bearer {login.data['access_token']}",
+        )
+
+        self.assertEqual(response.status_code, 204)
+
+    def test_token_signed_with_previous_process_secret_is_rejected(self):
+        previous_jwt_signing_key = project_settings.JWT_SIGNING_KEY
+        token = AccessToken.for_user(self.student)
+        token = TokenBackend(
+            algorithm="HS256", signing_key=previous_jwt_signing_key
+        ).encode(token.payload)
+        current_jwt_signing_key = importlib.reload(project_settings).JWT_SIGNING_KEY
+        self.assertNotEqual(previous_jwt_signing_key, current_jwt_signing_key)
+
+        with patch(
+            "rest_framework_simplejwt.state.token_backend",
+            TokenBackend(algorithm="HS256", signing_key=current_jwt_signing_key),
+        ):
+            response = self.client.get(
+                "/api/auth/me", HTTP_AUTHORIZATION=f"Bearer {token}"
+            )
 
         self.assertEqual(response.status_code, 401)
 

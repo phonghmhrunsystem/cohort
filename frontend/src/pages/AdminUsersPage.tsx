@@ -18,8 +18,6 @@ export function AdminUsersPage() {
     setLoading(true);
     setError("");
     try {
-      const me = await api<User>("/auth/me");
-      if (me.role !== "ADMIN") throw { detail: "Admin access is required." };
       setUsers(await api<User[]>("/users"));
     } catch (response) {
       setError(message(response));
@@ -48,15 +46,7 @@ export function AdminUsersPage() {
     } catch (response) { setError(message(response)); }
   }
 
-  return <div className="workspace">
-    <aside className="workspace-sidebar p-3">
-      <a className="text-white text-decoration-none fw-semibold d-block mb-4" href="/admin/users">Class Management</a>
-      <nav className="workspace-nav nav nav-pills flex-column gap-1" aria-label="Admin navigation">
-        <a className="nav-link" href="/admin/users" aria-current="page">Accounts</a>
-        <a className="nav-link" href="/admin/audit-logs">Audit log</a>
-      </nav>
-    </aside>
-    <main className="workspace-content p-3 p-lg-4">
+  return <>
       <div className="d-flex justify-content-between align-items-center mb-4"><div><h1 className="h2 mb-1">Accounts</h1><p className="text-secondary mb-0">Manage administrator, teacher, and student accounts.</p></div></div>
       <section className="card shadow-sm border-0 mb-4"><div className="card-body">
         <h2 className="h4 mb-3">Create account</h2>
@@ -74,6 +64,5 @@ export function AdminUsersPage() {
           <td><div className="d-flex align-items-center gap-2"><span className={`badge text-bg-${user.is_active ? "success" : "secondary"}`}>{user.is_active ? "Active" : "Inactive"}</span><label><input className="form-check-input" type="checkbox" checked={user.is_active} onChange={(event) => void update(user, { is_active: event.target.checked })} /> <span className="sr-only">Active for {user.email}</span></label></div></td>
         </tr>)}</tbody></table></div>}
       </div></section>
-    </main>
-  </div>;
+  </>;
 }
