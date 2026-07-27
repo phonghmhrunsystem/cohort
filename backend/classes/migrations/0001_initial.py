@@ -40,7 +40,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
+        ("accounts", "0002_seed_demo_data"),
     ]
 
     operations = [

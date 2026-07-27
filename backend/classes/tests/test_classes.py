@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from assignments.models import Assignment
 from audit.models import AuditLog
 from classes.models import Class, Enrollment
 
@@ -79,6 +80,27 @@ class ClassApiTests(TestCase):
         )
         self.assertEqual(response.status_code, 422)
         self.assertIn("ends_at", response.data)
+
+    def test_patch_rejects_end_before_an_existing_assignment_deadline(self):
+        due_at = timezone.now() + timedelta(hours=12)
+        Assignment.objects.create(
+            classroom=self.course,
+            title="Project",
+            description="Build a documented project.",
+            due_at=due_at,
+        )
+        original_ends_at = self.course.ends_at
+
+        response = self.admin_client.patch(
+            f"/api/classes/{self.course.id}",
+            {"ends_at": (due_at - timedelta(minutes=1)).isoformat()},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("ends_at", response.data)
+        self.course.refresh_from_db()
+        self.assertEqual(self.course.ends_at, original_ends_at)
 
     def test_list_search_is_scoped_by_role(self):
         response = self.admin_client.get("/api/classes", {"q": "redorange"})

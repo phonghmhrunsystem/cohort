@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import User
 from audit.models import AuditLog
-from classes.models import Class
+from classes.models import Class, Enrollment
 
 
 class AssignmentApiTests(TestCase):
@@ -14,6 +14,11 @@ class AssignmentApiTests(TestCase):
         now = timezone.now()
         self.teacher = User.objects.create_user("teacher@example.test", "pw", role="TEACHER")
         self.other_teacher = User.objects.create_user("other@example.test", "pw", role="TEACHER")
+        self.admin = User.objects.create_user("admin@example.test", "pw", role="ADMIN")
+        self.student = User.objects.create_user("student@example.test", "pw", role="STUDENT")
+        self.unenrolled_student = User.objects.create_user(
+            "unenrolled@example.test", "pw", role="STUDENT"
+        )
         self.classroom = Class.objects.create(
             teacher=self.teacher,
             name="Python Basics",
@@ -26,10 +31,17 @@ class AssignmentApiTests(TestCase):
             starts_at=now - timedelta(days=1),
             ends_at=now + timedelta(days=2),
         )
+        Enrollment.objects.create(classroom=self.classroom, student=self.student)
         self.teacher_client = APIClient()
         self.teacher_client.force_authenticate(self.teacher)
         self.other_teacher_client = APIClient()
         self.other_teacher_client.force_authenticate(self.other_teacher)
+        self.admin_client = APIClient()
+        self.admin_client.force_authenticate(self.admin)
+        self.student_client = APIClient()
+        self.student_client.force_authenticate(self.student)
+        self.unenrolled_student_client = APIClient()
+        self.unenrolled_student_client.force_authenticate(self.unenrolled_student)
 
     def test_assigned_teacher_creates_and_updates_assignment_with_audit(self):
         response = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json")
@@ -43,11 +55,30 @@ class AssignmentApiTests(TestCase):
         self.assertEqual(response.data["title"], "Updated title")
         self.assertEqual(AuditLog.objects.get(target_id=assignment_id, action="assignment.updated").action, "assignment.updated")
 
-    def test_other_teacher_cannot_read_or_mutate_assignments(self):
+    def test_admin_and_enrolled_student_get_403_for_teacher_only_assignment_operations(self):
+        created = self.teacher_client.post(
+            f"/api/classes/{self.classroom.id}/assignments",
+            self.payload(),
+            format="json",
+        ).data
+
+        for client in (self.admin_client, self.student_client):
+            self.assertEqual(
+                self.assignment_operation_statuses(client, created["id"]),
+                [403] * 5,
+            )
+
+    def test_unrelated_teacher_and_unenrolled_student_get_404_for_assignments(self):
         created = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").data
-        self.assertEqual(self.other_teacher_client.get(f"/api/classes/{self.classroom.id}/assignments").status_code, 404)
-        self.assertEqual(self.other_teacher_client.patch(f"/api/assignments/{created['id']}", {"title": "Nope"}, format="json").status_code, 404)
-        self.assertEqual(self.other_teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").status_code, 404)
+
+        for client in (
+            self.other_teacher_client,
+            self.unenrolled_student_client,
+        ):
+            self.assertEqual(
+                self.assignment_operation_statuses(client, created["id"]),
+                [404] * 5,
+            )
 
     def test_only_open_class_accepts_coursework_mutations(self):
         self.classroom.starts_at = timezone.now() + timedelta(hours=1)
@@ -97,3 +128,26 @@ class AssignmentApiTests(TestCase):
             "due_at": (timezone.now() + timedelta(days=1)).isoformat(),
             **overrides,
         }
+
+    def assignment_operation_statuses(self, client, assignment_id):
+        return [
+            client.get(
+                f"/api/classes/{self.classroom.id}/assignments"
+            ).status_code,
+            client.post(
+                f"/api/classes/{self.classroom.id}/assignments",
+                self.payload(),
+                format="json",
+            ).status_code,
+            client.get(f"/api/assignments/{assignment_id}").status_code,
+            client.patch(
+                f"/api/assignments/{assignment_id}",
+                {"title": "Nope"},
+                format="json",
+            ).status_code,
+            client.put(
+                f"/api/assignments/{assignment_id}/rubric",
+                {"criteria": [{"title": "Nope", "maximum_score": 100}]},
+                format="json",
+            ).status_code,
+        ]

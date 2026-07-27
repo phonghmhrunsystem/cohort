@@ -2,24 +2,38 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User
 from audit.services import write_audit
-from classes.models import Class
+from classes.views import scoped_classes
 
 from .models import Assignment, RubricCriterion
 from .serializers import AssignmentSerializer, RubricSerializer
 
 
 def assigned_class(user, class_id):
-    return get_object_or_404(Class, id=class_id, teacher=user)
+    classroom = get_object_or_404(scoped_classes(user), id=class_id)
+    require_assigned_teacher(user, classroom)
+    return classroom
 
 
 def assigned_assignment(user, assignment_id):
-    return get_object_or_404(Assignment.objects.select_related("classroom"), id=assignment_id, classroom__teacher=user)
+    assignment = get_object_or_404(
+        Assignment.objects.select_related("classroom").filter(
+            classroom__in=scoped_classes(user)
+        ),
+        id=assignment_id,
+    )
+    require_assigned_teacher(user, assignment.classroom)
+    return assignment
+
+
+def require_assigned_teacher(user, classroom):
+    if classroom.teacher_id != user.id:
+        raise PermissionDenied
 
 
 def is_open(classroom):

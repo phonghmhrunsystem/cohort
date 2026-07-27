@@ -33,6 +33,14 @@ class ClassSerializer(serializers.ModelSerializer):
         ends_at = attrs.get("ends_at", getattr(self.instance, "ends_at", None))
         if starts_at and ends_at and starts_at >= ends_at:
             raise serializers.ValidationError({"ends_at": ["End time must be after start time."]})
+        if (
+            self.instance
+            and "ends_at" in attrs
+            and self.instance.assignments.filter(due_at__gt=ends_at).exists()
+        ):
+            raise serializers.ValidationError(
+                {"ends_at": ["End time cannot precede an Assignment due date."]}
+            )
         return attrs
 
 
