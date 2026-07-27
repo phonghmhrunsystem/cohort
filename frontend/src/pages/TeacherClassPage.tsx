@@ -12,9 +12,10 @@ const message = (error: unknown) => {
   return Object.values(failure.fields ?? {}).flat().join(" ") || failure.detail || "Unable to save coursework.";
 };
 const pad = (value: number) => String(value).padStart(2, "0");
+const milliseconds = (value: number) => String(value).padStart(3, "0");
 export const toLocalDateTime = (value: string) => {
   const date = new Date(value);
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${milliseconds(date.getMilliseconds())}`;
 };
 export const toUtcIso = (value: string) => new Date(value).toISOString();
 
