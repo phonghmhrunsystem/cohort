@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from "react";
+import { ReactNode, useEffect, useId, useRef } from "react";
 
 export function AppDialog({ open, title, pending = false, onClose, children }: {
   open: boolean;
@@ -9,6 +9,7 @@ export function AppDialog({ open, title, pending = false, onClose, children }: {
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLElement | null>(null);
+  const titleId = useId();
 
   useEffect(() => {
     const element = dialog.current;
@@ -26,14 +27,14 @@ export function AppDialog({ open, title, pending = false, onClose, children }: {
     if (!pending) onClose();
   }
 
-  return <dialog ref={dialog} className="app-dialog border-0 rounded-3 shadow" aria-labelledby="app-dialog-title" onCancel={(event) => {
+  return <dialog ref={dialog} className="app-dialog border-0 rounded-3 shadow" aria-labelledby={titleId} onCancel={(event) => {
     event.preventDefault();
     close();
   }} onClick={(event) => {
     if (event.target === event.currentTarget) close();
   }}>
     <div className="d-flex justify-content-between align-items-start gap-3 mb-3">
-      <h2 className="h4 mb-0" id="app-dialog-title">{title}</h2>
+      <h2 className="h4 mb-0" id={titleId}>{title}</h2>
       <button className="btn-close" type="button" aria-label="Đóng" disabled={pending} onClick={close} />
     </div>
     {children}

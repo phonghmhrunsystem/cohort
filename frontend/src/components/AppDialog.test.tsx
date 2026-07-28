@@ -70,6 +70,14 @@ test("a pending dialog keeps every supplied close control unavailable", () => {
   expect(html).toMatch(/disabled="">Cancel<\/button>/);
 });
 
+test("simultaneous dialogs each label themselves with their own title", () => {
+  const html = renderToStaticMarkup(<><AppDialog open title="Gỡ Nguyễn An" onClose={vi.fn()}><p>Remove?</p></AppDialog><AppDialog open title="Xóa Code" onClose={vi.fn()}><p>Delete?</p></AppDialog></>);
+  const ids = Array.from(html.matchAll(/aria-labelledby="([^"]+)"/g), ([, id]) => id);
+
+  expect(new Set(ids).size).toBe(2);
+  ids.forEach((id) => expect(html).toContain(`id="${id}"`));
+});
+
 test("a pending dialog ignores Cancel, Escape, and overlay close attempts", () => {
   const onClose = vi.fn();
   const dialog = renderDialog(true, true, onClose);
