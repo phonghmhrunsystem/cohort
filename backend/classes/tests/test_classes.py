@@ -577,6 +577,20 @@ class GradebookApiTests(TestCase):
              for assignment in (open_assignment, submitted_assignment, graded_assignment, closed_assignment)],
         )
 
+    def test_gradebook_prefetches_assignment_classrooms(self):
+        Assignment.objects.create(
+            classroom=self.classroom, title="One", description="x", due_at=timezone.now() + timedelta(days=1)
+        )
+        Assignment.objects.create(
+            classroom=self.classroom, title="Two", description="x", due_at=timezone.now() + timedelta(days=1)
+        )
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(queries), 4)
+
     def test_gradebook_csv_is_utf8_private_safe_and_matches_roster(self):
         self.student.full_name = "Nguyễn Văn A"
         self.student.save(update_fields=("full_name",))
