@@ -120,7 +120,9 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.student_client.get(f"/api/classes/{self.other_course.id}").status_code, 404)
         response = self.admin_client.get(f"/api/classes/{self.course.id}/students")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([item["id"] for item in response.data], [self.student.id])
+        candidate_ids = [item["id"] for item in response.data]
+        self.assertIn(self.student.id, candidate_ids)
+        self.assertIn(self.other_student.id, candidate_ids)
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}/students").status_code, 403)
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students").status_code, 403)
 

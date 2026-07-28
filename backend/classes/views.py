@@ -84,7 +84,7 @@ class StudentsView(APIView):
         class_ = get_scoped_class(request.user, class_id)
         if request.user.role != User.Role.ADMIN:
             return Response(status=status.HTTP_403_FORBIDDEN)
-        students = User.objects.filter(enrollments__classroom=class_, role=User.Role.STUDENT, is_active=True)
+        students = User.objects.filter(role=User.Role.STUDENT, is_active=True)
         if query := request.query_params.get("q", "").strip():
             students = students.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
         return Response(StudentSerializer(students.order_by("id"), many=True).data)
