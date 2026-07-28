@@ -1,6 +1,6 @@
 # Phase 5 — Grading and Results Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Let an owning Teacher grade only the newest submission and let its Student read the resulting total, feedback, and rubric breakdown.
 
@@ -25,7 +25,7 @@
 
 **Produces:** `PUT /api/submissions/{id}/grade`, `GET /api/assignments/{id}/my-result`, and `grade_submission(*, teacher, submission, payload)`.
 
-- [ ] **Step 1: Write failing tests for required feedback, calculated rubric total, manual range, non-latest denial, grade lock, and private result.**
+- [x] **Step 1: Write failing tests for required feedback, calculated rubric total, manual range, non-latest denial, grade lock, and private result.**
 
 ```python
 def test_rubric_grade_total_is_calculated_server_side(self):
@@ -38,9 +38,9 @@ def test_only_latest_submission_can_be_graded(self):
     self.assertEqual(response.status_code, 422)
 ```
 
-- [ ] **Step 2: Run `cd backend; python manage.py test grading.tests`; expect failure.**
+- [x] **Step 2: Run `cd backend; python manage.py test grading.tests`; expect failure.**
 
-- [ ] **Step 3: Add `Grade`/`CriterionScore` and a single atomic grade service that confirms owned cohort and newest version.**
+- [x] **Step 3: Add `Grade`/`CriterionScore` and a single atomic grade service that confirms owned cohort and newest version.**
 
 ```python
 if assignment.rubric_criteria.exists():
@@ -49,9 +49,9 @@ else:
     total = validated_data["total_score"]
 ```
 
-- [ ] **Step 4: Require non-blank feedback; validate all-and-only rubric criterion IDs/scores or manual `0..100`; write grade, scores, and audit in the transaction.**
+- [x] **Step 4: Require non-blank feedback; validate all-and-only rubric criterion IDs/scores or manual `0..100`; write grade, scores, and audit in the transaction.**
 
-- [ ] **Step 5: Make submission creation reject when any grade exists for the Student/assignment; return criterion breakdown in own-result. Migrate and run `python manage.py test grading.tests`; expect PASS. Commit.**
+- [x] **Step 5: Make submission creation reject when any grade exists for the Student/assignment; return criterion breakdown in own-result. Migrate and run `python manage.py test grading.tests`; expect PASS. Commit.**
 
 ```bash
 git add backend
@@ -66,11 +66,11 @@ git commit -m "feat: add grading and student results api"
 
 **Consumes:** Phase 5 grade/result API.
 
-- [ ] **Step 1: Render Teacher inputs for every rubric criterion or one manual total, a required feedback field, and the server-returned total after submit.**
+- [x] **Step 1: Render Teacher inputs for every rubric criterion or one manual total, a required feedback field, and the server-returned total after submit.**
 
-- [ ] **Step 2: Render Student total, feedback, and rubric-score breakdown; hide grade actions for Students.**
+- [x] **Step 2: Render Student total, feedback, and rubric-score breakdown; hide grade actions for Students.**
 
-- [ ] **Step 3: Browser-check Teacher grades v2, Student sees result, and next upload is rejected. Commit.**
+- [x] **Step 3: Browser-check Teacher grades v2, Student sees result, and next upload is rejected. Commit.**
 
 ```bash
 git add frontend
