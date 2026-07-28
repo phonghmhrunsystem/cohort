@@ -1,16 +1,22 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from threading import Barrier
+from unittest.mock import patch
 
 from django.conf import settings
-from django.test import TestCase, override_settings
-from django.utils import timezone
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import close_old_connections
+from django.test import TestCase, TransactionTestCase, override_settings
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
-from assignments.models import Assignment
+from assignments.models import Assignment, AssignmentGrade
 from classes.models import Class, Enrollment
+from submissions.models import Submission
+from submissions.services import create_submission
 
 
 class SubmissionApiTests(TestCase):
@@ -59,6 +65,14 @@ class SubmissionApiTests(TestCase):
             {"file": SimpleUploadedFile(filename, b"content", self.content_type(filename))},
             format="multipart",
         )
+
+    def submit_after_view_checks(self, change):
+        def change_then_create(**kwargs):
+            change()
+            return create_submission(**kwargs)
+
+        with patch("submissions.views.create_submission", side_effect=change_then_create):
+            return self.submit("race.pdf")
 
     def content_type(self, filename):
         return {
@@ -116,9 +130,6 @@ class SubmissionApiTests(TestCase):
         )
 
     def test_graded_student_cannot_submit_or_write_a_file_or_row(self):
-        from assignments.models import AssignmentGrade
-        from submissions.models import Submission
-
         AssignmentGrade.objects.create(
             assignment=self.assignment, student=self.student, score=90
         )
@@ -127,6 +138,70 @@ class SubmissionApiTests(TestCase):
         response = self.submit("graded.pdf")
 
         self.assertEqual(response.status_code, 422)
+        self.assertEqual(Submission.objects.count(), 0)
+        self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
+
+    def test_enrollment_is_rechecked_after_view_authorization(self):
+        self.student_client.raise_request_exception = False
+        before = list(Path(settings.MEDIA_ROOT).rglob("*"))
+
+        response = self.submit_after_view_checks(
+            lambda: Enrollment.objects.filter(
+                classroom=self.classroom, student=self.student
+            ).delete()
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(Submission.objects.count(), 0)
+        self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
+
+    def test_class_window_is_rechecked_after_view_validation(self):
+        before = list(Path(settings.MEDIA_ROOT).rglob("*"))
+
+        response = self.submit_after_view_checks(
+            lambda: Class.objects.filter(id=self.classroom.id).update(
+                ends_at=timezone.now() - timedelta(seconds=1)
+            )
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json(),
+            {"detail": "Submissions are accepted only before the deadline while the Class is open."},
+        )
+        self.assertEqual(Submission.objects.count(), 0)
+        self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
+
+    def test_deadline_is_rechecked_after_view_validation(self):
+        before = list(Path(settings.MEDIA_ROOT).rglob("*"))
+
+        response = self.submit_after_view_checks(
+            lambda: Assignment.objects.filter(id=self.assignment.id).update(
+                due_at=timezone.now() - timedelta(seconds=1)
+            )
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json(),
+            {"detail": "Submissions are accepted only before the deadline while the Class is open."},
+        )
+        self.assertEqual(Submission.objects.count(), 0)
+        self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
+
+    def test_grade_is_rechecked_after_view_validation(self):
+        before = list(Path(settings.MEDIA_ROOT).rglob("*"))
+
+        response = self.submit_after_view_checks(
+            lambda: AssignmentGrade.objects.create(
+                assignment=self.assignment, student=self.student, score=90
+            )
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json(), {"detail": "This Assignment has already been graded."}
+        )
         self.assertEqual(Submission.objects.count(), 0)
         self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
 
@@ -142,3 +217,95 @@ class SubmissionApiTests(TestCase):
         teacher_download.close()
         self.assertEqual(self.other_student_client.get(download_url).status_code, 404)
         self.assertEqual(self.unenrolled_student_client.get(download_url).status_code, 404)
+
+    def test_teacher_detail_and_download_are_limited_to_latest_version(self):
+        first = self.submit("one.pdf").json()
+        latest = self.submit("two.pdf").json()
+
+        self.assertEqual(
+            self.teacher_client.get(f"/api/submissions/{first['id']}").status_code,
+            404,
+        )
+        self.assertEqual(
+            self.teacher_client.get(
+                f"/api/submissions/{first['id']}/download"
+            ).status_code,
+            404,
+        )
+        self.assertEqual(
+            self.student_client.get(f"/api/submissions/{first['id']}").status_code,
+            200,
+        )
+        self.assertEqual(
+            self.teacher_client.get(f"/api/submissions/{latest['id']}").status_code,
+            200,
+        )
+        latest_download = self.teacher_client.get(
+            f"/api/submissions/{latest['id']}/download"
+        )
+        self.assertEqual(latest_download.status_code, 200)
+        latest_download.close()
+
+
+class SubmissionConcurrencyTests(TransactionTestCase):
+    def setUp(self):
+        self.media = TemporaryDirectory()
+        self.addCleanup(self.media.cleanup)
+        self.media_override = override_settings(MEDIA_ROOT=self.media.name)
+        self.media_override.enable()
+        self.addCleanup(self.media_override.disable)
+        now = timezone.now()
+        self.teacher = User.objects.create_user(
+            "teacher-concurrency@example.test", "pw", role="TEACHER"
+        )
+        self.student = User.objects.create_user(
+            "student-concurrency@example.test", "pw", role="STUDENT"
+        )
+        self.classroom = Class.objects.create(
+            teacher=self.teacher,
+            name="Concurrency",
+            starts_at=now - timedelta(days=1),
+            ends_at=now + timedelta(days=2),
+        )
+        Enrollment.objects.create(classroom=self.classroom, student=self.student)
+        self.assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Concurrent submission",
+            description="Submit simultaneously.",
+            due_at=now + timedelta(days=1),
+        )
+
+    def test_simultaneous_first_submissions_create_distinct_versions(self):
+        start = Barrier(2)
+
+        def submit(filename):
+            close_old_connections()
+            try:
+                start.wait()
+                return create_submission(
+                    assignment=self.assignment,
+                    student=self.student,
+                    upload=SimpleUploadedFile(filename, b"content", "application/pdf"),
+                    note="",
+                ).version
+            except Exception as exc:
+                return type(exc).__name__
+            finally:
+                close_old_connections()
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(submit, ("one.pdf", "two.pdf")))
+
+        self.assertCountEqual(results, [1, 2])
+        self.assertEqual(
+            list(
+                Submission.objects.filter(
+                    assignment=self.assignment, student=self.student
+                ).values_list("version", flat=True)
+            ),
+            [2, 1],
+        )
+        self.assertEqual(
+            len([path for path in Path(settings.MEDIA_ROOT).rglob("*") if path.is_file()]),
+            2,
+        )

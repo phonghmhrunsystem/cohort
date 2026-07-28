@@ -2,7 +2,6 @@ from django.core.files.storage import default_storage
 from django.db.models import OuterRef, Subquery
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,7 +13,13 @@ from classes.views import scoped_classes
 
 from .models import Submission
 from .serializers import SubmissionSerializer, SubmissionUploadSerializer
-from .services import create_submission
+from .services import (
+    CLOSED_MESSAGE,
+    GRADED_MESSAGE,
+    SubmissionRejected,
+    can_submit,
+    create_submission,
+)
 
 
 def scoped_assignment(user, assignment_id):
@@ -24,11 +29,6 @@ def scoped_assignment(user, assignment_id):
         ),
         id=assignment_id,
     )
-
-
-def can_submit(assignment):
-    now = timezone.now()
-    return assignment.classroom.starts_at <= now < assignment.classroom.ends_at and now < assignment.due_at
 
 
 class AssignmentSubmissionsView(APIView):
@@ -53,23 +53,28 @@ class AssignmentSubmissionsView(APIView):
             return Response(status=status.HTTP_403_FORBIDDEN)
         if AssignmentGrade.objects.filter(assignment=assignment, student=request.user).exists():
             return Response(
-                {"detail": "This Assignment has already been graded."},
+                {"detail": GRADED_MESSAGE},
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
             )
         if not can_submit(assignment):
             return Response(
-                {"detail": "Submissions are accepted only before the deadline while the Class is open."},
+                {"detail": CLOSED_MESSAGE},
                 status=status.HTTP_422_UNPROCESSABLE_ENTITY,
             )
         serializer = SubmissionUploadSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        submission = create_submission(
-            assignment=assignment,
-            student=request.user,
-            upload=serializer.validated_data["file"],
-            note=serializer.validated_data.get("note", ""),
-        )
+        try:
+            submission = create_submission(
+                assignment=assignment,
+                student=request.user,
+                upload=serializer.validated_data["file"],
+                note=serializer.validated_data.get("note", ""),
+            )
+        except SubmissionRejected as exc:
+            return Response(
+                {"detail": str(exc)}, status=status.HTTP_422_UNPROCESSABLE_ENTITY
+            )
         return Response(SubmissionSerializer(submission).data, status=status.HTTP_201_CREATED)
 
 
@@ -82,7 +87,13 @@ class SubmissionDetailView(APIView):
     def get_submission(self, request, submission_id):
         submissions = Submission.objects.select_related("assignment__classroom")
         if request.user.role == User.Role.TEACHER:
-            submissions = submissions.filter(assignment__classroom__teacher=request.user)
+            latest = Submission.objects.filter(
+                assignment_id=OuterRef("assignment_id"), student_id=OuterRef("student_id")
+            ).order_by("-version").values("id")[:1]
+            submissions = submissions.filter(
+                assignment__classroom__teacher=request.user,
+                id=Subquery(latest),
+            )
         elif request.user.role == User.Role.STUDENT:
             submissions = submissions.filter(student=request.user)
         else:
