@@ -62,9 +62,23 @@ class AssignmentApiTests(TestCase):
             format="json",
         ).data
 
-        self.assertEqual(self.assignment_operation_statuses(self.admin_client, created["id"]), [403] * 5)
-        self.assertEqual(self.assignment_operation_statuses(self.student_client, created["id"]), [200, 403, 403, 403, 403])
+        self.assertEqual(self.assignment_operation_statuses(self.admin_client, created["id"]), [403, 403, 200, 403, 403])
+        self.assertEqual(self.assignment_operation_statuses(self.student_client, created["id"]), [200, 403, 200, 403, 403])
         self.assertEqual(self.student_client.get(f"/api/classes/{self.classroom.id}/assignments").data[0]["id"], created["id"])
+
+    def test_enrolled_student_can_read_assignment_detail_with_criteria(self):
+        assignment = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").data
+        self.teacher_client.put(
+            f"/api/assignments/{assignment['id']}/rubric",
+            {"criteria": [{"title": "Code", "maximum_score": 60}, {"title": "Tests", "maximum_score": 40}]},
+            format="json",
+        )
+        response = self.student_client.get(f"/api/assignments/{assignment['id']}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([c["title"] for c in response.data["criteria"]], ["Code", "Tests"])
+
+        response = self.unenrolled_student_client.get(f"/api/assignments/{assignment['id']}")
+        self.assertEqual(response.status_code, 404)
 
     def test_unrelated_teacher_and_unenrolled_student_get_404_for_assignments(self):
         created = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").data

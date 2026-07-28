@@ -21,13 +21,20 @@ def assigned_class(user, class_id):
     return classroom
 
 
-def assigned_assignment(user, assignment_id):
-    assignment = get_object_or_404(
+def scoped_assignment(user, assignment_id):
+    """Read-only lookup: scoped_classes(user) already restricts a student to
+    their own enrolled classes and a teacher to their own classes, so no
+    further ownership check is needed for reads."""
+    return get_object_or_404(
         Assignment.objects.select_related("classroom").filter(
             classroom__in=scoped_classes(user)
         ),
         id=assignment_id,
     )
+
+
+def assigned_assignment(user, assignment_id):
+    assignment = scoped_assignment(user, assignment_id)
     require_assigned_teacher(user, assignment.classroom)
     return assignment
 
@@ -72,7 +79,7 @@ class AssignmentDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, assignment_id):
-        assignment = assigned_assignment(request.user, assignment_id)
+        assignment = scoped_assignment(request.user, assignment_id)
         return Response(AssignmentSerializer(assignment, context={"classroom": assignment.classroom}).data)
 
     def patch(self, request, assignment_id):
