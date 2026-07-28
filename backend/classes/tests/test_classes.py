@@ -129,6 +129,51 @@ class ClassApiTests(TestCase):
         )
         self.assertEqual(self.student_client.get(f"/api/classes/{self.other_course.id}").status_code, 404)
 
+    def test_enrolled_student_class_includes_server_computed_progress_and_nearest_deadline(self):
+        now = timezone.now()
+        graded_assignment = Assignment.objects.create(
+            classroom=self.course,
+            title="Graded work",
+            description="Build a documented project.",
+            due_at=now + timedelta(hours=2),
+        )
+        open_assignment = Assignment.objects.create(
+            classroom=self.course,
+            title="Open work",
+            description="Build a documented project.",
+            due_at=now + timedelta(hours=4),
+        )
+        submission = Submission.objects.create(
+            assignment=graded_assignment,
+            student=self.student,
+            version=1,
+            file_path="submissions/graded.pdf",
+            original_filename="graded.pdf",
+            content_type="application/pdf",
+            size=10,
+            note="",
+        )
+        Grade.objects.create(
+            assignment=graded_assignment,
+            student=self.student,
+            teacher=self.teacher,
+            submission=submission,
+            total_score=90,
+            feedback="Good work.",
+        )
+
+        response = self.student_client.get(f"/api/classes/{self.course.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["progress"],
+            {
+                "graded_assignments": 1,
+                "total_assignments": 2,
+                "nearest_deadline": open_assignment.due_at.isoformat(),
+            },
+        )
+
     def test_detail_and_students_reads_are_role_scoped(self):
         self.assertEqual(self.admin_client.get(f"/api/classes/{self.other_course.id}").status_code, 200)
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}").status_code, 200)

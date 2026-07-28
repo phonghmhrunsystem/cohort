@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.utils import timezone
 
 from accounts.models import User
 
@@ -14,10 +15,11 @@ class TeacherDisplaySerializer(serializers.ModelSerializer):
 class ClassSerializer(serializers.ModelSerializer):
     teacher_id = serializers.PrimaryKeyRelatedField(source="teacher", queryset=User.objects.all())
     teacher = TeacherDisplaySerializer(read_only=True)
+    progress = serializers.SerializerMethodField()
 
     class Meta:
         model = Class
-        fields = ("id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at")
+        fields = ("id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at", "progress")
 
     def validate_name(self, value):
         value = value.strip()
@@ -49,6 +51,27 @@ class ClassSerializer(serializers.ModelSerializer):
                 {"ends_at": ["End time cannot precede an Assignment due date."]}
             )
         return attrs
+
+    def get_progress(self, classroom):
+        student = self.context.get("student")
+        if not student:
+            return None
+        from assignments.services import assignment_learning_state
+
+        now = timezone.now()
+        states = [
+            (assignment, assignment_learning_state(assignment, student, now))
+            for assignment in classroom.assignments.all()
+        ]
+        nearest = min(
+            (assignment.due_at for assignment, state in states if state in ("OPEN", "SUBMITTED")),
+            default=None,
+        )
+        return {
+            "graded_assignments": sum(state == "GRADED" for _, state in states),
+            "total_assignments": len(states),
+            "nearest_deadline": nearest.isoformat() if nearest else None,
+        }
 
 
 class StudentProgressSerializer(serializers.ModelSerializer):

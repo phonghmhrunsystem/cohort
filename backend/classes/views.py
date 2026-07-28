@@ -40,7 +40,8 @@ class ClassesView(APIView):
         classes = scoped_classes(request.user)
         if query := request.query_params.get("q", "").strip():
             classes = classes.filter(name__icontains=query)
-        return Response(ClassSerializer(classes.order_by("id").distinct(), many=True).data)
+        context = {"student": request.user} if request.user.role == User.Role.STUDENT else {}
+        return Response(ClassSerializer(classes.order_by("id").distinct(), many=True, context=context).data)
 
     def post(self, request):
         if request.user.role != User.Role.ADMIN:
@@ -63,7 +64,8 @@ class ClassDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, class_id):
-        return Response(ClassSerializer(get_scoped_class(request.user, class_id)).data)
+        context = {"student": request.user} if request.user.role == User.Role.STUDENT else {}
+        return Response(ClassSerializer(get_scoped_class(request.user, class_id), context=context).data)
 
     def patch(self, request, class_id):
         if request.user.role != User.Role.ADMIN:

@@ -1,7 +1,7 @@
 import { api } from "./api";
 
 export type RubricCriterion = { id?: number; title: string; maximum_score: number };
-export type Assignment = { id: number; classroom_id: number; title: string; description: string; due_at: string; maximum_score: number; criteria: RubricCriterion[] };
+export type Assignment = { id: number; classroom_id: number; title: string; description: string; due_at: string; maximum_score: number; criteria: RubricCriterion[]; learning_state?: "OPEN" | "SUBMITTED" | "GRADED" | "CLOSED" | null; deadline_badge?: string | null; closure_reason?: string | null };
 export type AssignmentDraft = Pick<Assignment, "title" | "description" | "due_at">;
 
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
