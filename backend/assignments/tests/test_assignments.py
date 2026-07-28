@@ -55,18 +55,16 @@ class AssignmentApiTests(TestCase):
         self.assertEqual(response.data["title"], "Updated title")
         self.assertEqual(AuditLog.objects.get(target_id=assignment_id, action="assignment.updated").action, "assignment.updated")
 
-    def test_admin_and_enrolled_student_get_403_for_teacher_only_assignment_operations(self):
+    def test_enrolled_student_lists_assignments_but_cannot_mutate_them(self):
         created = self.teacher_client.post(
             f"/api/classes/{self.classroom.id}/assignments",
             self.payload(),
             format="json",
         ).data
 
-        for client in (self.admin_client, self.student_client):
-            self.assertEqual(
-                self.assignment_operation_statuses(client, created["id"]),
-                [403] * 5,
-            )
+        self.assertEqual(self.assignment_operation_statuses(self.admin_client, created["id"]), [403] * 5)
+        self.assertEqual(self.assignment_operation_statuses(self.student_client, created["id"]), [200, 403, 403, 403, 403])
+        self.assertEqual(self.student_client.get(f"/api/classes/{self.classroom.id}/assignments").data[0]["id"], created["id"])
 
     def test_unrelated_teacher_and_unenrolled_student_get_404_for_assignments(self):
         created = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").data

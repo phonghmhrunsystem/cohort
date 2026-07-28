@@ -1,0 +1,21 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { expect, test, vi } from "vitest";
+
+const harness = vi.hoisted(() => {
+  vi.stubGlobal("location", { pathname: "/student/classes/4" });
+  return {
+    class_: { id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "2026-07-01T00:00:00Z", ends_at: "2026-08-01T00:00:00Z" },
+    assignments: [{ id: 9, classroom_id: 4, title: "Essay", description: "", due_at: "2026-07-30T00:00:00Z", maximum_score: 100, criteria: [] }],
+  };
+});
+
+vi.mock("react", async (importActual) => {
+  const actual = await importActual<typeof import("react")>();
+  return { ...actual, useEffect: vi.fn(), useState: <T,>(initial: T) => [initial === undefined ? harness.class_ as T : Array.isArray(initial) ? harness.assignments as T : initial, vi.fn()] as const };
+});
+
+import { StudentClassPage } from "./StudentClassPage";
+
+test("student class assignments link to the student submission page", () => {
+  expect(renderToStaticMarkup(<StudentClassPage />)).toContain('href="/student/assignments/9"');
+});

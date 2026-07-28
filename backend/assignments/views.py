@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from accounts.models import User
 from audit.services import write_audit
 from classes.views import scoped_classes
 
@@ -49,7 +50,9 @@ class ClassAssignmentsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, class_id):
-        classroom = assigned_class(request.user, class_id)
+        classroom = get_object_or_404(scoped_classes(request.user), id=class_id)
+        if request.user.role not in (User.Role.TEACHER, User.Role.STUDENT):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         return Response(AssignmentSerializer(classroom.assignments.all(), many=True, context={"classroom": classroom}).data)
 
     def post(self, request, class_id):
