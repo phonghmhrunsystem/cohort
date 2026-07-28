@@ -9,11 +9,10 @@ beforeEach(() => {
   vi.stubGlobal("document", { createElement: vi.fn(() => ({ click: vi.fn() })) });
 });
 
-const submission = { id: 2, assignment_id: 5, student_id: 7, version: 2, original_filename: "essay-v2.docx", created_at: "2026-07-28T01:00:00Z", graded: false };
-const names = { 7: "Nguyen Van A" };
+const submission = { id: 2, assignment_id: 5, student_id: 7, student_name: "Nguyen Van A", version: 2, original_filename: "essay-v2.docx", created_at: "2026-07-28T01:00:00Z", graded: false };
 
 test("latest submissions leads with the student's name, then filename and submitted time, and version only as supporting history", () => {
-  const html = renderToStaticMarkup(<LatestSubmissions submissions={[submission]} studentNames={names} />);
+  const html = renderToStaticMarkup(<LatestSubmissions submissions={[submission]} />);
 
   expect(html).toContain("Nguyen Van A");
   expect(html).not.toContain("Student #7");
@@ -26,15 +25,21 @@ test("latest submissions leads with the student's name, then filename and submit
   expect(html).toContain('href="/teacher/assignments/5/submissions/2/grade"');
 });
 
+test("a submission with no student_name falls back to Student #id", () => {
+  const html = renderToStaticMarkup(<LatestSubmissions submissions={[{ ...submission, student_name: null }]} />);
+
+  expect(html).toContain("Student #7");
+});
+
 test("an ungraded submission offers a Chấm điểm action", () => {
-  const html = renderToStaticMarkup(<LatestSubmissions submissions={[submission]} studentNames={names} />);
+  const html = renderToStaticMarkup(<LatestSubmissions submissions={[submission]} />);
 
   expect(html).toContain("Chấm điểm");
   expect(html).not.toContain("Đã chấm");
 });
 
 test("a graded submission shows Đã chấm instead of a grading link", () => {
-  const html = renderToStaticMarkup(<LatestSubmissions submissions={[{ ...submission, graded: true }]} studentNames={names} />);
+  const html = renderToStaticMarkup(<LatestSubmissions submissions={[{ ...submission, graded: true }]} />);
 
   expect(html).toContain("Đã chấm");
   expect(html).not.toContain("Chấm điểm");

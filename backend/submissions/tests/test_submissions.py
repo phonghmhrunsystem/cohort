@@ -118,6 +118,30 @@ class SubmissionApiTests(TestCase):
             {(self.student.id, 2), (self.other_student.id, 1)},
         )
 
+    def test_submission_serializer_exposes_student_name(self):
+        self.student.full_name = "Nguyen Van A"
+        self.student.save(update_fields=("full_name",))
+        submission_id = self.submit("one.pdf").json()["id"]
+
+        student_response = self.student_client.get(self.submit_url)
+        self.assertEqual(student_response.json()[0]["student_name"], "Nguyen Van A")
+
+        teacher_response = self.teacher_client.get(self.teacher_list_url)
+        self.assertEqual(teacher_response.json()[0]["student_name"], "Nguyen Van A")
+
+        detail_response = self.teacher_client.get(f"/api/submissions/{submission_id}")
+        self.assertEqual(detail_response.json()["student_name"], "Nguyen Van A")
+
+        # A student without a full_name should serialize as null, not error.
+        self.other_student_client.post(
+            self.submit_url,
+            {"file": SimpleUploadedFile("other.pdf", b"content", "application/pdf")},
+            format="multipart",
+        )
+        teacher_response = self.teacher_client.get(self.teacher_list_url)
+        rows = {row["student_id"]: row["student_name"] for row in teacher_response.json()}
+        self.assertIsNone(rows[self.other_student.id])
+
     def test_late_and_unenrolled_students_cannot_submit(self):
         self.assignment.due_at = timezone.now() - timedelta(seconds=1)
         self.assignment.save(update_fields=("due_at",))

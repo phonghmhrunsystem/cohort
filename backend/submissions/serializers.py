@@ -24,6 +24,7 @@ class SubmissionUploadSerializer(serializers.Serializer):
 
 class SubmissionSerializer(serializers.ModelSerializer):
     graded = serializers.SerializerMethodField()
+    student_name = serializers.CharField(source="student.full_name", read_only=True)
 
     class Meta:
         model = Submission
@@ -31,6 +32,7 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "id",
             "assignment_id",
             "student_id",
+            "student_name",
             "version",
             "original_filename",
             "content_type",

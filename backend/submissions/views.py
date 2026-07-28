@@ -40,9 +40,9 @@ class AssignmentSubmissionsView(APIView):
             latest = Submission.objects.filter(
                 assignment_id=OuterRef("assignment_id"), student_id=OuterRef("student_id")
             ).order_by("-version").values("id")[:1]
-            submissions = Submission.objects.filter(assignment=assignment, id=Subquery(latest)).select_related("grade").order_by("student_id")
+            submissions = Submission.objects.filter(assignment=assignment, id=Subquery(latest)).select_related("grade", "student").order_by("student_id")
         elif request.user.role == User.Role.STUDENT:
-            submissions = Submission.objects.filter(assignment=assignment, student=request.user)
+            submissions = Submission.objects.filter(assignment=assignment, student=request.user).select_related("grade", "student")
         else:
             return Response(status=status.HTTP_403_FORBIDDEN)
         return Response(SubmissionSerializer(submissions, many=True).data)
@@ -85,7 +85,7 @@ class SubmissionDetailView(APIView):
         return Response(SubmissionSerializer(self.get_submission(request, submission_id)).data)
 
     def get_submission(self, request, submission_id):
-        submissions = Submission.objects.select_related("assignment__classroom")
+        submissions = Submission.objects.select_related("assignment__classroom", "grade", "student")
         if request.user.role == User.Role.TEACHER:
             latest = Submission.objects.filter(
                 assignment_id=OuterRef("assignment_id"), student_id=OuterRef("student_id")
