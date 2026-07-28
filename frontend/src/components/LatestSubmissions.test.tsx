@@ -11,12 +11,13 @@ beforeEach(() => {
 
 test("latest submissions identifies the student and exposes one protected download action", () => {
   const html = renderToStaticMarkup(<LatestSubmissions submissions={[
-    { id: 2, student_id: 7, version: 2, original_filename: "essay-v2.docx", created_at: "2026-07-28T01:00:00Z" },
+    { id: 2, assignment_id: 5, student_id: 7, version: 2, original_filename: "essay-v2.docx", created_at: "2026-07-28T01:00:00Z" },
   ]} />);
 
   expect(html).toContain("Student #7");
   expect(html).toContain("Version 2");
   expect(html).toContain("Download essay-v2.docx");
+  expect(html).toContain('href="/teacher/assignments/5/submissions/2/grade"');
 });
 
 test("download fetches the protected endpoint with the session JWT", async () => {

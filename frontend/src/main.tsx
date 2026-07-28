@@ -5,7 +5,9 @@ import { AuditLogPage } from "./pages/AuditLogPage";
 import { AdminClassPage } from "./pages/AdminClassPage";
 import { AdminClassesPage } from "./pages/AdminClassesPage";
 import { AssignmentPage } from "./pages/AssignmentPage";
+import { GradePage } from "./pages/GradePage";
 import { LoginPage } from "./pages/LoginPage";
+import { ResultPage } from "./pages/ResultPage";
 import { StudentClassPage } from "./pages/StudentClassPage";
 import { StudentClassesPage } from "./pages/StudentClassesPage";
 import { TeacherClassPage } from "./pages/TeacherClassPage";
@@ -19,7 +21,9 @@ const root = createRoot(document.getElementById("root")!);
 
 function pageFor(path: string) {
   const assignment = /^\/(teacher|student)\/assignments\/(\d+)$/.exec(path);
-  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/admin/classes" ? <AdminClassesPage /> : /^\/admin\/classes\/\d+$/.test(path) ? <AdminClassPage /> : path === "/teacher/classes" ? <TeacherClassesPage /> : /^\/teacher\/classes\/\d+$/.test(path) ? <TeacherClassPage /> : path === "/student/classes" ? <StudentClassesPage /> : /^\/student\/classes\/\d+$/.test(path) ? <StudentClassPage /> : assignment ? <AssignmentPage assignmentId={Number(assignment[2])} role={assignment[1].toUpperCase() as "TEACHER" | "STUDENT"} /> : undefined;
+  const grade = /^\/teacher\/assignments\/(\d+)\/submissions\/(\d+)\/grade$/.exec(path);
+  const result = /^\/student\/assignments\/(\d+)\/result$/.exec(path);
+  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/admin/classes" ? <AdminClassesPage /> : /^\/admin\/classes\/\d+$/.test(path) ? <AdminClassPage /> : path === "/teacher/classes" ? <TeacherClassesPage /> : /^\/teacher\/classes\/\d+$/.test(path) ? <TeacherClassPage /> : path === "/student/classes" ? <StudentClassesPage /> : /^\/student\/classes\/\d+$/.test(path) ? <StudentClassPage /> : grade ? <GradePage assignmentId={Number(grade[1])} submissionId={Number(grade[2])} /> : result ? <ResultPage assignmentId={Number(result[1])} /> : assignment ? <AssignmentPage assignmentId={Number(assignment[2])} role={assignment[1].toUpperCase() as "TEACHER" | "STUDENT"} /> : undefined;
 }
 
 async function render() {

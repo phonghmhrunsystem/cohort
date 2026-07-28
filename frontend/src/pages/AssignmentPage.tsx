@@ -5,7 +5,7 @@ import { LatestSubmissions } from "../components/LatestSubmissions";
 import { SubmissionHistory } from "../components/SubmissionHistory";
 import { Role } from "../session";
 
-type Submission = { id: number; student_id: number; version: number; original_filename: string; note: string; created_at: string };
+type Submission = { id: number; assignment_id: number; student_id: number; version: number; original_filename: string; note: string; created_at: string };
 
 const message = (error: unknown) => {
   const failure = error as { detail?: string; fields?: Record<string, string[]> };
@@ -34,5 +34,5 @@ export function AssignmentPage({ assignmentId, role }: { assignmentId: number; r
       setFile(null); setNote(""); form.reset(); await load();
     } catch (response) { setError(message(response)); } finally { setSaving(false); }
   }
-  return <><a href={`/${role.toLowerCase()}/classes`}>My Classes</a><h1 className="h2 mt-2">Assignment submissions</h1>{error && <div className="alert alert-danger" role="alert">{error}</div>}{role === "STUDENT" ? <><section className="card border-0 shadow-sm mb-3"><div className="card-body"><h2 className="h4">Submit a file</h2><form onSubmit={submit}><label className="form-label w-100">PDF or DOCX<input className="form-control" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required /></label><label className="form-label w-100">Note<textarea className="form-control" value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} /></label><button className="btn btn-primary" disabled={saving}>{saving ? "Uploading…" : "Upload submission"}</button></form></div></section><SubmissionHistory submissions={submissions} /></> : <LatestSubmissions submissions={submissions} />}</>;
+  return <><a href={`/${role.toLowerCase()}/classes`}>My Classes</a><h1 className="h2 mt-2">Assignment submissions</h1>{error && <div className="alert alert-danger" role="alert">{error}</div>}{role === "STUDENT" ? <><p><a href={`/student/assignments/${assignmentId}/result`}>View my result</a></p><section className="card border-0 shadow-sm mb-3"><div className="card-body"><h2 className="h4">Submit a file</h2><form onSubmit={submit}><label className="form-label w-100">PDF or DOCX<input className="form-control" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required /></label><label className="form-label w-100">Note<textarea className="form-control" value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} /></label><button className="btn btn-primary" disabled={saving}>{saving ? "Uploading…" : "Upload submission"}</button></form></div></section><SubmissionHistory submissions={submissions} /></> : <LatestSubmissions submissions={submissions} />}</>;
 }

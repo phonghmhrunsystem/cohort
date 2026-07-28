@@ -7,6 +7,7 @@ export type AssignmentDraft = Pick<Assignment, "title" | "description" | "due_at
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export const listAssignments = (classId: number) => api<Assignment[]>(`/classes/${classId}/assignments`);
+export const getAssignment = (id: number) => api<Assignment>(`/assignments/${id}`);
 export const createAssignment = (classId: number, draft: AssignmentDraft) => api<Assignment>(`/classes/${classId}/assignments`, json("POST", draft));
 export const updateAssignment = (id: number, draft: Partial<AssignmentDraft>) => api<Assignment>(`/assignments/${id}`, json("PATCH", draft));
 export const replaceRubric = (id: number, criteria: RubricCriterion[]) => api<Assignment>(`/assignments/${id}/rubric`, json("PUT", { criteria }));
