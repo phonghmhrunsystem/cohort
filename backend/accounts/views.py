@@ -89,7 +89,7 @@ class UserDetailView(APIView):
             user = serializer.save()
             write_audit(
                 actor=request.user,
-                action="account.password_reset" if set(serializer.validated_data) == {"new_password"} else "account.updated",
+                action="account.updated",
                 target=user,
                 metadata=account_metadata(user),
             )
