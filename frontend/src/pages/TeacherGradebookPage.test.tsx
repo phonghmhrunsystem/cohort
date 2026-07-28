@@ -66,6 +66,12 @@ test("explains an empty class and a class with no assignments", async () => {
   expect(container.textContent).toContain("No assignments yet.");
 });
 
+test("keeps enrolled students distinct from a class with no assignments", async () => {
+  await render({ assignments: [], students: gradebook.students });
+  expect(container.textContent).toContain("No assignments yet.");
+  expect(container.textContent).not.toContain("No enrolled Students.");
+});
+
 test("offers a CSV download and confines narrow-screen scrolling to the table wrapper", async () => {
   await render();
   expect(container.querySelector('a[href="/api/classes/4/gradebook.csv"]')?.getAttribute("download")).toBe("Algorithms-gradebook.csv");

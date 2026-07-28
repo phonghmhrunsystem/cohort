@@ -27,3 +27,9 @@ The local task worktree Vite app was opened at desktop width (1920px); the app l
 - Gradebook data and CSV are fetched only with the selected Class ID; authorization and private-field exclusion remain backend-enforced.
 - CSV download includes the session JWT, matching the existing protected-download pattern.
 - No bulk edit or import behavior was added.
+
+## Fix round 1 evidence
+
+- Added a distinct UI test for a Class with enrolled students but no assignments; `cd frontend; npm test -- TeacherGradebookPage.test.tsx` passed (1 file, 4 tests).
+- Local Vite loaded at `http://127.0.0.1:5174/login`; desktop snapshot evidence is `.playwright-mcp/page-2026-07-28T17-29-29-728Z.yml`.
+- Authenticated 320px screenshots remain blocked by the existing Playwright input tool: `mcp__playwright__browser_type` targeting the Email field hung twice and was interrupted after 110.6 seconds and 354.8 seconds respectively. `mcp__playwright__browser_snapshot` continued to succeed; no further browser actions were attempted.
