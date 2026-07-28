@@ -1,0 +1,49 @@
+// @vitest-environment jsdom
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
+
+const harness = vi.hoisted(() => ({
+  getClass: vi.fn(), listClassStudents: vi.fn(), listAssignments: vi.fn(), createAssignment: vi.fn(), updateAssignment: vi.fn(), replaceRubric: vi.fn(),
+}));
+
+vi.mock("../classes", () => ({ getClass: harness.getClass, listClassStudents: harness.listClassStudents }));
+vi.mock("../assignments", () => ({ ...harness }));
+
+import { TeacherClassPage } from "./TeacherClassPage";
+
+let container: HTMLDivElement;
+let root: ReturnType<typeof createRoot>;
+const click = (label: string) => (Array.from(container.querySelectorAll("button")).find((button) => button.textContent === label) as HTMLButtonElement).click();
+const dialog = (title: string) => Array.from(container.querySelectorAll("dialog")).find((element) => element.textContent?.includes(title)) as HTMLDialogElement;
+const clickDialog = (title: string, label: string) => (Array.from(dialog(title).querySelectorAll("button")).find((button) => button.textContent === label) as HTMLButtonElement).click();
+
+beforeEach(async () => {
+  (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+  vi.clearAllMocks();
+  history.replaceState({}, "", "/teacher/classes/4?tab=assignments");
+  HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  HTMLDialogElement.prototype.close = function () { this.open = false; };
+  harness.getClass.mockResolvedValue({ id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "", ends_at: "" });
+  harness.listClassStudents.mockResolvedValue([]);
+  harness.listAssignments.mockResolvedValue([{ id: 9, classroom_id: 4, title: "Essay", description: "", due_at: "2026-08-01T00:00:00Z", maximum_score: 100, criteria: [{ id: 1, title: "Code", maximum_score: 60 }, { id: 2, title: "Writing", maximum_score: 40 }] }]);
+  container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => { root.render(<TeacherClassPage />); });
+  await act(async () => { click("Edit rubric"); });
+});
+
+afterEach(() => { root.unmount(); container.remove(); });
+
+test("deleting a rubric criterion changes its local draft only after Xóa", async () => {
+  await act(async () => { (container.querySelector('[aria-label="Xóa Code"]') as HTMLButtonElement).click(); });
+  expect(dialog("Xóa Code").open).toBe(true);
+  await act(async () => { clickDialog("Xóa Code", "Cancel"); });
+  expect((container.querySelector('input[value="Code"]') as HTMLInputElement).value).toBe("Code");
+
+  await act(async () => { (container.querySelector('[aria-label="Xóa Code"]') as HTMLButtonElement).click(); });
+  await act(async () => { clickDialog("Xóa Code", "Xóa"); });
+  expect(container.querySelector('input[value="Code"]')).toBeNull();
+  expect(harness.replaceRubric).not.toHaveBeenCalled();
+});
