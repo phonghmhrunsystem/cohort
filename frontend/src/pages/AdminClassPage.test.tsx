@@ -93,3 +93,27 @@ test("editing waits for the full roster before allowing a save", async () => {
   await act(async () => { resolveRoster([enrolled]); await Promise.resolve(); });
   expect(save.disabled).toBe(false);
 });
+
+test("reopening the roster ignores the previous dialog load", async () => {
+  let resolveFirst!: (students: Array<typeof enrolled>) => void;
+  let resolveSecond!: (students: Array<typeof hiddenMember>) => void;
+  harness.listEnrolledStudents.mockReset()
+    .mockReturnValueOnce(new Promise<Array<typeof enrolled>>((resolve) => { resolveFirst = resolve; }))
+    .mockReturnValueOnce(new Promise<Array<typeof hiddenMember>>((resolve) => { resolveSecond = resolve; }));
+  harness.listClassStudents.mockReset()
+    .mockResolvedValueOnce([enrolled])
+    .mockResolvedValueOnce([hiddenMember, candidate]);
+
+  await act(async () => { click("Edit roster"); });
+  await act(async () => { click("Cancel"); });
+  await act(async () => { click("Edit roster"); });
+  const save = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Save roster") as HTMLButtonElement;
+
+  await act(async () => { resolveFirst([enrolled]); await Promise.resolve(); });
+  expect(save.disabled).toBe(true);
+
+  await act(async () => { resolveSecond([hiddenMember]); await Promise.resolve(); });
+  expect(save.disabled).toBe(false);
+  expect(Array.from(container.querySelectorAll('input[type="checkbox"]')).map((input) => [(input as HTMLInputElement).value, (input as HTMLInputElement).checked]))
+    .toEqual([["9", true], ["8", false]]);
+});

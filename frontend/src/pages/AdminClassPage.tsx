@@ -19,6 +19,7 @@ export function AdminClassPage() {
   const [saving, setSaving] = useState(false);
   const [rosterLoading, setRosterLoading] = useState(false);
   const studentsHeading = useRef<HTMLHeadingElement>(null);
+  const rosterRequest = useRef(0);
 
   useEffect(() => { void load(); }, [query]);
   async function load() {
@@ -30,13 +31,19 @@ export function AdminClassPage() {
     try { setCandidates(await listClassStudents(classId, value)); } catch (response) { setError(message(response)); }
   }
   async function openRoster() {
+    const request = ++rosterRequest.current;
     setError("");
     setDialog(true);
     setRosterLoading(true);
     try {
       const [roster, candidates] = await Promise.all([listEnrolledStudents(classId), listClassStudents(classId)]);
+      if (request !== rosterRequest.current) return;
       setStudentIds(roster.map((student) => student.id)); setStudentQuery(""); setCandidates(candidates);
-    } catch (response) { setError(message(response)); } finally { setRosterLoading(false); }
+    } catch (response) {
+      if (request === rosterRequest.current) setError(message(response));
+    } finally {
+      if (request === rosterRequest.current) setRosterLoading(false);
+    }
   }
   function toggleStudent(id: number) {
     setStudentIds((ids) => ids.includes(id) ? ids.filter((studentId) => studentId !== id) : [...ids, id]);
