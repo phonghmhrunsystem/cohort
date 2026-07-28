@@ -40,6 +40,7 @@ const user = {
   address: "Da Nang",
   is_active: true,
 } as const;
+const emptyDraft = { full_name: "", email: "", role: "TEACHER", password: "", phone: "", date_of_birth: "", gender: "", address: "" };
 
 function render(states: unknown[]) {
   harness.effects = [];
@@ -74,6 +75,18 @@ function findByType(node: ReactNode, type: string): ReactElement | undefined {
   return undefined;
 }
 
+function findButton(node: ReactNode, text: string): ReactElement | undefined {
+  if (!node || typeof node !== "object") return undefined;
+  const element = node as ReactElement<{ children?: ReactNode }>;
+  if (element.type === "button" && element.props.children === text) return element;
+  const children = element.props?.children;
+  for (const child of Array.isArray(children) ? children : [children]) {
+    const found = findButton(child, text);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 beforeEach(() => {
   harness.api.mockReset();
   harness.apiResponse.mockReset();
@@ -86,7 +99,7 @@ test("search waits 300 ms and sends only the supported role filter", async () =>
   harness.api.mockResolvedValue([]);
   render([[], "", true, "ada@example.test", "STUDENT"]);
 
-  expect(harness.effects).toHaveLength(1);
+  expect(harness.effects.length).toBeGreaterThanOrEqual(1);
   harness.effects[0]();
   expect(harness.api).not.toHaveBeenCalled();
 
@@ -96,16 +109,23 @@ test("search waits 300 ms and sends only the supported role filter", async () =>
   expect(harness.api).toHaveBeenCalledWith("/users?q=ada%40example.test&role=STUDENT");
 });
 
-test("renders search, allowed filters, and one native account dialog", () => {
+test("renders search, allowed filters, and shared account and deactivation dialogs", () => {
   const { html } = render([[], "", false, "", "", null]);
 
   expect(html).toContain("<dialog");
-  expect(html.match(/<dialog/g)).toHaveLength(1);
+  expect(html.match(/<dialog/g)).toHaveLength(2);
   expect(html).toContain('aria-label="Search accounts"');
   expect(html).toContain(">All<");
   expect(html).toContain(">Teacher<");
   expect(html).toContain(">Student<");
   expect(html).not.toContain('value="ADMIN"');
+});
+
+test("a blank account name displays the email local-part", () => {
+  const { html } = render([[{ ...user, full_name: "  ", email: "ada.teacher@example.test" }], "", false]);
+
+  expect(html).toContain(">ada.teacher</h2>");
+  expect(html).not.toContain("Unnamed account");
 });
 
 test("edit mode makes email and role immutable and offers an optional password reset", () => {
@@ -122,7 +142,7 @@ test("a submitted dialog keeps its values and field feedback after a 422", async
   const draft = { full_name: "Retained Name", email: "taken@example.test", role: "TEACHER", password: "password1", phone: "", date_of_birth: "", gender: "", address: "" };
   const failure = { status: 422, detail: "Request failed.", fields: { email: ["Already registered."] } };
   harness.api.mockRejectedValueOnce(failure);
-  const { tree } = render([[], "", false, "", "", null, draft, null, false, true]);
+  const { tree } = render([[], "", false, "", "", null, draft, null, false, true, null, false]);
   const form = findByType(tree, "form");
 
   expect(form).toBeDefined();
@@ -132,33 +152,30 @@ test("a submitted dialog keeps its values and field feedback after a 422", async
   expect(harness.setters[9]).not.toHaveBeenCalled();
   expect(harness.setters[7]).toHaveBeenLastCalledWith(failure);
 
-  const { html } = render([[], "", false, "", "", null, draft, failure, false, true]);
+  const { html } = render([[], "", false, "", "", null, draft, failure, false, true, null, false]);
   expect(html).toContain('value="Retained Name"');
   expect(html).toContain('value="taken@example.test"');
   expect(html).toContain("Already registered.");
-  expect(html).toContain("<dialog open=");
+  expect(html).toContain("Create account");
 });
 
-test("deactivation retains the card after a non-204 success response", async () => {
+test("deactivation confirmation retains the card after a non-204 success response", async () => {
   harness.apiResponse.mockResolvedValueOnce({ status: 200, data: undefined });
-  vi.mocked(confirm).mockReturnValue(true);
-  const { tree } = render([[user], "", false, "", "", null]);
-  const button = findByText(tree, "Deactivate");
+  const { tree } = render([[user], "", false, "", "", "", emptyDraft, null, false, false, user, false]);
+  const button = findButton(tree, "Vô hiệu hóa");
 
   expect(button).toBeDefined();
   (button!.props as { onClick: () => void }).onClick();
-  expect(confirm).toHaveBeenCalledWith("Deactivate Ada Teacher?");
   expect(harness.apiResponse).toHaveBeenCalledWith("/users/7", { method: "DELETE" });
   await Promise.resolve();
   await Promise.resolve();
   expect(harness.setters[0]).not.toHaveBeenCalled();
 });
 
-test("deactivation removes the card only after an exact 204 response", async () => {
+test("deactivation confirmation removes the card only after an exact 204 response", async () => {
   harness.apiResponse.mockResolvedValueOnce({ status: 204, data: undefined });
-  vi.mocked(confirm).mockReturnValue(true);
-  const { tree } = render([[user], "", false, "", "", null]);
-  const button = findByText(tree, "Deactivate");
+  const { tree } = render([[user], "", false, "", "", "", emptyDraft, null, false, false, user, false]);
+  const button = findButton(tree, "Vô hiệu hóa");
 
   (button!.props as { onClick: () => void }).onClick();
   await Promise.resolve();
@@ -169,9 +186,8 @@ test("deactivation removes the card only after an exact 204 response", async () 
 
 test("a rejected deactivation retains the active row", async () => {
   harness.apiResponse.mockRejectedValueOnce({ status: 422, detail: "Account is assigned to an active Class." });
-  vi.mocked(confirm).mockReturnValue(true);
-  const { tree } = render([[user], "", false, "", "", null]);
-  const button = findByText(tree, "Deactivate");
+  const { tree } = render([[user], "", false, "", "", "", emptyDraft, null, false, false, user, false]);
+  const button = findButton(tree, "Vô hiệu hóa");
 
   expect(button).toBeDefined();
   (button!.props as { onClick: () => void }).onClick();

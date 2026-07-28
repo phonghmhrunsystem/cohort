@@ -1,7 +1,8 @@
-import { FormEvent, MouseEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { ApiFailure, api, apiResponse } from "../api";
-import { User } from "../auth";
+import { displayName, User } from "../auth";
+import { AppDialog } from "../components/AppDialog";
 
 type ManageableRole = "TEACHER" | "STUDENT";
 type Gender = "NAM" | "NU" | "KHAC";
@@ -59,7 +60,9 @@ export function AdminUsersPage() {
   const [formFailure, setFormFailure] = useState<ApiFailure | null>(null);
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const dialog = useRef<HTMLDialogElement>(null);
+  const [deactivating, setDeactivating] = useState<User | null>(null);
+  const [deactivatingSaving, setDeactivatingSaving] = useState(false);
+  const accountsHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     let current = true;
@@ -82,13 +85,11 @@ export function AdminUsersPage() {
     setDraft(user ? draftFor(user) : emptyDraft);
     setFormFailure(null);
     setDialogOpen(true);
-    dialog.current?.showModal();
   }
 
   function closeDialog() {
     if (saving) return;
     setDialogOpen(false);
-    dialog.current?.close();
   }
 
   function change(field: keyof Draft, value: string) {
@@ -122,7 +123,6 @@ export function AdminUsersPage() {
         ? current.map((account) => account.id === user.id ? user : account)
         : [...current, user]);
       setDialogOpen(false);
-      dialog.current?.close();
     } catch (response) {
       setFormFailure(response as ApiFailure);
     } finally {
@@ -130,28 +130,25 @@ export function AdminUsersPage() {
     }
   }
 
-  async function deactivate(user: User) {
-    if (!confirm(`Deactivate ${user.full_name || user.email}?`)) return;
-    setError("");
+  async function deactivate() {
+    if (!deactivating) return;
+    setDeactivatingSaving(true); setError("");
     try {
-      const response = await apiResponse<void>(`/users/${user.id}`, { method: "DELETE" });
-      if (response.status === 204) setUsers((current) => current.filter((account) => account.id !== user.id));
+      const response = await apiResponse<void>(`/users/${deactivating.id}`, { method: "DELETE" });
+      if (response.status === 204) setUsers((current) => current.filter((account) => account.id !== deactivating.id));
+      setDeactivating(null);
     } catch (response) {
       setError(message(response));
-    }
+    } finally { setDeactivatingSaving(false); }
   }
 
   function fieldError(field: string) {
     return formFailure?.fields?.[field]?.join(" ");
   }
 
-  function overlayClose(event: MouseEvent<HTMLDialogElement>) {
-    if (event.target === event.currentTarget) closeDialog();
-  }
-
   return <>
     <header className="account-header d-flex justify-content-between align-items-start gap-3 mb-4">
-      <div><h1 className="h2 mb-1">Accounts</h1><p className="text-secondary mb-0">Manage active Teacher and Student accounts.</p></div>
+      <div><h1 ref={accountsHeading} tabIndex={-1} className="h2 mb-1">Accounts</h1><p className="text-secondary mb-0">Manage active Teacher and Student accounts.</p></div>
       <button className="btn btn-primary flex-shrink-0" type="button" onClick={() => openDialog(null)}>Create account</button>
     </header>
 
@@ -175,22 +172,18 @@ export function AdminUsersPage() {
       : <section className="account-grid" aria-label="Active accounts">{users.map((user) =>
         <article className="card border-0 shadow-sm" key={user.id}><div className="card-body">
           <div className="d-flex justify-content-between gap-2 mb-3">
-            <div className="min-w-0"><h2 className="h5 mb-1 text-break">{user.full_name || "Unnamed account"}</h2><p className="text-secondary text-break mb-0">{user.email}</p></div>
+            <div className="min-w-0"><h2 className="h5 mb-1 text-break">{displayName(user)}</h2><p className="text-secondary text-break mb-0">{user.email}</p></div>
             <span className={`badge align-self-start text-bg-${user.role === "TEACHER" ? "info" : "secondary"}`}>{user.role === "TEACHER" ? "Teacher" : "Student"}</span>
           </div>
           <div className="d-flex flex-wrap gap-2">
             <button className="btn btn-outline-primary btn-sm" type="button" onClick={() => openDialog(user)}>Edit</button>
-            <button className="btn btn-outline-danger btn-sm" type="button" onClick={() => void deactivate(user)}>Deactivate</button>
+            <button className="btn btn-outline-danger btn-sm" type="button" onClick={() => setDeactivating(user)}>Deactivate</button>
           </div>
         </div></article>
       )}</section>}
 
-    <dialog ref={dialog} open={dialogOpen} className="account-dialog border-0 rounded-3 shadow" aria-labelledby="account-dialog-title" onClick={overlayClose} onClose={() => setDialogOpen(false)} onCancel={(event) => { if (saving) event.preventDefault(); }}>
+    <AppDialog open={dialogOpen} title={editing ? "Edit account" : "Create account"} pending={saving} onClose={closeDialog}>
       <form onSubmit={save}>
-        <div className="d-flex justify-content-between align-items-start gap-3 mb-3">
-          <h2 className="h4 mb-0" id="account-dialog-title">{editing ? "Edit account" : "Create account"}</h2>
-          <button className="btn-close" type="button" aria-label="Close" disabled={saving} onClick={closeDialog} />
-        </div>
         {formFailure?.detail && formFailure.detail !== "Request failed." && <div className="alert alert-danger py-2" role="alert">{formFailure.detail}</div>}
         <div className="account-form-grid">
           <label className="form-label">Full name
@@ -230,11 +223,13 @@ export function AdminUsersPage() {
             {fieldError("address") && <span className="invalid-feedback d-block">{fieldError("address")}</span>}
           </label>
         </div>
-        <div className="d-flex justify-content-end gap-2 mt-3">
-          <button className="btn btn-outline-secondary" type="button" disabled={saving} onClick={closeDialog}>Cancel</button>
-          <button className="btn btn-primary" disabled={saving}>{saving ? "Saving…" : editing ? "Save changes" : "Create account"}</button>
-        </div>
+        <button className="btn btn-primary" disabled={saving}>{saving ? "Saving…" : editing ? "Save changes" : "Create account"}</button>
       </form>
-    </dialog>
+    </AppDialog>
+    <AppDialog open={!!deactivating} title={deactivating ? `Vô hiệu hóa ${displayName(deactivating)}` : "Vô hiệu hóa"} pending={deactivatingSaving} fallbackFocus={accountsHeading} onClose={() => setDeactivating(null)}>
+      <p>Bạn có chắc muốn vô hiệu hóa tài khoản này?</p>
+      {error && <div className="alert alert-danger" role="alert">{error}</div>}
+      <button className="btn btn-danger" type="button" disabled={deactivatingSaving} onClick={() => void deactivate()}>Vô hiệu hóa</button>
+    </AppDialog>
   </>;
 }

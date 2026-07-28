@@ -17,5 +17,9 @@ vi.mock("react", async (importActual) => {
 import { StudentClassPage } from "./StudentClassPage";
 
 test("student class assignments link to the student submission page", () => {
-  expect(renderToStaticMarkup(<StudentClassPage />)).toContain('href="/student/assignments/9"');
+  const html = renderToStaticMarkup(<StudentClassPage />);
+
+  expect(html).toContain(">Quay lại</button>");
+  expect(html).not.toContain(">My Classes</a>");
+  expect(html).toContain('href="/student/assignments/9"');
 });
