@@ -6,7 +6,7 @@ import { Class, ClassRoster, StudentProfile, getClass, getClassStudent, listClas
 import { AppDialog } from "../components/AppDialog";
 import { BackButton } from "../components/BackButton";
 
-const genderLabel: Record<string, string> = { NAM: "Male", NU: "Female", KHAC: "Other" };
+const genderLabel: Record<string, string> = { NAM: "Nam", NU: "Nữ", KHAC: "Khác" };
 
 type Tab = "students" | "assignments";
 const classId = () => Number(location.pathname.split("/").pop());
