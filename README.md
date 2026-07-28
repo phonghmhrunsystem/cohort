@@ -27,3 +27,5 @@ npm run dev
 ```
 
 Vite proxies `/api` requests to the Django server on port 8000.
+
+Teachers can open **Bảng điểm** from a Class to review that Class only and download its UTF-8 CSV gradebook.

@@ -19,7 +19,7 @@ export function roleHome(role: Role) {
 }
 
 export function canAccess(path: string, role: Role) {
-  return role === "ADMIN" ? path === "/admin/users" || path === "/admin/audit-logs" || /^\/admin\/classes(?:\/\d+)?$/.test(path) : role === "TEACHER" ? path === "/profile" || /^\/teacher\/(?:classes|assignments)\/\d+$/.test(path) || path === "/teacher/classes" || /^\/teacher\/assignments\/\d+\/submissions\/\d+\/grade$/.test(path) : path === "/profile" || /^\/student\/(?:classes|assignments)\/\d+$/.test(path) || path === "/student/classes" || /^\/student\/assignments\/\d+\/result$/.test(path);
+  return role === "ADMIN" ? path === "/admin/users" || path === "/admin/audit-logs" || /^\/admin\/classes(?:\/\d+)?$/.test(path) : role === "TEACHER" ? path === "/profile" || /^\/teacher\/(?:classes|assignments)\/\d+$/.test(path) || /^\/teacher\/classes\/\d+\/gradebook$/.test(path) || path === "/teacher/classes" || /^\/teacher\/assignments\/\d+\/submissions\/\d+\/grade$/.test(path) : path === "/profile" || /^\/student\/(?:classes|assignments)\/\d+$/.test(path) || path === "/student/classes" || /^\/student\/assignments\/\d+\/result$/.test(path);
 }
 
 export function redirectToLogin() {
