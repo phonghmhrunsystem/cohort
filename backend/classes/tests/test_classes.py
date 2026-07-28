@@ -234,6 +234,27 @@ class TeacherRosterProgressTests(TestCase):
         self.assertEqual(by_id[self.other_student.id]["submitted_assignments"], 0)
         self.assertEqual(by_id[self.other_student.id]["graded_assignments"], 0)
 
+    def test_roster_search_handles_student_with_null_full_name(self):
+        # self.other_student has no full_name set (None); searching must not 500.
+        self.assertIsNone(self.other_student.full_name)
+        self.student.full_name = "Nguyen Van A"
+        self.student.save(update_fields=("full_name",))
+
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/students?q=nguyen")
+        self.assertEqual(response.status_code, 200)
+        ids = [row["id"] for row in response.data["students"]]
+        self.assertIn(self.student.id, ids)
+        self.assertNotIn(self.other_student.id, ids)
+        # Summary counts stay computed from the full roster, unaffected by the filter.
+        self.assertEqual(response.data["enrolled_students"], 2)
+
+        response = self.teacher_client.get(
+            f"/api/classes/{self.classroom.id}/students?q={self.other_student.email}"
+        )
+        self.assertEqual(response.status_code, 200)
+        ids = [row["id"] for row in response.data["students"]]
+        self.assertEqual(ids, [self.other_student.id])
+
     def test_owner_teacher_sees_student_profile_with_progress(self):
         response = self.teacher_client.get(
             f"/api/classes/{self.classroom.id}/students/{self.student.id}"
@@ -256,7 +277,7 @@ class TeacherRosterProgressTests(TestCase):
     def test_student_profile_exposes_personal_fields_and_shared_classes_only(self):
         self.student.phone = "0900000000"
         self.student.date_of_birth = "2000-01-01"
-        self.student.gender = "MALE"
+        self.student.gender = "NAM"
         self.student.address = "123 Main St"
         self.student.save(update_fields=("phone", "date_of_birth", "gender", "address"))
 
@@ -274,7 +295,7 @@ class TeacherRosterProgressTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["phone"], "0900000000")
         self.assertEqual(response.data["date_of_birth"], "2000-01-01")
-        self.assertEqual(response.data["gender"], "MALE")
+        self.assertEqual(response.data["gender"], "NAM")
         self.assertEqual(response.data["address"], "123 Main St")
         shared_class_ids = [c["id"] for c in response.data["shared_classes"]]
         self.assertEqual(shared_class_ids, [self.classroom.id])

@@ -92,11 +92,11 @@ class StudentsView(APIView):
         students = list(students_progress_queryset(class_).order_by("id"))
         rows = students
         if query := request.query_params.get("q", "").strip():
-            query = query.lower()
-            rows = [
-                s for s in students
-                if query in s.full_name.lower() or query in s.email.lower()
-            ]
+            rows = list(
+                students_progress_queryset(class_)
+                .filter(Q(full_name__icontains=query) | Q(email__icontains=query))
+                .order_by("id")
+            )
         return Response(
             {
                 "total_assignments": class_.assignments.count(),
@@ -116,8 +116,9 @@ class StudentDetailView(APIView):
         if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
             return Response(status=status.HTTP_403_FORBIDDEN)
         student = get_object_or_404(students_progress_queryset(class_), id=student_id)
+        total_assignments = class_.assignments.count()
         data = StudentProfileSerializer(student, context={"teacher": class_.teacher}).data
-        data["total_assignments"] = class_.assignments.count()
+        data["total_assignments"] = total_assignments
         return Response(data)
 
 
