@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "classes",
     "assignments",
     "submissions",
+    "grading",
 ]
 
 MIDDLEWARE = [
