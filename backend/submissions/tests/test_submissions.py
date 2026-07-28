@@ -15,6 +15,7 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from assignments.models import Assignment, AssignmentGrade
 from classes.models import Class, Enrollment
+from grading.models import Grade
 from submissions.models import Submission
 from submissions.services import create_submission
 
@@ -204,6 +205,24 @@ class SubmissionApiTests(TestCase):
         )
         self.assertEqual(Submission.objects.count(), 0)
         self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
+
+    def test_graded_flag_flips_after_teacher_grades_submission(self):
+        submission_id = self.submit("one.pdf").json()["id"]
+
+        before = self.teacher_client.get(self.teacher_list_url).json()
+        self.assertEqual(before[0]["graded"], False)
+
+        Grade.objects.create(
+            assignment=self.assignment,
+            student=self.student,
+            teacher=self.teacher,
+            submission_id=submission_id,
+            total_score=90,
+            feedback="Nice work.",
+        )
+
+        after = self.teacher_client.get(self.teacher_list_url).json()
+        self.assertEqual(after[0]["graded"], True)
 
     def test_download_is_limited_to_submitter_or_assigned_teacher(self):
         submission = self.submit("one.pdf").json()
