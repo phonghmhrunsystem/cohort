@@ -22,7 +22,7 @@ beforeEach(async () => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
   harness.getClass.mockResolvedValue({ id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "", ends_at: "" });
-  harness.listClassStudents.mockResolvedValueOnce([{ id: 7, full_name: "Nguyễn An", email: "an@example.test" }]).mockResolvedValue([]);
+  harness.listClassStudents.mockResolvedValueOnce({ total_assignments: 0, enrolled_students: 1, submitted_students: 0, graded_students: 0, students: [{ id: 7, full_name: "Nguyễn An", email: "an@example.test", submitted_assignments: 0, graded_assignments: 0 }] }).mockResolvedValue({ total_assignments: 0, enrolled_students: 0, submitted_students: 0, graded_students: 0, students: [] });
   harness.listStudentAccounts.mockResolvedValue([]);
   container = document.createElement("div");
   document.body.append(container);

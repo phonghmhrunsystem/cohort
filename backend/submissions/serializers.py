@@ -23,6 +23,8 @@ class SubmissionUploadSerializer(serializers.Serializer):
 
 
 class SubmissionSerializer(serializers.ModelSerializer):
+    graded = serializers.SerializerMethodField()
+
     class Meta:
         model = Submission
         fields = (
@@ -35,4 +37,8 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "size",
             "note",
             "created_at",
+            "graded",
         )
+
+    def get_graded(self, submission):
+        return hasattr(submission, "grade")

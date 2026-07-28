@@ -23,7 +23,7 @@ export function AdminClassPage() {
 
   useEffect(() => { void load(); }, [query]);
   async function load() {
-    try { const [next, roster] = await Promise.all([getClass(classId), listClassStudents(classId, query)]); setClass(next); setStudents(roster); }
+    try { const [next, roster] = await Promise.all([getClass(classId), listClassStudents(classId, query)]); setClass(next); setStudents(roster.students); }
     catch (response) { setError(message(response)); }
   }
   async function searchStudents(value = studentQuery) {

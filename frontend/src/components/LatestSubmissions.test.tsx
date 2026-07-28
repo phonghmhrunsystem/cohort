@@ -9,15 +9,36 @@ beforeEach(() => {
   vi.stubGlobal("document", { createElement: vi.fn(() => ({ click: vi.fn() })) });
 });
 
-test("latest submissions identifies the student and exposes one protected download action", () => {
-  const html = renderToStaticMarkup(<LatestSubmissions submissions={[
-    { id: 2, assignment_id: 5, student_id: 7, version: 2, original_filename: "essay-v2.docx", created_at: "2026-07-28T01:00:00Z" },
-  ]} />);
+const submission = { id: 2, assignment_id: 5, student_id: 7, version: 2, original_filename: "essay-v2.docx", created_at: "2026-07-28T01:00:00Z", graded: false };
+const names = { 7: "Nguyen Van A" };
 
-  expect(html).toContain("Student #7");
-  expect(html).toContain("Version 2");
-  expect(html).toContain("Download essay-v2.docx");
+test("latest submissions leads with the student's name, then filename and submitted time, and version only as supporting history", () => {
+  const html = renderToStaticMarkup(<LatestSubmissions submissions={[submission]} studentNames={names} />);
+
+  expect(html).toContain("Nguyen Van A");
+  expect(html).not.toContain("Student #7");
+  const nameIndex = html.indexOf("Nguyen Van A");
+  const filenameIndex = html.indexOf("essay-v2.docx");
+  const versionIndex = html.indexOf("Version 2");
+  expect(nameIndex).toBeGreaterThanOrEqual(0);
+  expect(filenameIndex).toBeGreaterThan(nameIndex);
+  expect(versionIndex).toBeGreaterThan(filenameIndex);
   expect(html).toContain('href="/teacher/assignments/5/submissions/2/grade"');
+});
+
+test("an ungraded submission offers a Chấm điểm action", () => {
+  const html = renderToStaticMarkup(<LatestSubmissions submissions={[submission]} studentNames={names} />);
+
+  expect(html).toContain("Chấm điểm");
+  expect(html).not.toContain("Đã chấm");
+});
+
+test("a graded submission shows Đã chấm instead of a grading link", () => {
+  const html = renderToStaticMarkup(<LatestSubmissions submissions={[{ ...submission, graded: true }]} studentNames={names} />);
+
+  expect(html).toContain("Đã chấm");
+  expect(html).not.toContain("Chấm điểm");
+  expect(html).not.toContain('href="/teacher/assignments/5/submissions/2/grade"');
 });
 
 test("download fetches the protected endpoint with the session JWT", async () => {

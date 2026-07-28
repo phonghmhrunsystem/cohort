@@ -13,4 +13,10 @@ test("submission history shows every submitted version with its note", () => {
   expect(html).toContain("essay-v2.docx");
   expect(html).toContain("Fixed citations");
   expect(html).toContain("Version 1");
+
+  const filenameIndex = html.indexOf("essay-v2.docx");
+  const timeIndex = html.indexOf(new Date("2026-07-28T01:00:00Z").toLocaleString());
+  const versionIndex = html.indexOf("Version 2");
+  expect(timeIndex).toBeGreaterThan(filenameIndex);
+  expect(versionIndex).toBeGreaterThan(timeIndex);
 });

@@ -40,7 +40,7 @@ class AssignmentSubmissionsView(APIView):
             latest = Submission.objects.filter(
                 assignment_id=OuterRef("assignment_id"), student_id=OuterRef("student_id")
             ).order_by("-version").values("id")[:1]
-            submissions = Submission.objects.filter(assignment=assignment, id=Subquery(latest)).order_by("student_id")
+            submissions = Submission.objects.filter(assignment=assignment, id=Subquery(latest)).select_related("grade").order_by("student_id")
         elif request.user.role == User.Role.STUDENT:
             submissions = Submission.objects.filter(assignment=assignment, student=request.user)
         else:

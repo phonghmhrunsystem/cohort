@@ -26,7 +26,7 @@ beforeEach(async () => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
   harness.getClass.mockResolvedValue({ id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "", ends_at: "" });
-  harness.listClassStudents.mockResolvedValue([{ id: 7, full_name: " ", email: "blank.student@example.test" }]);
+  harness.listClassStudents.mockResolvedValue({ total_assignments: 1, enrolled_students: 1, submitted_students: 0, graded_students: 0, students: [{ id: 7, full_name: " ", email: "blank.student@example.test", submitted_assignments: 0, graded_assignments: 0 }] });
   harness.listAssignments.mockResolvedValue([{ id: 9, classroom_id: 4, title: "Essay", description: "", due_at: "2026-08-01T00:00:00Z", maximum_score: 100, criteria: [{ id: 1, title: "Code", maximum_score: 60 }, { id: 2, title: "Writing", maximum_score: 40 }] }]);
   container = document.createElement("div");
   document.body.append(container);

@@ -14,7 +14,7 @@ test("teacher assignment cards link to their latest-submissions page", () => {
   vi.stubGlobal("location", { pathname: "/teacher/classes/4", search: "?tab=assignments" });
   harness.index = 0;
   harness.states = [
-    { id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "2026-07-01T00:00:00Z", ends_at: "2026-08-01T00:00:00Z" }, [],
+    { id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "2026-07-01T00:00:00Z", ends_at: "2026-08-01T00:00:00Z" }, undefined,
     [{ id: 9, classroom_id: 4, title: "Essay", description: "", due_at: "2026-07-30T00:00:00Z", maximum_score: 100, criteria: [] }], "assignments", "", { title: "", description: "", due_at: "" }, null, null, [], null, "", false,
   ];
 
