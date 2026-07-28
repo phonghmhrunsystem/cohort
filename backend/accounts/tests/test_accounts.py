@@ -131,6 +131,23 @@ class AccountApiTests(TestCase):
         self.assertEqual(log.action, "account.password_changed")
         self.assertEqual(log.metadata, {})
 
+    def test_change_password_enforces_eight_to_128_character_bounds(self):
+        for new_password, expected_status in (
+            ("Pass7!!", 422),
+            ("x" * 129, 422),
+            ("Password", 204),
+        ):
+            with self.subTest(length=len(new_password)):
+                response = self.student_client.post(
+                    "/api/auth/change-password",
+                    {"current_password": "pw", "new_password": new_password},
+                    format="json",
+                )
+                self.assertEqual(response.status_code, expected_status)
+
+        self.student.refresh_from_db()
+        self.assertTrue(self.student.check_password("Password"))
+
     def test_token_signed_with_previous_process_secret_is_rejected(self):
         previous_jwt_signing_key = project_settings.JWT_SIGNING_KEY
         token = AccessToken.for_user(self.student)
