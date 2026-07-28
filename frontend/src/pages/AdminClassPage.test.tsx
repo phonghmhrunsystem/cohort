@@ -3,13 +3,10 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-const harness = vi.hoisted(() => ({
-  getClass: vi.fn(), listClassStudents: vi.fn(), listStudentAccounts: vi.fn(), enrollStudent: vi.fn(), removeStudent: vi.fn(),
-}));
-
+const harness = vi.hoisted(() => ({ getClass: vi.fn(), listClassStudents: vi.fn(), replaceEnrollment: vi.fn() }));
 vi.mock("../classes", () => harness);
 
-import { AdminClassPage } from "./AdminClassPage";
+let AdminClassPage: typeof import("./AdminClassPage")["AdminClassPage"];
 
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
@@ -22,37 +19,37 @@ beforeEach(async () => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
   harness.getClass.mockResolvedValue({ id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "", ends_at: "" });
-  harness.listClassStudents.mockResolvedValueOnce([{ id: 7, full_name: "Nguyễn An", email: "an@example.test" }]).mockResolvedValue([]);
-  harness.listStudentAccounts.mockResolvedValue([]);
+  harness.listClassStudents.mockResolvedValue([{ id: 7, full_name: "An", email: "an@example.test" }]);
+  history.replaceState({}, "", "/admin/classes/4");
+  ({ AdminClassPage } = await import("./AdminClassPage"));
   container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => { root.render(<AdminClassPage />); });
+  await act(async () => { root.render(<AdminClassPage />); await Promise.resolve(); });
 });
 
 afterEach(() => { root.unmount(); container.remove(); });
 
-test("removing a student does nothing after Cancel", async () => {
-  await act(async () => { click("Remove Student"); });
-  expect(dialog("Gỡ Nguyễn An").open).toBe(true);
-  await act(async () => { click("Cancel"); });
-  expect(harness.removeStudent).not.toHaveBeenCalled();
-});
+test("editing the roster searches active Students, prechecks members, saves once, and preserves a rejected draft", async () => {
+  const enrolled = { id: 7, full_name: "An", email: "an@example.test" };
+  const candidate = { id: 8, full_name: "Linh", email: "linh@example.test" };
+  harness.listClassStudents.mockReset().mockResolvedValueOnce([enrolled, candidate]).mockResolvedValueOnce([candidate]);
+  harness.replaceEnrollment.mockRejectedValueOnce({ detail: "Student has a submission." });
 
-test("removing a student sends one request only after Gỡ", async () => {
-  harness.removeStudent.mockResolvedValue(undefined);
-  const opener = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Remove Student") as HTMLButtonElement;
-  opener.focus();
-  await act(async () => { opener.click(); });
-  await act(async () => { click("Gỡ"); });
-  expect(harness.removeStudent).toHaveBeenCalledTimes(1);
-  expect(document.activeElement?.textContent).toBe("Students");
-});
+  await act(async () => { click("Edit roster"); await Promise.resolve(); });
+  const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+  expect(checkboxes.map((input) => [input.value, input.checked])).toEqual([["7", true], ["8", false]]);
+  await act(async () => { checkboxes[0].click(); checkboxes[1].click(); });
 
-test("a 422 keeps the removal confirmation open", async () => {
-  harness.removeStudent.mockRejectedValueOnce({ detail: "Student has a submission." });
-  await act(async () => { click("Remove Student"); });
-  await act(async () => { click("Gỡ"); });
-  expect(dialog("Gỡ Nguyễn An").open).toBe(true);
+  const search = container.querySelector('input[type="search"]') as HTMLInputElement;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "Linh");
+  await act(async () => { search.dispatchEvent(new Event("input", { bubbles: true })); await Promise.resolve(); });
+  expect(harness.listClassStudents).toHaveBeenLastCalledWith(4, "Linh");
+
+  await act(async () => { click("Save roster"); await Promise.resolve(); });
+  expect(harness.replaceEnrollment).toHaveBeenCalledTimes(1);
+  expect(harness.replaceEnrollment).toHaveBeenCalledWith(4, [8]);
+  expect(dialog("Edit roster").open).toBe(true);
+  expect((container.querySelector('input[value="8"]') as HTMLInputElement).checked).toBe(true);
   expect(container.textContent).toContain("Student has a submission.");
 });
