@@ -109,32 +109,43 @@ test("search waits 300 ms and sends only the supported role filter", async () =>
   expect(harness.api).toHaveBeenCalledWith("/users?q=ada%40example.test&role=STUDENT");
 });
 
-test("renders search, allowed filters, and shared account and deactivation dialogs", () => {
+test("role tabs retain the search query when selecting Students", () => {
+  const { tree } = render([[], "", true, "ada@example.test", ""]);
+  const tab = findButton(tree, "Học sinh");
+
+  expect(tab).toBeDefined();
+  (tab!.props as { onClick: () => void }).onClick();
+  expect(harness.setters[4]).toHaveBeenCalledWith("STUDENT");
+});
+
+test("renders Vietnamese role tabs and shared account and deactivation dialogs", () => {
   const { html } = render([[], "", false, "", "", null]);
 
   expect(html).toContain("<dialog");
   expect(html.match(/<dialog/g)).toHaveLength(2);
   expect(html).toContain('aria-label="Search accounts"');
-  expect(html).toContain(">All<");
-  expect(html).toContain(">Teacher<");
-  expect(html).toContain(">Student<");
-  expect(html).not.toContain('value="ADMIN"');
+  expect(html).toContain(">Tất cả<");
+  expect(html).toContain(">Giáo viên<");
+  expect(html).toContain(">Học sinh<");
+  expect(html).toContain('role="tablist"');
 });
 
 test("a blank account name displays the email local-part", () => {
   const { html } = render([[{ ...user, full_name: "  ", email: "ada.teacher@example.test" }], "", false]);
 
+  expect(html).toContain('<ul class="list-group');
   expect(html).toContain(">ada.teacher</h2>");
   expect(html).not.toContain("Unnamed account");
 });
 
-test("edit mode makes email and role immutable and offers an optional password reset", () => {
+test("edit mode makes email and role immutable without offering a password reset", () => {
   const draft = { full_name: user.full_name, email: user.email, role: user.role, password: "", phone: user.phone, date_of_birth: user.date_of_birth, gender: user.gender, address: user.address };
   const { html } = render([[user], "", false, "", "", user, draft]);
 
   expect(html).toMatch(/<input readOnly=""[^>]+value="ada@example\.test"/);
   expect(html).toContain('name="role" disabled=""');
-  expect(html).toContain("New password");
+  expect(html).not.toContain("New password");
+  expect(html).not.toContain('name="new_password"');
   expect(html).not.toContain('name="password" required=""');
 });
 

@@ -79,30 +79,17 @@ class UserUpdateSerializer(ProfileValidationMixin, serializers.ModelSerializer):
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     gender = serializers.ChoiceField(choices=("NAM", "NU", "KHAC"), required=False, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True, max_length=255)
-    new_password = serializers.CharField(write_only=True, required=False, min_length=8, max_length=128)
-
     class Meta:
         model = User
-        fields = ("full_name", "phone", "date_of_birth", "gender", "address", "new_password")
+        fields = ("full_name", "phone", "date_of_birth", "gender", "address")
 
     def validate(self, attrs):
-        allowed_fields = {"full_name", "phone", "date_of_birth", "gender", "address", "new_password"}
+        allowed_fields = {"full_name", "phone", "date_of_birth", "gender", "address"}
         unknown_fields = set(self.initial_data) - allowed_fields
         if unknown_fields:
             raise serializers.ValidationError(
                 {field: "This field cannot be updated." for field in unknown_fields}
             )
-        if not attrs or all(
-            field != "new_password" and getattr(self.instance, field) == value
-            for field, value in attrs.items()
-        ):
+        if not attrs or all(getattr(self.instance, field) == value for field, value in attrs.items()):
             raise serializers.ValidationError("Provide a changed account field.")
         return attrs
-
-    def update(self, instance, validated_data):
-        new_password = validated_data.pop("new_password", None)
-        user = super().update(instance, validated_data)
-        if new_password:
-            user.set_password(new_password)
-            user.save(update_fields=("password",))
-        return user

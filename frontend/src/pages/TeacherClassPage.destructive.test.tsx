@@ -4,10 +4,10 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const harness = vi.hoisted(() => ({
-  getClass: vi.fn(), listClassStudents: vi.fn(), listAssignments: vi.fn(), createAssignment: vi.fn(), updateAssignment: vi.fn(), replaceRubric: vi.fn(),
+  getClass: vi.fn(), listClassStudents: vi.fn(), listEnrolledStudents: vi.fn(), listAssignments: vi.fn(), createAssignment: vi.fn(), updateAssignment: vi.fn(), replaceRubric: vi.fn(),
 }));
 
-vi.mock("../classes", () => ({ getClass: harness.getClass, listClassStudents: harness.listClassStudents }));
+vi.mock("../classes", () => ({ getClass: harness.getClass, listClassStudents: harness.listClassStudents, listEnrolledStudents: harness.listEnrolledStudents }));
 vi.mock("../assignments", () => ({ ...harness }));
 
 import { TeacherClassPage } from "./TeacherClassPage";
@@ -36,6 +36,11 @@ beforeEach(async () => {
 });
 
 afterEach(() => { root.unmount(); container.remove(); });
+
+test("teacher loads the current roster without requesting Admin candidates", () => {
+  expect(harness.listClassStudents).toHaveBeenCalledWith(4, "");
+  expect(harness.listEnrolledStudents).not.toHaveBeenCalled();
+});
 
 test("deleting a rubric criterion changes its local draft only after Xóa", async () => {
   await act(async () => { (container.querySelector('[aria-label="Xóa Code"]') as HTMLButtonElement).click(); });

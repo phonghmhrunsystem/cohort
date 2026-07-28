@@ -243,15 +243,15 @@ class AccountApiTests(TestCase):
         self.assertEqual(self.student.email, "student@example.test")
         self.assertEqual(self.student.role, "STUDENT")
 
-    def test_patch_resets_password_with_new_password(self):
+    def test_patch_rejects_new_password(self):
         response = self.admin_client.patch(
             f"/api/users/{self.student.id}", {"new_password": "new-password"}, format="json"
         )
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 422)
         self.student.refresh_from_db()
-        self.assertTrue(self.student.check_password("new-password"))
-        self.assertEqual(AuditLog.objects.get().action, "account.password_reset")
+        self.assertTrue(self.student.check_password("pw"))
+        self.assertEqual(AuditLog.objects.count(), 0)
 
     def test_admin_account_is_unavailable_for_mutation(self):
         response = self.admin_client.patch(

@@ -82,3 +82,17 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         if student.role != User.Role.STUDENT or not student.is_active:
             raise serializers.ValidationError("Only active Student accounts can be enrolled.")
         return student
+
+
+class EnrollmentSetSerializer(serializers.Serializer):
+    student_ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=True)
+
+    def validate_student_ids(self, ids):
+        if len(ids) != len(set(ids)):
+            raise serializers.ValidationError("Student IDs must be unique.")
+        students = list(User.objects.filter(id__in=ids))
+        if len(students) != len(ids) or any(
+            student.role != User.Role.STUDENT or not student.is_active for student in students
+        ):
+            raise serializers.ValidationError("Only active Student accounts can be enrolled.")
+        return students

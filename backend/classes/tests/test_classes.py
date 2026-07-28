@@ -1,7 +1,9 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -52,6 +54,7 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.patch(f"/api/classes/{self.course.id}", {"name": "Changed"}, format="json").status_code, 403)
         self.assertEqual(self.teacher_client.post(f"/api/classes/{self.course.id}/enrollments", {"student_id": self.other_student.id}, format="json").status_code, 403)
         self.assertEqual(self.teacher_client.delete(f"/api/classes/{self.course.id}/enrollments/{self.student.id}").status_code, 403)
+        self.assertEqual(self.teacher_client.put(f"/api/classes/{self.course.id}/enrollments", {"student_ids": []}, format="json").status_code, 403)
 
     def test_successful_class_and_enrollment_mutations_are_audited(self):
         response = self.admin_client.post("/api/classes", self.class_payload(), format="json")
@@ -119,10 +122,23 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.other_course.id}").status_code, 404)
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}").status_code, 200)
         self.assertEqual(self.student_client.get(f"/api/classes/{self.other_course.id}").status_code, 404)
-        response = self.teacher_client.get(f"/api/classes/{self.course.id}/students")
+        response = self.admin_client.get(f"/api/classes/{self.course.id}/students?candidates=1")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([item["id"] for item in response.data["students"]], [self.student.id])
-        self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students").status_code, 403)
+        candidate_ids = [item["id"] for item in response.data]
+        self.assertIn(self.student.id, candidate_ids)
+        self.assertIn(self.other_student.id, candidate_ids)
+        self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}/students?candidates=1").status_code, 403)
+        self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students?candidates=1").status_code, 403)
+
+    def test_enrollment_read_returns_current_roster_to_admin_and_assigned_teacher(self):
+        expected = [{"id": self.student.id, "full_name": None, "email": "student@example.test"}]
+
+        for client in (self.admin_client, self.teacher_client):
+            response = client.get(f"/api/classes/{self.course.id}/enrollments")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, expected)
+        self.assertEqual(self.other_teacher_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 404)
+        self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 403)
 
     def test_ended_class_is_read_only_for_admin(self):
         self.course.ends_at = timezone.now() - timedelta(seconds=1)
@@ -145,6 +161,80 @@ class ClassApiTests(TestCase):
         self.course.save(update_fields=("ends_at",))
         with patch("classes.views.student_has_submission", return_value=True):
             self.assertEqual(self.admin_client.delete(f"/api/classes/{self.course.id}/enrollments/{self.student.id}").status_code, 422)
+
+    def test_admin_can_replace_the_enrollment_roster(self):
+        response = self.admin_client.put(
+            f"/api/classes/{self.course.id}/enrollments",
+            {"student_ids": [self.other_student.id]},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [{"id": self.other_student.id, "full_name": None, "email": "other-student@example.test"}])
+        self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), [self.other_student.id])
+        audit = AuditLog.objects.get(action="enrollment.replaced")
+        self.assertEqual((audit.target_type, audit.target_id), ("classes.class", self.course.id))
+
+    def test_empty_roster_replacement_locks_the_class_before_reading_enrollments(self):
+        self.course.enrollments.all().delete()
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.admin_client.put(
+                f"/api/classes/{self.course.id}/enrollments",
+                {"student_ids": []},
+                format="json",
+            )
+
+        statements = [query["sql"].upper() for query in queries]
+        class_locks = [
+            index
+            for index, sql in enumerate(statements)
+            if "CLASSES_CLASS" in sql
+            and (
+                "FOR UPDATE" in sql
+                if connection.features.has_select_for_update
+                else sql.lstrip().startswith("UPDATE")
+            )
+        ]
+        enrollment_reads = [
+            index
+            for index, sql in enumerate(statements)
+            if sql.lstrip().startswith("SELECT") and "CLASSES_ENROLLMENT" in sql
+        ]
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(class_locks, statements)
+        self.assertTrue(enrollment_reads, statements)
+        self.assertLess(class_locks[0], enrollment_reads[0])
+
+    def test_replacement_rejects_duplicate_inactive_or_non_student_without_changes(self):
+        url = f"/api/classes/{self.course.id}/enrollments"
+        before = list(self.course.enrollments.values_list("student_id", flat=True))
+
+        for student_ids in ([self.student.id, self.student.id], [self.student.id, self.teacher.id]):
+            response = self.admin_client.put(url, {"student_ids": student_ids}, format="json")
+            self.assertEqual(response.status_code, 422)
+            self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), before)
+
+        self.other_student.is_active = False
+        self.other_student.save(update_fields=("is_active",))
+        response = self.admin_client.put(url, {"student_ids": [self.other_student.id]}, format="json")
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), before)
+
+    def test_replacement_cannot_remove_after_class_end_or_submission(self):
+        url = f"/api/classes/{self.course.id}/enrollments"
+        before = list(self.course.enrollments.values_list("student_id", flat=True))
+        self.course.ends_at = timezone.now() - timedelta(seconds=1)
+        self.course.save(update_fields=("ends_at",))
+
+        self.assertEqual(self.admin_client.put(url, {"student_ids": []}, format="json").status_code, 422)
+        self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), before)
+
+        self.course.ends_at = timezone.now() + timedelta(days=1)
+        self.course.save(update_fields=("ends_at",))
+        with patch("classes.views.student_has_submission", return_value=True):
+            self.assertEqual(self.admin_client.put(url, {"student_ids": []}, format="json").status_code, 422)
+        self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), before)
 
     def class_payload(self, **overrides):
         now = timezone.now()

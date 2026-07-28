@@ -1,9 +1,9 @@
 from django.apps import apps
-from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
+from django.db import IntegrityError, connection, transaction
+from django.db.models import Count, F, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -15,6 +15,7 @@ from .models import Class, Enrollment
 from .serializers import (
     ClassSerializer,
     EnrollmentSerializer,
+    EnrollmentSetSerializer,
     StudentProfileSerializer,
     StudentProgressSerializer,
 )
@@ -87,6 +88,13 @@ class StudentsView(APIView):
 
     def get(self, request, class_id):
         class_ = get_scoped_class(request.user, class_id)
+        if request.query_params.get("candidates") == "1":
+            if request.user.role != User.Role.ADMIN:
+                return Response(status=status.HTTP_403_FORBIDDEN)
+            students = User.objects.filter(role=User.Role.STUDENT, is_active=True)
+            if query := request.query_params.get("q", "").strip():
+                students = students.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
+            return Response(StudentSerializer(students.order_by("id"), many=True).data)
         if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
             return Response(status=status.HTTP_403_FORBIDDEN)
         students = list(students_progress_queryset(class_).order_by("id"))
@@ -125,6 +133,15 @@ class StudentDetailView(APIView):
 class EnrollmentView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def get(self, request, class_id):
+        if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        class_ = get_scoped_class(request.user, class_id)
+        students = User.objects.filter(enrollments__classroom=class_, role=User.Role.STUDENT)
+        if query := request.query_params.get("q", "").strip():
+            students = students.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
+        return Response(StudentSerializer(students.order_by("id"), many=True).data)
+
     def post(self, request, class_id):
         if request.user.role != User.Role.ADMIN:
             return Response(status=status.HTTP_403_FORBIDDEN)
@@ -162,6 +179,44 @@ class EnrollmentView(APIView):
             enrollment.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def put(self, request, class_id):
+        if request.user.role != User.Role.ADMIN:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        class_ = get_scoped_class(request.user, class_id)
+        serializer = EnrollmentSetSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+        requested = {student.id for student in serializer.validated_data["student_ids"]}
+        with transaction.atomic():
+            class_rows = Class.objects.filter(id=class_.id)
+            if connection.features.has_select_for_update:
+                class_ = get_object_or_404(class_rows.select_for_update())
+            else:
+                # ponytail: SQLite locks the database; use a row-locking database if write throughput matters.
+                class_rows.update(id=F("id"))
+                class_ = get_object_or_404(class_rows)
+            current = set(
+                Enrollment.objects.select_for_update()
+                .filter(classroom=class_)
+                .values_list("student_id", flat=True)
+            )
+            removed = current - requested
+            if removed and (is_ended(class_) or any(student_has_submission(class_, student_id) for student_id in removed)):
+                return closed_response("Student enrollment cannot be removed after Class end or submission.")
+            Enrollment.objects.filter(classroom=class_, student_id__in=removed).delete()
+            Enrollment.objects.bulk_create(
+                [Enrollment(classroom=class_, student_id=student_id) for student_id in requested - current]
+            )
+            write_audit(
+                actor=request.user,
+                action="enrollment.replaced",
+                target=class_,
+                metadata={"class_id": class_.id, "student_ids": sorted(requested)},
+            )
+        students = User.objects.filter(id__in=requested, role=User.Role.STUDENT, is_active=True).order_by("id")
+        return Response(StudentSerializer(students, many=True).data)
+
 
 def students_progress_queryset(class_):
     """Enrolled, active Students annotated with backend-computed progress counts
@@ -180,6 +235,12 @@ def students_progress_queryset(class_):
             distinct=True,
         ),
     )
+
+
+class StudentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "full_name", "email")
 
 
 def get_scoped_class(user, class_id):

@@ -27,6 +27,7 @@ const emptyDraft: Draft = {
   gender: "",
   address: "",
 };
+const roles = [["", "Tất cả"], ["TEACHER", "Giáo viên"], ["STUDENT", "Học sinh"]] as const;
 
 function message(error: unknown) {
   return (error as ApiFailure).detail ?? "Unable to load accounts.";
@@ -112,7 +113,7 @@ export function AdminUsersPage() {
         ? await api<User>(`/users/${editing.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...profile, ...(draft.password ? { new_password: draft.password } : {}) }),
+            body: JSON.stringify(profile),
           })
         : await api<User>("/users", {
             method: "POST",
@@ -156,31 +157,26 @@ export function AdminUsersPage() {
       <label className="form-label w-100">Search
         <input className="form-control" aria-label="Search accounts" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name or email" />
       </label>
-      <label className="form-label w-100">Role
-        <select className="form-select" value={role} onChange={(event) => {
-          const value = event.target.value;
-          setRole(value === "TEACHER" || value === "STUDENT" ? value : "");
-        }}>
-          <option value="">All</option><option value="TEACHER">Teacher</option><option value="STUDENT">Student</option>
-        </select>
-      </label>
+      <div className="d-flex gap-2" role="tablist" aria-label="Role">
+        {roles.map(([value, label]) => <button className={`btn ${role === value ? "btn-primary" : "btn-outline-primary"}`} type="button" role="tab" aria-selected={role === value} key={value} onClick={() => setRole(value)}>{label}</button>)}
+      </div>
     </div></div>
 
     {error && <div className="alert alert-danger" role="alert">{error}</div>}
     {loading ? <div className="alert alert-secondary">Loading accounts…</div>
       : users.length === 0 ? <div className="alert alert-secondary">No active accounts match these filters.</div>
-      : <section className="account-grid" aria-label="Active accounts">{users.map((user) =>
-        <article className="card border-0 shadow-sm" key={user.id}><div className="card-body">
-          <div className="d-flex justify-content-between gap-2 mb-3">
-            <div className="min-w-0"><h2 className="h5 mb-1 text-break">{displayName(user)}</h2><p className="text-secondary text-break mb-0">{user.email}</p></div>
-            <span className={`badge align-self-start text-bg-${user.role === "TEACHER" ? "info" : "secondary"}`}>{user.role === "TEACHER" ? "Teacher" : "Student"}</span>
+      : <section aria-label="Active accounts"><ul className="list-group">{users.map((user) =>
+        <li className="list-group-item d-flex justify-content-between align-items-start gap-3" key={user.id}>
+          <div className="min-w-0">
+            <h2 className="h5 mb-1 text-break">{displayName(user)}</h2><p className="text-secondary text-break mb-0">{user.email}</p>
           </div>
-          <div className="d-flex flex-wrap gap-2">
+          <div className="d-flex flex-wrap align-items-start justify-content-end gap-2">
+            <span className={`badge text-bg-${user.role === "TEACHER" ? "info" : "secondary"}`}>{user.role === "TEACHER" ? "Teacher" : "Student"}</span>
             <button className="btn btn-outline-primary btn-sm" type="button" onClick={() => openDialog(user)}>Edit</button>
             <button className="btn btn-outline-danger btn-sm" type="button" onClick={() => setDeactivating(user)}>Deactivate</button>
           </div>
-        </div></article>
-      )}</section>}
+        </li>
+      )}</ul></section>}
 
     <AppDialog open={dialogOpen} title={editing ? "Edit account" : "Create account"} pending={saving} onClose={closeDialog}>
       <form onSubmit={save}>
@@ -200,10 +196,10 @@ export function AdminUsersPage() {
             </select>
             {fieldError("role") && <span className="invalid-feedback d-block">{fieldError("role")}</span>}
           </label>
-          <label className="form-label">{editing ? "New password" : "Password"}
-            <input className="form-control" name={editing ? "new_password" : "password"} type="password" value={draft.password} onChange={(event) => change("password", event.target.value)} minLength={8} maxLength={128} required={!editing} autoComplete="new-password" />
-            {fieldError(editing ? "new_password" : "password") && <span className="invalid-feedback d-block">{fieldError(editing ? "new_password" : "password")}</span>}
-          </label>
+          {!editing && <label className="form-label">Password
+            <input className="form-control" name="password" type="password" value={draft.password} onChange={(event) => change("password", event.target.value)} minLength={8} maxLength={128} required autoComplete="new-password" />
+            {fieldError("password") && <span className="invalid-feedback d-block">{fieldError("password")}</span>}
+          </label>}
           <label className="form-label">Phone
             <input className="form-control" name="phone" type="tel" value={draft.phone} onChange={(event) => change("phone", event.target.value)} pattern="\+?[0-9]{9,15}" />
             {fieldError("phone") && <span className="invalid-feedback d-block">{fieldError("phone")}</span>}
