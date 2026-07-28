@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.utils import timezone
 
 from accounts.models import User
+from assignments.services import assignment_learning_state
 
 from .models import Class, ClassResource, Enrollment
 
@@ -81,6 +82,44 @@ class StudentProgressSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ("id", "full_name", "email", "submitted_assignments", "graded_assignments")
+
+
+class GradebookSerializer(serializers.Serializer):
+    assignments = serializers.SerializerMethodField()
+    students = serializers.SerializerMethodField()
+
+    def get_assignments(self, gradebook):
+        return [
+            {"id": assignment.id, "title": assignment.title, "maximum_score": assignment.maximum_score}
+            for assignment in gradebook["assignments"]
+        ]
+
+    def get_students(self, gradebook):
+        now = self.context["now"]
+        latest_submissions = self.context["latest_submissions"]
+        assignments = gradebook["assignments"]
+        return [
+            {
+                "id": student.id,
+                "full_name": student.full_name,
+                "email": student.email,
+                "grades": [
+                    {
+                        "assignment_id": assignment.id,
+                        "learning_state": assignment_learning_state(
+                            assignment,
+                            student,
+                            now,
+                            latest_submissions.get((assignment.id, student.id)),
+                        ),
+                        "score": getattr(latest_submissions.get((assignment.id, student.id)), "grade", None).total_score
+                        if hasattr(latest_submissions.get((assignment.id, student.id)), "grade") else None,
+                    }
+                    for assignment in assignments
+                ],
+            }
+            for student in gradebook["students"]
+        ]
 
 
 class StudentProfileSerializer(StudentProgressSerializer):

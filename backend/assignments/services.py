@@ -1,13 +1,18 @@
 from submissions.models import Submission
 
 
-def assignment_learning_state(assignment, student, now):
-    latest = (
-        Submission.objects.filter(assignment=assignment, student=student)
-        .select_related("grade")
-        .order_by("-version")
-        .first()
-    )
+_MISSING = object()
+
+
+def assignment_learning_state(assignment, student, now, latest_submission=_MISSING):
+    latest = latest_submission
+    if latest is _MISSING:
+        latest = (
+            Submission.objects.filter(assignment=assignment, student=student)
+            .select_related("grade")
+            .order_by("-version")
+            .first()
+        )
     if latest and hasattr(latest, "grade"):
         return "GRADED"
     if (
