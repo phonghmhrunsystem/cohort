@@ -59,6 +59,8 @@ class RubricSerializer(serializers.Serializer):
     criteria = RubricCriterionSerializer(many=True)
 
     def validate_criteria(self, criteria):
+        if not criteria:
+            raise serializers.ValidationError("Provide at least one rubric criterion.")
         if sum(criterion["maximum_score"] for criterion in criteria) != 100:
             raise serializers.ValidationError("Criteria must total exactly 100 points.")
         return criteria

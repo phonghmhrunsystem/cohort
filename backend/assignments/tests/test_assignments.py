@@ -133,6 +133,12 @@ class AssignmentApiTests(TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual([criterion["maximum_score"] for criterion in self.teacher_client.get(f"/api/assignments/{assignment['id']}").data["criteria"]], [60, 40])
 
+    def test_rubric_rejects_an_empty_criteria_list(self):
+        assignment = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").data
+        response = self.teacher_client.put(f"/api/assignments/{assignment['id']}/rubric", {"criteria": []}, format="json")
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("at least one", str(response.data["criteria"]).lower())
+
     def test_rubric_cannot_be_replaced_once_a_submission_is_graded(self):
         from submissions.models import Submission
 

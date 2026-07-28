@@ -17,6 +17,7 @@ let root: ReturnType<typeof createRoot>;
 const click = (label: string) => (Array.from(container.querySelectorAll("button")).find((button) => button.textContent === label) as HTMLButtonElement).click();
 const dialog = (title: string) => Array.from(container.querySelectorAll("dialog")).find((element) => element.textContent?.includes(title)) as HTMLDialogElement;
 const clickDialog = (title: string, label: string) => (Array.from(dialog(title).querySelectorAll("button")).find((button) => button.textContent === label) as HTMLButtonElement).click();
+const saveRubricButton = () => Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Save rubric") as HTMLButtonElement;
 
 beforeEach(async () => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -41,6 +42,7 @@ test("deleting a rubric criterion changes its local draft only after Xóa", asyn
   expect(dialog("Xóa Code").open).toBe(true);
   await act(async () => { clickDialog("Xóa Code", "Cancel"); });
   expect((container.querySelector('input[value="Code"]') as HTMLInputElement).value).toBe("Code");
+  expect(saveRubricButton().disabled).toBe(false);
 
   const opener = container.querySelector('[aria-label="Xóa Code"]') as HTMLButtonElement;
   opener.focus();
@@ -49,6 +51,13 @@ test("deleting a rubric criterion changes its local draft only after Xóa", asyn
   expect(container.querySelector('input[value="Code"]')).toBeNull();
   expect(harness.replaceRubric).not.toHaveBeenCalled();
   expect(document.activeElement?.textContent).toBe("Add criterion");
+  expect(saveRubricButton().disabled).toBe(true);
+
+  await act(async () => { (container.querySelector('[aria-label="Xóa Writing"]') as HTMLButtonElement).click(); });
+  await act(async () => { clickDialog("Xóa Writing", "Xóa"); });
+  expect(container.querySelectorAll(".account-form-grid").length).toBe(0);
+  expect(saveRubricButton().disabled).toBe(true);
+  expect(harness.replaceRubric).not.toHaveBeenCalled();
 });
 
 test("blank student names use the email local-part", async () => {
