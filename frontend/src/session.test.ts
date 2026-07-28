@@ -27,6 +27,12 @@ test("unknown paths and wrong roles are not allowed", () => {
   expect(canAccess("/teacher/classes", "TEACHER")).toBe(true);
 });
 
+test("assignment submission routes remain scoped to their classroom role", () => {
+  expect(canAccess("/student/assignments/3", "STUDENT")).toBe(true);
+  expect(canAccess("/teacher/assignments/3", "TEACHER")).toBe(true);
+  expect(canAccess("/student/assignments/3", "TEACHER")).toBe(false);
+});
+
 test("roleHome sends every role to its workspace", () => {
   expect(roleHome("ADMIN")).toBe("/admin/users");
   expect(roleHome("TEACHER")).toBe("/teacher/classes");

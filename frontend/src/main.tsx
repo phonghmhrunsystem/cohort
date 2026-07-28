@@ -4,6 +4,7 @@ import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AuditLogPage } from "./pages/AuditLogPage";
 import { AdminClassPage } from "./pages/AdminClassPage";
 import { AdminClassesPage } from "./pages/AdminClassesPage";
+import { AssignmentPage } from "./pages/AssignmentPage";
 import { LoginPage } from "./pages/LoginPage";
 import { StudentClassPage } from "./pages/StudentClassPage";
 import { StudentClassesPage } from "./pages/StudentClassesPage";
@@ -17,7 +18,8 @@ import "./styles.css";
 const root = createRoot(document.getElementById("root")!);
 
 function pageFor(path: string) {
-  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/admin/classes" ? <AdminClassesPage /> : /^\/admin\/classes\/\d+$/.test(path) ? <AdminClassPage /> : path === "/teacher/classes" ? <TeacherClassesPage /> : /^\/teacher\/classes\/\d+$/.test(path) ? <TeacherClassPage /> : path === "/student/classes" ? <StudentClassesPage /> : /^\/student\/classes\/\d+$/.test(path) ? <StudentClassPage /> : undefined;
+  const assignment = /^\/(teacher|student)\/assignments\/(\d+)$/.exec(path);
+  return path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/admin/classes" ? <AdminClassesPage /> : /^\/admin\/classes\/\d+$/.test(path) ? <AdminClassPage /> : path === "/teacher/classes" ? <TeacherClassesPage /> : /^\/teacher\/classes\/\d+$/.test(path) ? <TeacherClassPage /> : path === "/student/classes" ? <StudentClassesPage /> : /^\/student\/classes\/\d+$/.test(path) ? <StudentClassPage /> : assignment ? <AssignmentPage assignmentId={Number(assignment[2])} role={assignment[1].toUpperCase() as "TEACHER" | "STUDENT"} /> : undefined;
 }
 
 async function render() {
