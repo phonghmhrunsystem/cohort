@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "cohorts",
     "classes",
     "assignments",
+    "submissions",
 ]
 
 MIDDLEWARE = [
