@@ -84,6 +84,20 @@ class DemoSeedMigrationTests(TransactionTestCase):
         self.assertEqual(Class.objects.count(), 3)
         self.assertEqual(Enrollment.objects.count(), 5)
 
+        executor = MigrationExecutor(connection)
+        targets = executor.loader.graph.leaf_nodes()
+        executor.migrate(targets)
+        apps = executor.loader.project_state(targets).apps
+        User = apps.get_model("accounts", "User")
+        self.assertEqual(
+            User.objects.get(email="teacher.anh@example.com").full_name,
+            "Teacher Anh",
+        )
+        self.assertEqual(
+            User.objects.get(email="student.an@example.com").full_name,
+            "Student An",
+        )
+
 
 class FullNameBackfillMigrationTests(TransactionTestCase):
     reset_sequences = True
