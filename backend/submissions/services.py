@@ -5,6 +5,7 @@ from django.core.files.storage import default_storage
 from django.db import transaction
 
 from audit.services import write_audit
+from classes.models import Enrollment
 
 from .models import Submission
 
@@ -13,6 +14,9 @@ def create_submission(*, assignment, student, upload, note):
     storage_name = None
     try:
         with transaction.atomic():
+            Enrollment.objects.select_for_update().get(
+                classroom_id=assignment.classroom_id, student=student
+            )
             latest = Submission.objects.select_for_update().filter(
                 assignment=assignment, student=student
             ).order_by("-version").first()

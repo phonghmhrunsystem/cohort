@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 from classes.models import Class
@@ -21,3 +22,16 @@ class RubricCriterion(models.Model):
 
     class Meta:
         ordering = ("id",)
+
+
+class AssignmentGrade(models.Model):
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name="grades")
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="assignment_grades")
+    score = models.PositiveSmallIntegerField()
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=("assignment", "student"), name="unique_assignment_grade"
+            )
+        ]

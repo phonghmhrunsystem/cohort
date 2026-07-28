@@ -9,7 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
-from assignments.models import Assignment
+from assignments.models import Assignment, AssignmentGrade
 from classes.views import scoped_classes
 
 from .models import Submission
@@ -51,6 +51,11 @@ class AssignmentSubmissionsView(APIView):
         assignment = scoped_assignment(request.user, assignment_id)
         if request.user.role != User.Role.STUDENT:
             return Response(status=status.HTTP_403_FORBIDDEN)
+        if AssignmentGrade.objects.filter(assignment=assignment, student=request.user).exists():
+            return Response(
+                {"detail": "This Assignment has already been graded."},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
         if not can_submit(assignment):
             return Response(
                 {"detail": "Submissions are accepted only before the deadline while the Class is open."},

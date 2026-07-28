@@ -115,6 +115,21 @@ class SubmissionApiTests(TestCase):
             404,
         )
 
+    def test_graded_student_cannot_submit_or_write_a_file_or_row(self):
+        from assignments.models import AssignmentGrade
+        from submissions.models import Submission
+
+        AssignmentGrade.objects.create(
+            assignment=self.assignment, student=self.student, score=90
+        )
+        before = list(Path(settings.MEDIA_ROOT).rglob("*"))
+
+        response = self.submit("graded.pdf")
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(Submission.objects.count(), 0)
+        self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
+
     def test_download_is_limited_to_submitter_or_assigned_teacher(self):
         submission = self.submit("one.pdf").json()
         download_url = f"/api/submissions/{submission['id']}/download"
