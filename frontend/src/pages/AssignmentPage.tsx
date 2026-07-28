@@ -25,12 +25,13 @@ export function AssignmentPage({ assignmentId, role }: { assignmentId: number; r
   useEffect(() => { void load(); }, [assignmentId]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     if (!file) return;
     setSaving(true); setError("");
     try {
       const body = new FormData(); body.append("file", file); body.append("note", note.trim());
       await api(`/assignments/${assignmentId}/submissions`, { method: "POST", body });
-      setFile(null); setNote(""); event.currentTarget.reset(); await load();
+      setFile(null); setNote(""); form.reset(); await load();
     } catch (response) { setError(message(response)); } finally { setSaving(false); }
   }
   return <><a href={`/${role.toLowerCase()}/classes`}>My Classes</a><h1 className="h2 mt-2">Assignment submissions</h1>{error && <div className="alert alert-danger" role="alert">{error}</div>}{role === "STUDENT" ? <><section className="card border-0 shadow-sm mb-3"><div className="card-body"><h2 className="h4">Submit a file</h2><form onSubmit={submit}><label className="form-label w-100">PDF or DOCX<input className="form-control" type="file" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={(event) => setFile(event.target.files?.[0] ?? null)} required /></label><label className="form-label w-100">Note<textarea className="form-control" value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} /></label><button className="btn btn-primary" disabled={saving}>{saving ? "Uploading…" : "Upload submission"}</button></form></div></section><SubmissionHistory submissions={submissions} /></> : <LatestSubmissions submissions={submissions} />}</>;
