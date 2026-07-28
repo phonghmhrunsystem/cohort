@@ -35,7 +35,10 @@ beforeEach(async () => {
 afterEach(() => { root.unmount(); container.remove(); });
 
 test("editing the roster searches active Students, prechecks members, saves once, and preserves a rejected draft", async () => {
-  harness.listClassStudents.mockReset().mockResolvedValueOnce([enrolled, candidate]).mockResolvedValueOnce([candidate]);
+  let rejectSearch!: (reason?: unknown) => void;
+  harness.listClassStudents.mockReset()
+    .mockResolvedValueOnce([enrolled, candidate])
+    .mockReturnValueOnce(new Promise<Array<typeof candidate>>((_resolve, reject) => { rejectSearch = reject; }));
   harness.replaceEnrollment.mockRejectedValueOnce({ detail: "Student has a submission." });
 
   const roster = container.querySelector("section ul");
@@ -59,6 +62,10 @@ test("editing the roster searches active Students, prechecks members, saves once
   expect(dialog("Edit roster").open).toBe(true);
   expect((container.querySelector('input[value="8"]') as HTMLInputElement).checked).toBe(true);
   expect(container.textContent).toContain("Student has a submission.");
+
+  await act(async () => { rejectSearch({ detail: "Old search failed." }); await Promise.resolve(); });
+  expect(container.textContent).toContain("Student has a submission.");
+  expect(container.textContent).not.toContain("Old search failed.");
 });
 
 test("editing after a roster search retains members outside the page filter", async () => {
@@ -86,12 +93,15 @@ test("editing waits for the full roster before allowing a save", async () => {
 
   await act(async () => { click("Edit roster"); await Promise.resolve(); });
   const save = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Save roster") as HTMLButtonElement;
+  const search = container.querySelector('input[type="search"]') as HTMLInputElement;
   expect(save.disabled).toBe(true);
+  expect(search.disabled).toBe(true);
   await act(async () => { save.click(); });
   expect(harness.replaceEnrollment).not.toHaveBeenCalled();
 
   await act(async () => { resolveRoster([enrolled]); await Promise.resolve(); });
   expect(save.disabled).toBe(false);
+  expect(search.disabled).toBe(false);
 });
 
 test("reopening the roster ignores the previous dialog load", async () => {
@@ -116,4 +126,75 @@ test("reopening the roster ignores the previous dialog load", async () => {
   expect(save.disabled).toBe(false);
   expect(Array.from(container.querySelectorAll('input[type="checkbox"]')).map((input) => [(input as HTMLInputElement).value, (input as HTMLInputElement).checked]))
     .toEqual([["9", true], ["8", false]]);
+});
+
+test("a search from a closed roster cannot replace reopened candidates", async () => {
+  let resolveSearch!: (students: Array<typeof candidate>) => void;
+  harness.listEnrolledStudents.mockReset()
+    .mockResolvedValueOnce([enrolled])
+    .mockResolvedValueOnce([hiddenMember]);
+  harness.listClassStudents.mockReset()
+    .mockResolvedValueOnce([enrolled, candidate])
+    .mockReturnValueOnce(new Promise<Array<typeof candidate>>((resolve) => { resolveSearch = resolve; }))
+    .mockResolvedValueOnce([hiddenMember]);
+
+  await act(async () => { click("Edit roster"); await Promise.resolve(); });
+  const search = container.querySelector('input[type="search"]') as HTMLInputElement;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "Linh");
+  await act(async () => { search.dispatchEvent(new Event("input", { bubbles: true })); await Promise.resolve(); });
+  await act(async () => { click("Cancel"); });
+  await act(async () => { click("Edit roster"); await Promise.resolve(); });
+  expect(Array.from(container.querySelectorAll('input[type="checkbox"]')).map((input) => [(input as HTMLInputElement).value, (input as HTMLInputElement).checked]))
+    .toEqual([["9", true]]);
+
+  await act(async () => { resolveSearch([candidate]); await Promise.resolve(); });
+  expect(Array.from(container.querySelectorAll('input[type="checkbox"]')).map((input) => [(input as HTMLInputElement).value, (input as HTMLInputElement).checked]))
+    .toEqual([["9", true]]);
+});
+
+test("only the latest search can update roster candidates", async () => {
+  let resolveFirst!: (students: Array<typeof candidate>) => void;
+  let resolveSecond!: (students: Array<typeof hiddenMember>) => void;
+  harness.listEnrolledStudents.mockReset().mockResolvedValue([enrolled]);
+  harness.listClassStudents.mockReset()
+    .mockResolvedValueOnce([enrolled, candidate])
+    .mockReturnValueOnce(new Promise<Array<typeof candidate>>((resolve) => { resolveFirst = resolve; }))
+    .mockReturnValueOnce(new Promise<Array<typeof hiddenMember>>((resolve) => { resolveSecond = resolve; }));
+
+  await act(async () => { click("Edit roster"); await Promise.resolve(); });
+  const search = container.querySelector('input[type="search"]') as HTMLInputElement;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "Linh");
+  await act(async () => { search.dispatchEvent(new Event("input", { bubbles: true })); });
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(search, "Bao");
+  await act(async () => { search.dispatchEvent(new Event("input", { bubbles: true })); });
+
+  await act(async () => { resolveSecond([hiddenMember]); await Promise.resolve(); });
+  expect(Array.from(container.querySelectorAll('input[type="checkbox"]')).map((input) => (input as HTMLInputElement).value)).toEqual(["9"]);
+  await act(async () => { resolveFirst([candidate]); await Promise.resolve(); });
+  expect(Array.from(container.querySelectorAll('input[type="checkbox"]')).map((input) => (input as HTMLInputElement).value)).toEqual(["9"]);
+});
+
+test("a failed reopen cannot use a roster that settled after cancellation", async () => {
+  let resolveFirst!: (students: Array<typeof enrolled>) => void;
+  harness.listEnrolledStudents.mockReset()
+    .mockReturnValueOnce(new Promise<Array<typeof enrolled>>((resolve) => { resolveFirst = resolve; }))
+    .mockRejectedValueOnce({ detail: "Unable to load roster." });
+  harness.listClassStudents.mockReset()
+    .mockResolvedValueOnce([enrolled])
+    .mockResolvedValueOnce([enrolled]);
+
+  await act(async () => { click("Edit roster"); });
+  await act(async () => { click("Cancel"); });
+  await act(async () => { resolveFirst([enrolled]); await Promise.resolve(); });
+  await act(async () => { click("Edit roster"); await Promise.resolve(); await Promise.resolve(); });
+  expect(container.textContent).toContain("Unable to load roster.");
+  const save = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Save roster") as HTMLButtonElement;
+  const search = container.querySelector('input[type="search"]') as HTMLInputElement;
+  expect({
+    saveDisabled: save.disabled,
+    searchDisabled: search.disabled,
+    checkedIds: Array.from(container.querySelectorAll('input[type="checkbox"]'))
+      .filter((input) => (input as HTMLInputElement).checked)
+      .map((input) => (input as HTMLInputElement).value),
+  }).toEqual({ saveDisabled: true, searchDisabled: true, checkedIds: [] });
 });
