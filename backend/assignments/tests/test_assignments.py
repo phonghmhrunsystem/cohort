@@ -62,7 +62,7 @@ class AssignmentApiTests(TestCase):
             format="json",
         ).data
 
-        self.assertEqual(self.assignment_operation_statuses(self.admin_client, created["id"]), [403, 403, 200, 403, 403])
+        self.assertEqual(self.assignment_operation_statuses(self.admin_client, created["id"]), [403] * 5)
         self.assertEqual(self.assignment_operation_statuses(self.student_client, created["id"]), [200, 403, 200, 403, 403])
         self.assertEqual(self.student_client.get(f"/api/classes/{self.classroom.id}/assignments").data[0]["id"], created["id"])
 
@@ -132,6 +132,47 @@ class AssignmentApiTests(TestCase):
         response = self.teacher_client.put(f"/api/assignments/{assignment['id']}/rubric", {"criteria": [{"title": "Broken", "maximum_score": 80}]}, format="json")
         self.assertEqual(response.status_code, 422)
         self.assertEqual([criterion["maximum_score"] for criterion in self.teacher_client.get(f"/api/assignments/{assignment['id']}").data["criteria"]], [60, 40])
+
+    def test_rubric_cannot_be_replaced_once_a_submission_is_graded(self):
+        from submissions.models import Submission
+
+        assignment = self.teacher_client.post(f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json").data
+        rubric = {"criteria": [{"title": "Code", "maximum_score": 60}, {"title": "Tests", "maximum_score": 40}]}
+        self.teacher_client.put(f"/api/assignments/{assignment['id']}/rubric", rubric, format="json")
+        criteria_before = list(
+            self.teacher_client.get(f"/api/assignments/{assignment['id']}").data["criteria"]
+        )
+
+        submission = Submission.objects.create(
+            assignment_id=assignment["id"],
+            student=self.student,
+            version=1,
+            file_path=f"submissions/{assignment['id']}-{self.student.id}-1.pdf",
+            original_filename="submission.pdf",
+            content_type="application/pdf",
+            size=10,
+            note="",
+        )
+        criterion_ids = [c["id"] for c in criteria_before]
+        graded = self.teacher_client.put(
+            f"/api/submissions/{submission.id}/grade",
+            {
+                "feedback": "Good work",
+                "scores": [
+                    {"criterion_id": criterion_ids[0], "score": 60},
+                    {"criterion_id": criterion_ids[1], "score": 40},
+                ],
+            },
+            format="json",
+        )
+        self.assertEqual(graded.status_code, 200)
+
+        response = self.teacher_client.put(f"/api/assignments/{assignment['id']}/rubric", rubric, format="json")
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.data["detail"], "This Assignment has already been graded.")
+
+        criteria_after = self.teacher_client.get(f"/api/assignments/{assignment['id']}").data["criteria"]
+        self.assertEqual(criteria_after, criteria_before)
 
     def payload(self, **overrides):
         return {

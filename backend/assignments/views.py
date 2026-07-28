@@ -79,6 +79,8 @@ class AssignmentDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, assignment_id):
+        if request.user.role not in (User.Role.TEACHER, User.Role.STUDENT):
+            return Response(status=status.HTTP_403_FORBIDDEN)
         assignment = scoped_assignment(request.user, assignment_id)
         return Response(AssignmentSerializer(assignment, context={"classroom": assignment.classroom}).data)
 
@@ -99,9 +101,14 @@ class AssignmentRubricView(APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, assignment_id):
+        from grading.models import Grade
+        from grading.services import ALREADY_GRADED_MESSAGE
+
         assignment = assigned_assignment(request.user, assignment_id)
         if not is_open(assignment.classroom):
             return closed_response()
+        if Grade.objects.filter(assignment=assignment).exists():
+            return Response({"detail": ALREADY_GRADED_MESSAGE}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         serializer = RubricSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
