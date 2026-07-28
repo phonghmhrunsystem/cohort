@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
 
-import { logout, User } from "./auth";
+import { displayName, logout, User } from "./auth";
 import { redirectToLogin } from "./session";
 
 const links = {
@@ -8,6 +8,8 @@ const links = {
   TEACHER: [["/teacher/classes", "My Classes"]],
   STUDENT: [["/student/classes", "My Classes"]],
 } as const;
+
+const roleLabel = { ADMIN: "Quản trị viên", TEACHER: "Giáo viên", STUDENT: "Học sinh" } as const;
 
 export function AppShell({ user, children }: { user: User; children: ReactNode }) {
   async function signOut() {
@@ -22,6 +24,7 @@ export function AppShell({ user, children }: { user: User; children: ReactNode }
   return <div className="workspace">
     <aside className="workspace-sidebar p-3">
       <a className="text-white text-decoration-none fw-semibold d-block mb-4" href={links[user.role][0][0]}>Class Management</a>
+      <p className="workspace-identity text-white-50 small"><span className="d-block text-white">Chào, {displayName(user)}</span>{roleLabel[user.role]}</p>
       <nav className="workspace-nav nav nav-pills flex-column gap-1" aria-label={`${user.role} navigation`}>
         {links[user.role].map(([href, label]) => <a className="nav-link" href={href} aria-current={location.pathname === href ? "page" : undefined} key={href}>{label}</a>)}
         <button className="workspace-logout nav-link text-start border-0" type="button" onClick={() => void signOut()}>Logout</button>

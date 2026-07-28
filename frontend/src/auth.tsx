@@ -15,6 +15,8 @@ export type User = {
   is_active: boolean;
 };
 
+export const displayName = (user: Pick<User, "full_name" | "email">) => user.full_name?.trim() || user.email.split("@")[0];
+
 export async function login(email: string, password: string): Promise<User> {
   const response = await api<{ access_token: string; user: User }>("/auth/login", {
     method: "POST",
