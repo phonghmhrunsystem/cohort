@@ -13,6 +13,7 @@ let root: ReturnType<typeof createRoot>;
 const click = (label: string) => (Array.from(container.querySelectorAll("button")).find((button) => button.textContent === label) as HTMLButtonElement).click();
 const dialog = (title: string) => Array.from(container.querySelectorAll("dialog")).find((element) => element.textContent?.includes(title)) as HTMLDialogElement;
 const enrolled = { id: 7, full_name: "An", email: "an@example.test" };
+const hiddenMember = { id: 9, full_name: "Bao", email: "bao@example.test" };
 const candidate = { id: 8, full_name: "Linh", email: "linh@example.test" };
 
 beforeEach(async () => {
@@ -58,4 +59,22 @@ test("editing the roster searches active Students, prechecks members, saves once
   expect(dialog("Edit roster").open).toBe(true);
   expect((container.querySelector('input[value="8"]') as HTMLInputElement).checked).toBe(true);
   expect(container.textContent).toContain("Student has a submission.");
+});
+
+test("editing after a roster search retains members outside the page filter", async () => {
+  harness.listEnrolledStudents.mockImplementation((_id: number, query = "") => Promise.resolve(query ? [enrolled] : [enrolled, hiddenMember]));
+  harness.listClassStudents.mockResolvedValue([enrolled, hiddenMember, candidate]);
+  harness.replaceEnrollment.mockResolvedValue([enrolled, hiddenMember]);
+
+  const rosterSearch = container.querySelector("section input") as HTMLInputElement;
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(rosterSearch, "An");
+  await act(async () => { rosterSearch.dispatchEvent(new Event("input", { bubbles: true })); await Promise.resolve(); await Promise.resolve(); });
+  expect(harness.listEnrolledStudents).toHaveBeenLastCalledWith(4, "An");
+
+  await act(async () => { click("Edit roster"); await Promise.resolve(); });
+  const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
+  expect(checkboxes.map((input) => [input.value, input.checked])).toEqual([["7", true], ["9", true], ["8", false]]);
+
+  await act(async () => { click("Save roster"); await Promise.resolve(); });
+  expect(harness.replaceEnrollment).toHaveBeenCalledWith(4, [7, 9]);
 });

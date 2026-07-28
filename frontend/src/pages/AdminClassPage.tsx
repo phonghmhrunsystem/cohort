@@ -28,11 +28,13 @@ export function AdminClassPage() {
     setStudentQuery(value);
     try { setCandidates(await listClassStudents(classId, value)); } catch (response) { setError(message(response)); }
   }
-  function openRoster() {
+  async function openRoster() {
     setError("");
-    setStudentIds(students.map((student) => student.id));
     setDialog(true);
-    void searchStudents("");
+    try {
+      const [roster, candidates] = await Promise.all([listEnrolledStudents(classId), listClassStudents(classId)]);
+      setStudentIds(roster.map((student) => student.id)); setStudentQuery(""); setCandidates(candidates);
+    } catch (response) { setError(message(response)); }
   }
   function toggleStudent(id: number) {
     setStudentIds((ids) => ids.includes(id) ? ids.filter((studentId) => studentId !== id) : [...ids, id]);
