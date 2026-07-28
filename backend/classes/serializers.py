@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from accounts.models import User
 
-from .models import Class, Enrollment
+from .models import Class, ClassResource, Enrollment
 
 
 class TeacherDisplaySerializer(serializers.ModelSerializer):
@@ -103,3 +103,20 @@ class EnrollmentSetSerializer(serializers.Serializer):
         ):
             raise serializers.ValidationError("Only active Student accounts can be enrolled.")
         return students
+
+
+class ClassResourceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClassResource
+        fields = ("id", "title", "description", "url")
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not 2 <= len(value) <= 150: raise serializers.ValidationError("Use 2 to 150 characters.")
+        return value
+
+    def validate_description(self, value): return value.strip()
+
+    def validate_url(self, value):
+        if not value.startswith("https://"): raise serializers.ValidationError("Use an absolute https URL.")
+        return value

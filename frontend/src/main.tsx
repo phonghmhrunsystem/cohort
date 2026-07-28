@@ -7,6 +7,8 @@ import { AdminClassesPage } from "./pages/AdminClassesPage";
 import { AssignmentPage } from "./pages/AssignmentPage";
 import { GradePage } from "./pages/GradePage";
 import { LoginPage } from "./pages/LoginPage";
+import { ChangePasswordPage } from "./pages/ChangePasswordPage";
+import { PasswordResetRequestsPage } from "./pages/PasswordResetRequestsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ResultPage } from "./pages/ResultPage";
 import { StudentClassPage } from "./pages/StudentClassPage";
@@ -24,7 +26,7 @@ function pageFor(path: string) {
   const assignment = /^\/(teacher|student)\/assignments\/(\d+)$/.exec(path);
   const grade = /^\/teacher\/assignments\/(\d+)\/submissions\/(\d+)\/grade$/.exec(path);
   const result = /^\/student\/assignments\/(\d+)\/result$/.exec(path);
-  return path === "/profile" ? <ProfilePage /> : path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/admin/classes" ? <AdminClassesPage /> : /^\/admin\/classes\/\d+$/.test(path) ? <AdminClassPage /> : path === "/teacher/classes" ? <TeacherClassesPage /> : /^\/teacher\/classes\/\d+$/.test(path) ? <TeacherClassPage /> : path === "/student/classes" ? <StudentClassesPage /> : /^\/student\/classes\/\d+$/.test(path) ? <StudentClassPage /> : grade ? <GradePage assignmentId={Number(grade[1])} submissionId={Number(grade[2])} /> : result ? <ResultPage assignmentId={Number(result[1])} /> : assignment ? <AssignmentPage assignmentId={Number(assignment[2])} role={assignment[1].toUpperCase() as "TEACHER" | "STUDENT"} /> : undefined;
+  return path === "/profile" ? <ProfilePage /> : path === "/admin/users" ? <AdminUsersPage /> : path === "/admin/password-reset-requests" ? <PasswordResetRequestsPage /> : path === "/admin/audit-logs" ? <AuditLogPage /> : path === "/admin/classes" ? <AdminClassesPage /> : /^\/admin\/classes\/\d+$/.test(path) ? <AdminClassPage /> : path === "/teacher/classes" ? <TeacherClassesPage /> : /^\/teacher\/classes\/\d+$/.test(path) ? <TeacherClassPage /> : path === "/student/classes" ? <StudentClassesPage /> : /^\/student\/classes\/\d+$/.test(path) ? <StudentClassPage /> : grade ? <GradePage assignmentId={Number(grade[1])} submissionId={Number(grade[2])} /> : result ? <ResultPage assignmentId={Number(result[1])} /> : assignment ? <AssignmentPage assignmentId={Number(assignment[2])} role={assignment[1].toUpperCase() as "TEACHER" | "STUDENT"} /> : undefined;
 }
 
 async function render() {
@@ -41,11 +43,13 @@ async function render() {
     root.render(<LoginPage />);
     return;
   }
+  if (path === "/change-password" && accessToken()) { root.render(<ChangePasswordPage />); return; }
 
   const page = pageFor(path);
   if (!page || !accessToken()) return redirectToLogin();
   try {
     const user = await getCurrentUser();
+    if (user.must_change_password) { location.assign("/change-password"); return; }
     if (!canAccess(path, user.role)) return redirectToLogin();
     root.render(<AppShell user={user}>{page}</AppShell>);
   } catch (error) {

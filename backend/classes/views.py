@@ -4,20 +4,22 @@ from django.db.models import Count, F, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers, status
-from rest_framework.permissions import IsAuthenticated
+from accounts.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
 from audit.services import write_audit
+from notifications.services import create_notifications
 
-from .models import Class, Enrollment
+from .models import Class, ClassResource, Enrollment
 from .serializers import (
     ClassSerializer,
     EnrollmentSerializer,
     EnrollmentSetSerializer,
     StudentProfileSerializer,
     StudentProgressSerializer,
+    ClassResourceSerializer,
 )
 
 
@@ -216,6 +218,24 @@ class EnrollmentView(APIView):
             )
         students = User.objects.filter(id__in=requested, role=User.Role.STUDENT, is_active=True).order_by("id")
         return Response(StudentSerializer(students, many=True).data)
+
+
+class ClassResourcesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, class_id):
+        classroom = get_scoped_class(request.user, class_id)
+        if request.user.role not in (User.Role.TEACHER, User.Role.STUDENT): return Response(status=status.HTTP_403_FORBIDDEN)
+        return Response(ClassResourceSerializer(classroom.resources.all(), many=True).data)
+
+    def post(self, request, class_id):
+        classroom = get_object_or_404(Class.objects.filter(id=class_id, teacher=request.user), id=class_id)
+        serializer = ClassResourceSerializer(data=request.data)
+        if not serializer.is_valid(): return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        with transaction.atomic():
+            resource = serializer.save(classroom=classroom)
+            create_notifications(classroom, "RESOURCE_CREATED", f"New resource: {resource.title}", f"/student/classes/{classroom.id}")
+        return Response(ClassResourceSerializer(resource).data, status=status.HTTP_201_CREATED)
 
 
 def students_progress_queryset(class_):

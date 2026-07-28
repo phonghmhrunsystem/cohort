@@ -3,13 +3,14 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import IsAuthenticated
+from accounts.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
 from audit.services import write_audit
 from classes.views import scoped_classes
+from notifications.services import create_notifications
 
 from .models import Assignment, RubricCriterion
 from .serializers import AssignmentSerializer, RubricSerializer
@@ -71,6 +72,7 @@ class ClassAssignmentsView(APIView):
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
         with transaction.atomic():
             assignment = serializer.save(classroom=classroom)
+            create_notifications(classroom, "ASSIGNMENT_CREATED", f"New assignment: {assignment.title}", f"/student/assignments/{assignment.id}")
             write_audit(actor=request.user, action="assignment.created", target=assignment, metadata={"class_id": classroom.id, "assignment_id": assignment.id})
         return Response(AssignmentSerializer(assignment, context={"classroom": classroom}).data, status=status.HTTP_201_CREATED)
 

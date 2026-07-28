@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 from rest_framework_simplejwt.backends import TokenBackend
 from rest_framework_simplejwt.tokens import AccessToken
 
-from accounts.models import User
+from accounts.models import PasswordResetRequest, User
 from audit.models import AuditLog
 from classes.models import Class, Enrollment
 from config import settings as project_settings
@@ -300,6 +300,7 @@ class AccountApiTests(TestCase):
                 "gender": None,
                 "address": None,
                 "is_active": True,
+                "must_change_password": False,
             }
         ])
 
@@ -374,3 +375,40 @@ class AccountApiTests(TestCase):
 
         self.assertEqual(response.status_code, 422)
         self.assertTrue(User.objects.get(id=self.student.id).is_active)
+
+    def test_password_reset_request_is_private_and_deduplicated(self):
+        inactive = User.objects.create_user(
+            "inactive@example.test", "pw", role="STUDENT", is_active=False
+        )
+
+        for email in ("none@example.test", inactive.email, self.admin.email):
+            self.assertEqual(
+                self.client.post("/api/password-reset-requests", {"email": email}).status_code,
+                204,
+            )
+
+        self.assertEqual(
+            self.client.post("/api/password-reset-requests", {"email": self.student.email}).status_code,
+            204,
+        )
+        self.assertEqual(PasswordResetRequest.objects.filter(user=self.student).count(), 1)
+
+    def test_admin_resolves_pending_reset_once_and_forces_password_change(self):
+        reset = PasswordResetRequest.objects.create(user=self.student)
+        url = f"/api/password-reset-requests/{reset.id}/resolve"
+
+        self.assertEqual(self.student_client.post(url, {"password": "Temporary1!"}).status_code, 403)
+        self.assertEqual(self.admin_client.post(url, {"password": "short"}).status_code, 422)
+        self.assertEqual(self.admin_client.post(url, {"password": "Temporary1!"}).status_code, 204)
+        self.assertEqual(self.admin_client.post(url, {"password": "Temporary1!"}).status_code, 422)
+
+        self.student.refresh_from_db()
+        reset.refresh_from_db()
+        self.assertTrue(self.student.must_change_password)
+        self.assertTrue(self.student.check_password("Temporary1!"))
+        self.assertEqual(reset.status, PasswordResetRequest.Status.RESOLVED)
+        self.assertEqual(self.student_client.get("/api/classes").status_code, 403)
+        self.assertEqual(
+            self.client.post("/api/password-reset-requests", {"email": self.student.email}).status_code,
+            204,
+        )

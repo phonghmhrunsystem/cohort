@@ -13,6 +13,7 @@ export type User = {
   gender: "NAM" | "NU" | "KHAC" | null;
   address: string | null;
   is_active: boolean;
+  must_change_password?: boolean;
 };
 
 export type ProfileDraft = Pick<User, "full_name" | "phone" | "date_of_birth" | "gender" | "address">;
@@ -50,3 +51,4 @@ export const changePassword = (current_password: string, new_password: string) =
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ current_password, new_password }),
 });
+export const requestPasswordReset = (email: string) => api<void>("/password-reset-requests", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });

@@ -10,7 +10,7 @@ from .serializers import AuditLogSerializer
 
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):
-        return request.user.is_authenticated and request.user.role == User.Role.ADMIN
+        return request.user.is_authenticated and not request.user.must_change_password and request.user.role == User.Role.ADMIN
 
 
 class AuditLogView(APIView):

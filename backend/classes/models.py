@@ -20,3 +20,10 @@ class Enrollment(models.Model):
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("classroom", "student"), name="unique_class_enrollment")]
+
+
+class ClassResource(models.Model):
+    classroom = models.ForeignKey(Class, on_delete=models.CASCADE, related_name="resources")
+    title = models.CharField(max_length=150)
+    description = models.TextField(blank=True, max_length=1000)
+    url = models.URLField(max_length=2048)

@@ -7,6 +7,7 @@ from classes import urls as class_urls
 from assignments import urls as assignment_urls
 from submissions import urls as submission_urls
 from grading import urls as grading_urls
+from notifications import urls as notification_urls
 
 urlpatterns = [
     path("api/health", lambda request: JsonResponse({"status": "ok"})),
@@ -16,4 +17,5 @@ urlpatterns = [
     path("api/", include(assignment_urls)),
     path("api/", include(submission_urls)),
     path("api/", include(grading_urls)),
+    path("api/", include(notification_urls)),
 ]

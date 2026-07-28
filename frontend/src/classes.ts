@@ -8,6 +8,7 @@ export type StudentProgress = Pick<User, "id" | "full_name" | "email"> & { submi
 export type ClassRoster = { total_assignments: number; enrolled_students: number; submitted_students: number; graded_students: number; students: StudentProgress[] };
 export type StudentProfile = StudentProgress & { phone: string | null; date_of_birth: string | null; gender: User["gender"]; address: string | null; total_assignments: number; shared_classes: Class[] };
 export type Student = Pick<User, "id" | "full_name" | "email">;
+export type ClassResource = { id: number; title: string; description: string; url: string };
 
 const query = (value = "") => value ? `?${new URLSearchParams({ q: value })}` : "";
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -25,3 +26,5 @@ export const enrollStudent = (classId: number, studentId: number) => api<Enrollm
 export const removeStudent = (classId: number, studentId: number) => api<void>(`/classes/${classId}/enrollments/${studentId}`, { method: "DELETE" });
 export const listTeachers = (q = "") => api<User[]>(`/users?${new URLSearchParams({ q, role: "TEACHER" })}`);
 export const listStudentAccounts = (q = "") => api<User[]>(`/users?${new URLSearchParams({ q, role: "STUDENT" })}`);
+export const listResources = (id: number) => api<ClassResource[]>(`/classes/${id}/resources`);
+export const createResource = (id: number, resource: Omit<ClassResource, "id">) => api<ClassResource>(`/classes/${id}/resources`, json("POST", resource));

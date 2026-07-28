@@ -10,14 +10,16 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "full_name", "email", "role", "phone", "date_of_birth", "gender", "address", "is_active")
+        fields = ("id", "full_name", "email", "role", "phone", "date_of_birth", "gender", "address", "is_active", "must_change_password")
         read_only_fields = ("id", "is_active")
 
 
 class LoginSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
-        return {"access_token": data["access"], "user": UserSerializer(self.user).data}
+        user = UserSerializer(self.user).data
+        user["must_change_password"] = self.user.must_change_password
+        return {"access_token": data["access"], "user": user}
 
 
 class ProfileValidationMixin:
@@ -113,3 +115,14 @@ class ChangePasswordSerializer(serializers.Serializer):
         if not self.instance.check_password(attrs["current_password"]):
             raise serializers.ValidationError({"current_password": "Current password is incorrect."})
         return attrs
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        return value.strip().lower()
+
+
+class PasswordResetResolveSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8, max_length=128)

@@ -1,0 +1,9 @@
+import { FormEvent, useEffect, useState } from "react";
+import { ClassResource, createResource, listResources } from "../classes";
+
+export function ClassResources({ classId, editable = false }: { classId: number; editable?: boolean }) {
+  const [items, setItems] = useState<ClassResource[]>([]); const [error, setError] = useState("");
+  useEffect(() => { void listResources(classId).then(setItems).catch((e) => setError(e.detail || "Unable to load resources.")); }, [classId]);
+  async function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = new FormData(event.currentTarget); try { const item = await createResource(classId, { title: String(data.get("title")).trim(), description: String(data.get("description")).trim(), url: String(data.get("url")).trim() }); setItems((current) => [...current, item]); event.currentTarget.reset(); } catch (e) { setError((e as { detail?: string }).detail || "Unable to save resource."); } }
+  return <section className="card border-0 shadow-sm mb-4"><div className="card-body"><h2 className="h4">Class resources</h2>{error && <p className="alert alert-danger">{error}</p>}{items.length ? <ul>{items.map((item) => <li key={item.id}><a href={item.url} target="_blank" rel="noreferrer">{item.title} (external link)</a>{item.description && ` — ${item.description}`}</li>)}</ul> : <p className="text-secondary">No resources yet.</p>}{editable && <form className="d-grid gap-2" onSubmit={submit}><input className="form-control" name="title" placeholder="Title" minLength={2} maxLength={150} required /><textarea className="form-control" name="description" placeholder="Description (optional)" maxLength={1000} /><input className="form-control" name="url" type="url" placeholder="https://…" required pattern="https://.*" /><button className="btn btn-outline-primary">Add resource</button></form>}</div></section>;
+}
