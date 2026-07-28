@@ -14,6 +14,7 @@ export const getClass = (id: number) => api<Class>(`/classes/${id}`);
 export const createClass = (draft: ClassDraft & { teacher_id: number }) => api<Class>("/classes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
 export const updateClass = (id: number, draft: ClassDraft) => api<Class>(`/classes/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
 export const listClassStudents = (id: number, q = "") => api<Student[]>(`/classes/${id}/students${query(q)}`);
+export const listEnrolledStudents = (id: number, q = "") => api<Student[]>(`/classes/${id}/enrollments${query(q)}`);
 export const replaceEnrollment = (id: number, student_ids: number[]) => api<Student[]>(`/classes/${id}/enrollments`, json("PUT", { student_ids }));
 export const enrollStudent = (classId: number, studentId: number) => api<Enrollment>(`/classes/${classId}/enrollments`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ student_id: studentId }) });
 export const removeStudent = (classId: number, studentId: number) => api<void>(`/classes/${classId}/enrollments/${studentId}`, { method: "DELETE" });

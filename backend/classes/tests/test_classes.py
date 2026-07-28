@@ -126,6 +126,13 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}/students").status_code, 403)
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students").status_code, 403)
 
+    def test_admin_enrollment_read_returns_only_the_current_roster(self):
+        response = self.admin_client.get(f"/api/classes/{self.course.id}/enrollments")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, [{"id": self.student.id, "full_name": None, "email": "student@example.test"}])
+        self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 403)
+
     def test_ended_class_is_read_only_for_admin(self):
         self.course.ends_at = timezone.now() - timedelta(seconds=1)
         self.course.save(update_fields=("ends_at",))

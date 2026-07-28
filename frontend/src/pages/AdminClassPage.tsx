@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { displayName } from "../auth";
-import { Class, Student, getClass, listClassStudents, replaceEnrollment } from "../classes";
+import { Class, Student, getClass, listClassStudents, listEnrolledStudents, replaceEnrollment } from "../classes";
 import { AppDialog } from "../components/AppDialog";
 
 const classId = Number(location.pathname.split("/").pop());
@@ -21,7 +21,7 @@ export function AdminClassPage() {
 
   useEffect(() => { void load(); }, [query]);
   async function load() {
-    try { const [next, roster] = await Promise.all([getClass(classId), listClassStudents(classId, query)]); setClass(next); setStudents(roster); }
+    try { const [next, roster] = await Promise.all([getClass(classId), listEnrolledStudents(classId, query)]); setClass(next); setStudents(roster); }
     catch (response) { setError(message(response)); }
   }
   async function searchStudents(value: string) {

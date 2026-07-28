@@ -3,7 +3,7 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
-const harness = vi.hoisted(() => ({ getClass: vi.fn(), listClassStudents: vi.fn(), replaceEnrollment: vi.fn() }));
+const harness = vi.hoisted(() => ({ getClass: vi.fn(), listClassStudents: vi.fn(), listEnrolledStudents: vi.fn(), replaceEnrollment: vi.fn() }));
 vi.mock("../classes", () => harness);
 
 let AdminClassPage: typeof import("./AdminClassPage")["AdminClassPage"];
@@ -12,6 +12,8 @@ let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 const click = (label: string) => (Array.from(container.querySelectorAll("button")).find((button) => button.textContent === label) as HTMLButtonElement).click();
 const dialog = (title: string) => Array.from(container.querySelectorAll("dialog")).find((element) => element.textContent?.includes(title)) as HTMLDialogElement;
+const enrolled = { id: 7, full_name: "An", email: "an@example.test" };
+const candidate = { id: 8, full_name: "Linh", email: "linh@example.test" };
 
 beforeEach(async () => {
   (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -19,7 +21,8 @@ beforeEach(async () => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
   harness.getClass.mockResolvedValue({ id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "", ends_at: "" });
-  harness.listClassStudents.mockResolvedValue([{ id: 7, full_name: "An", email: "an@example.test" }]);
+  harness.listEnrolledStudents.mockResolvedValue([enrolled]);
+  harness.listClassStudents.mockResolvedValue([enrolled, candidate]);
   history.replaceState({}, "", "/admin/classes/4");
   ({ AdminClassPage } = await import("./AdminClassPage"));
   container = document.createElement("div");
@@ -31,10 +34,13 @@ beforeEach(async () => {
 afterEach(() => { root.unmount(); container.remove(); });
 
 test("editing the roster searches active Students, prechecks members, saves once, and preserves a rejected draft", async () => {
-  const enrolled = { id: 7, full_name: "An", email: "an@example.test" };
-  const candidate = { id: 8, full_name: "Linh", email: "linh@example.test" };
   harness.listClassStudents.mockReset().mockResolvedValueOnce([enrolled, candidate]).mockResolvedValueOnce([candidate]);
   harness.replaceEnrollment.mockRejectedValueOnce({ detail: "Student has a submission." });
+
+  const roster = container.querySelector("section ul");
+  expect(roster?.textContent).toContain("An");
+  expect(roster?.textContent).not.toContain("Linh");
+  expect(harness.listEnrolledStudents).toHaveBeenCalledWith(4, "");
 
   await act(async () => { click("Edit roster"); await Promise.resolve(); });
   const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
