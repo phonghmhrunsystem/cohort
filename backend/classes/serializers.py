@@ -53,6 +53,23 @@ class StudentProgressSerializer(serializers.ModelSerializer):
         fields = ("id", "full_name", "email", "submitted_assignments", "graded_assignments")
 
 
+class StudentProfileSerializer(StudentProgressSerializer):
+    """Student detail view: roster fields plus read-only profile data and the
+    Classes shared with the requesting Teacher (context["teacher"])."""
+
+    shared_classes = serializers.SerializerMethodField()
+
+    class Meta(StudentProgressSerializer.Meta):
+        fields = StudentProgressSerializer.Meta.fields + (
+            "phone", "date_of_birth", "gender", "address", "shared_classes",
+        )
+
+    def get_shared_classes(self, student):
+        teacher = self.context["teacher"]
+        classes = Class.objects.filter(teacher=teacher, enrollments__student=student).distinct()
+        return ClassSerializer(classes, many=True).data
+
+
 class EnrollmentSerializer(serializers.ModelSerializer):
     class_id = serializers.IntegerField(source="classroom_id", read_only=True)
     student_id = serializers.PrimaryKeyRelatedField(source="student", queryset=User.objects.all())

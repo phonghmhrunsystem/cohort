@@ -12,7 +12,12 @@ from accounts.models import User
 from audit.services import write_audit
 
 from .models import Class, Enrollment
-from .serializers import ClassSerializer, EnrollmentSerializer, StudentProgressSerializer
+from .serializers import (
+    ClassSerializer,
+    EnrollmentSerializer,
+    StudentProfileSerializer,
+    StudentProgressSerializer,
+)
 
 
 def scoped_classes(user):
@@ -111,7 +116,7 @@ class StudentDetailView(APIView):
         if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
             return Response(status=status.HTTP_403_FORBIDDEN)
         student = get_object_or_404(students_progress_queryset(class_), id=student_id)
-        data = StudentProgressSerializer(student).data
+        data = StudentProfileSerializer(student, context={"teacher": class_.teacher}).data
         data["total_assignments"] = class_.assignments.count()
         return Response(data)
 

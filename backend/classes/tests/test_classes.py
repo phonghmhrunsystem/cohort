@@ -253,6 +253,33 @@ class TeacherRosterProgressTests(TestCase):
         self.assertEqual(response.data["submitted_assignments"], 0)
         self.assertEqual(response.data["graded_assignments"], 0)
 
+    def test_student_profile_exposes_personal_fields_and_shared_classes_only(self):
+        self.student.phone = "0900000000"
+        self.student.date_of_birth = "2000-01-01"
+        self.student.gender = "MALE"
+        self.student.address = "123 Main St"
+        self.student.save(update_fields=("phone", "date_of_birth", "gender", "address"))
+
+        other_classroom = Class.objects.create(
+            teacher=self.other_teacher,
+            name="Other Teacher's Class",
+            starts_at=timezone.now() - timedelta(days=1),
+            ends_at=timezone.now() + timedelta(days=2),
+        )
+        Enrollment.objects.create(classroom=other_classroom, student=self.student)
+
+        response = self.teacher_client.get(
+            f"/api/classes/{self.classroom.id}/students/{self.student.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["phone"], "0900000000")
+        self.assertEqual(response.data["date_of_birth"], "2000-01-01")
+        self.assertEqual(response.data["gender"], "MALE")
+        self.assertEqual(response.data["address"], "123 Main St")
+        shared_class_ids = [c["id"] for c in response.data["shared_classes"]]
+        self.assertEqual(shared_class_ids, [self.classroom.id])
+        self.assertNotIn(other_classroom.id, shared_class_ids)
+
     def test_other_teacher_gets_404_not_403_for_roster_and_profile(self):
         response = self.other_teacher_client.get(f"/api/classes/{self.classroom.id}/students")
         self.assertEqual(response.status_code, 404)
