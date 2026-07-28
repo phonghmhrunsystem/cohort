@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { Assignment, AssignmentDraft, RubricCriterion, createAssignment, listAssignments, replaceRubric, updateAssignment } from "../assignments";
 import { displayName } from "../auth";
-import { Class, getClass, listClassStudents } from "../classes";
+import { Class, getClass, listEnrolledStudents } from "../classes";
 import { AppDialog } from "../components/AppDialog";
 import { BackButton } from "../components/BackButton";
 
@@ -42,7 +42,7 @@ export function TeacherClassPage() {
   useEffect(() => { void load(); }, [studentQuery]);
   async function load() {
     try {
-      const [next, roster, coursework] = await Promise.all([getClass(id), listClassStudents(id, studentQuery), listAssignments(id)]);
+      const [next, roster, coursework] = await Promise.all([getClass(id), listEnrolledStudents(id, studentQuery), listAssignments(id)]);
       setClass(next); setStudents(roster); setAssignments(coursework);
     } catch (response) { setError(message(response)); }
   }

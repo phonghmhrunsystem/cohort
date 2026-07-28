@@ -1,6 +1,6 @@
 from django.apps import apps
-from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db import IntegrityError, connection, transaction
+from django.db.models import F, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, serializers
@@ -94,7 +94,7 @@ class EnrollmentView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, class_id):
-        if request.user.role != User.Role.ADMIN:
+        if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
             return Response(status=status.HTTP_403_FORBIDDEN)
         class_ = get_scoped_class(request.user, class_id)
         students = User.objects.filter(enrollments__classroom=class_, role=User.Role.STUDENT)
@@ -149,6 +149,13 @@ class EnrollmentView(APIView):
 
         requested = {student.id for student in serializer.validated_data["student_ids"]}
         with transaction.atomic():
+            class_rows = Class.objects.filter(id=class_.id)
+            if connection.features.has_select_for_update:
+                class_ = get_object_or_404(class_rows.select_for_update())
+            else:
+                # ponytail: SQLite locks the database; use a row-locking database if write throughput matters.
+                class_rows.update(id=F("id"))
+                class_ = get_object_or_404(class_rows)
             current = set(
                 Enrollment.objects.select_for_update()
                 .filter(classroom=class_)

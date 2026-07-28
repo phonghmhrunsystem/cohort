@@ -4,10 +4,10 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const harness = vi.hoisted(() => ({
-  getClass: vi.fn(), listClassStudents: vi.fn(), listAssignments: vi.fn(), createAssignment: vi.fn(), updateAssignment: vi.fn(), replaceRubric: vi.fn(),
+  getClass: vi.fn(), listClassStudents: vi.fn(), listEnrolledStudents: vi.fn(), listAssignments: vi.fn(), createAssignment: vi.fn(), updateAssignment: vi.fn(), replaceRubric: vi.fn(),
 }));
 
-vi.mock("../classes", () => ({ getClass: harness.getClass, listClassStudents: harness.listClassStudents }));
+vi.mock("../classes", () => ({ getClass: harness.getClass, listClassStudents: harness.listClassStudents, listEnrolledStudents: harness.listEnrolledStudents }));
 vi.mock("../assignments", () => ({ ...harness }));
 
 import { TeacherClassPage } from "./TeacherClassPage";
@@ -26,6 +26,7 @@ beforeEach(async () => {
   HTMLDialogElement.prototype.close = function () { this.open = false; };
   harness.getClass.mockResolvedValue({ id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "", ends_at: "" });
   harness.listClassStudents.mockResolvedValue([{ id: 7, full_name: " ", email: "blank.student@example.test" }]);
+  harness.listEnrolledStudents.mockResolvedValue([{ id: 7, full_name: " ", email: "blank.student@example.test" }]);
   harness.listAssignments.mockResolvedValue([{ id: 9, classroom_id: 4, title: "Essay", description: "", due_at: "2026-08-01T00:00:00Z", maximum_score: 100, criteria: [{ id: 1, title: "Code", maximum_score: 60 }, { id: 2, title: "Writing", maximum_score: 40 }] }]);
   container = document.createElement("div");
   document.body.append(container);
@@ -35,6 +36,11 @@ beforeEach(async () => {
 });
 
 afterEach(() => { root.unmount(); container.remove(); });
+
+test("teacher loads the current roster without requesting Admin candidates", () => {
+  expect(harness.listEnrolledStudents).toHaveBeenCalledWith(4, "");
+  expect(harness.listClassStudents).not.toHaveBeenCalled();
+});
 
 test("deleting a rubric criterion changes its local draft only after Xóa", async () => {
   await act(async () => { (container.querySelector('[aria-label="Xóa Code"]') as HTMLButtonElement).click(); });

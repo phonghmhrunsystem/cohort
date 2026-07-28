@@ -1,7 +1,9 @@
 from datetime import timedelta
 from unittest.mock import patch
 
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -126,12 +128,15 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}/students").status_code, 403)
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students").status_code, 403)
 
-    def test_admin_enrollment_read_returns_only_the_current_roster(self):
-        response = self.admin_client.get(f"/api/classes/{self.course.id}/enrollments")
+    def test_enrollment_read_returns_current_roster_to_admin_and_assigned_teacher(self):
+        expected = [{"id": self.student.id, "full_name": None, "email": "student@example.test"}]
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, [{"id": self.student.id, "full_name": None, "email": "student@example.test"}])
-        self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 403)
+        for client in (self.admin_client, self.teacher_client):
+            response = client.get(f"/api/classes/{self.course.id}/enrollments")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, expected)
+        self.assertEqual(self.other_teacher_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 404)
+        self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 403)
 
     def test_ended_class_is_read_only_for_admin(self):
         self.course.ends_at = timezone.now() - timedelta(seconds=1)
@@ -167,6 +172,37 @@ class ClassApiTests(TestCase):
         self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), [self.other_student.id])
         audit = AuditLog.objects.get(action="enrollment.replaced")
         self.assertEqual((audit.target_type, audit.target_id), ("classes.class", self.course.id))
+
+    def test_empty_roster_replacement_locks_the_class_before_reading_enrollments(self):
+        self.course.enrollments.all().delete()
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.admin_client.put(
+                f"/api/classes/{self.course.id}/enrollments",
+                {"student_ids": []},
+                format="json",
+            )
+
+        statements = [query["sql"].upper() for query in queries]
+        class_locks = [
+            index
+            for index, sql in enumerate(statements)
+            if "CLASSES_CLASS" in sql
+            and (
+                "FOR UPDATE" in sql
+                if connection.features.has_select_for_update
+                else sql.lstrip().startswith("UPDATE")
+            )
+        ]
+        enrollment_reads = [
+            index
+            for index, sql in enumerate(statements)
+            if sql.lstrip().startswith("SELECT") and "CLASSES_ENROLLMENT" in sql
+        ]
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(class_locks, statements)
+        self.assertTrue(enrollment_reads, statements)
+        self.assertLess(class_locks[0], enrollment_reads[0])
 
     def test_replacement_rejects_duplicate_inactive_or_non_student_without_changes(self):
         url = f"/api/classes/{self.course.id}/enrollments"
