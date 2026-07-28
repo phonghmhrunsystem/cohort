@@ -22,7 +22,7 @@ beforeEach(async () => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
   harness.getClass.mockResolvedValue({ id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "", ends_at: "" });
-  harness.listClassStudents.mockResolvedValue([{ id: 7, full_name: "Nguyễn An", email: "an@example.test" }]);
+  harness.listClassStudents.mockResolvedValueOnce([{ id: 7, full_name: "Nguyễn An", email: "an@example.test" }]).mockResolvedValue([]);
   harness.listStudentAccounts.mockResolvedValue([]);
   container = document.createElement("div");
   document.body.append(container);
@@ -41,9 +41,12 @@ test("removing a student does nothing after Cancel", async () => {
 
 test("removing a student sends one request only after Gỡ", async () => {
   harness.removeStudent.mockResolvedValue(undefined);
-  await act(async () => { click("Remove Student"); });
+  const opener = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Remove Student") as HTMLButtonElement;
+  opener.focus();
+  await act(async () => { opener.click(); });
   await act(async () => { click("Gỡ"); });
   expect(harness.removeStudent).toHaveBeenCalledTimes(1);
+  expect(document.activeElement?.textContent).toBe("Students");
 });
 
 test("a 422 keeps the removal confirmation open", async () => {

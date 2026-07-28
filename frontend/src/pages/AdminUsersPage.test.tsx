@@ -121,6 +121,13 @@ test("renders search, allowed filters, and shared account and deactivation dialo
   expect(html).not.toContain('value="ADMIN"');
 });
 
+test("a blank account name displays the email local-part", () => {
+  const { html } = render([[{ ...user, full_name: "  ", email: "ada.teacher@example.test" }], "", false]);
+
+  expect(html).toContain(">ada.teacher</h2>");
+  expect(html).not.toContain("Unnamed account");
+});
+
 test("edit mode makes email and role immutable and offers an optional password reset", () => {
   const draft = { full_name: user.full_name, email: user.email, role: user.role, password: "", phone: user.phone, date_of_birth: user.date_of_birth, gender: user.gender, address: user.address };
   const { html } = render([[user], "", false, "", "", user, draft]);

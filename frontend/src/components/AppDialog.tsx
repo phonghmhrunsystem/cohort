@@ -1,9 +1,10 @@
-import { ReactNode, useEffect, useId, useRef } from "react";
+import { ReactNode, RefObject, useEffect, useId, useRef } from "react";
 
-export function AppDialog({ open, title, pending = false, onClose, children }: {
+export function AppDialog({ open, title, pending = false, fallbackFocus, onClose, children }: {
   open: boolean;
   title: string;
   pending?: boolean;
+  fallbackFocus?: RefObject<HTMLElement | null>;
   onClose: () => void;
   children: ReactNode;
 }) {
@@ -19,9 +20,9 @@ export function AppDialog({ open, title, pending = false, onClose, children }: {
       element.showModal();
     } else if (!open && element.open) {
       element.close();
-      opener.current?.focus();
+      (opener.current?.isConnected ? opener.current : fallbackFocus?.current)?.focus();
     }
-  }, [open]);
+  }, [open, fallbackFocus]);
 
   function close() {
     if (!pending) onClose();

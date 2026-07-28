@@ -25,7 +25,7 @@ beforeEach(async () => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   HTMLDialogElement.prototype.close = function () { this.open = false; };
   harness.getClass.mockResolvedValue({ id: 4, teacher_id: 1, name: "Algorithms", description: "", starts_at: "", ends_at: "" });
-  harness.listClassStudents.mockResolvedValue([]);
+  harness.listClassStudents.mockResolvedValue([{ id: 7, full_name: " ", email: "blank.student@example.test" }]);
   harness.listAssignments.mockResolvedValue([{ id: 9, classroom_id: 4, title: "Essay", description: "", due_at: "2026-08-01T00:00:00Z", maximum_score: 100, criteria: [{ id: 1, title: "Code", maximum_score: 60 }, { id: 2, title: "Writing", maximum_score: 40 }] }]);
   container = document.createElement("div");
   document.body.append(container);
@@ -42,8 +42,27 @@ test("deleting a rubric criterion changes its local draft only after Xóa", asyn
   await act(async () => { clickDialog("Xóa Code", "Cancel"); });
   expect((container.querySelector('input[value="Code"]') as HTMLInputElement).value).toBe("Code");
 
-  await act(async () => { (container.querySelector('[aria-label="Xóa Code"]') as HTMLButtonElement).click(); });
+  const opener = container.querySelector('[aria-label="Xóa Code"]') as HTMLButtonElement;
+  opener.focus();
+  await act(async () => { opener.click(); });
   await act(async () => { clickDialog("Xóa Code", "Xóa"); });
   expect(container.querySelector('input[value="Code"]')).toBeNull();
   expect(harness.replaceRubric).not.toHaveBeenCalled();
+  expect(document.activeElement?.textContent).toBe("Add criterion");
+});
+
+test("blank student names use the email local-part", async () => {
+  await act(async () => { click("Students"); });
+
+  expect(container.textContent).toContain("blank.student");
+  expect(container.textContent).not.toContain("blank.student@example.test");
+});
+
+test("a new blank criterion has a meaningful delete target", async () => {
+  await act(async () => { click("Add criterion"); });
+
+  const remove = container.querySelector('[aria-label="Xóa tiêu chí 3"]') as HTMLButtonElement;
+  expect(remove).not.toBeNull();
+  await act(async () => { remove.click(); });
+  expect(dialog("Xóa tiêu chí 3").open).toBe(true);
 });

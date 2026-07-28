@@ -108,3 +108,18 @@ test("an ordinary close restores focus to the opener", () => {
   expect(document.activeElement).toBe(opener);
   opener.remove();
 });
+
+test("a close restores focus to the supplied fallback when success removed the opener", () => {
+  const fallback = document.createElement("button");
+  const opener = document.createElement("button");
+  document.body.append(fallback, opener);
+  opener.focus();
+  const fallbackFocus = { current: fallback };
+
+  act(() => root.render(<AppDialog open title="Remove account" fallbackFocus={fallbackFocus} onClose={vi.fn()}><p>Sure?</p></AppDialog>));
+  opener.remove();
+  act(() => root.render(<AppDialog open={false} title="Remove account" fallbackFocus={fallbackFocus} onClose={vi.fn()}><p>Sure?</p></AppDialog>));
+
+  expect(document.activeElement).toBe(fallback);
+  fallback.remove();
+});

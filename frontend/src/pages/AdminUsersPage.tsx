@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { ApiFailure, api, apiResponse } from "../api";
 import { displayName, User } from "../auth";
@@ -62,6 +62,7 @@ export function AdminUsersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deactivating, setDeactivating] = useState<User | null>(null);
   const [deactivatingSaving, setDeactivatingSaving] = useState(false);
+  const accountsHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     let current = true;
@@ -147,7 +148,7 @@ export function AdminUsersPage() {
 
   return <>
     <header className="account-header d-flex justify-content-between align-items-start gap-3 mb-4">
-      <div><h1 className="h2 mb-1">Accounts</h1><p className="text-secondary mb-0">Manage active Teacher and Student accounts.</p></div>
+      <div><h1 ref={accountsHeading} tabIndex={-1} className="h2 mb-1">Accounts</h1><p className="text-secondary mb-0">Manage active Teacher and Student accounts.</p></div>
       <button className="btn btn-primary flex-shrink-0" type="button" onClick={() => openDialog(null)}>Create account</button>
     </header>
 
@@ -171,7 +172,7 @@ export function AdminUsersPage() {
       : <section className="account-grid" aria-label="Active accounts">{users.map((user) =>
         <article className="card border-0 shadow-sm" key={user.id}><div className="card-body">
           <div className="d-flex justify-content-between gap-2 mb-3">
-            <div className="min-w-0"><h2 className="h5 mb-1 text-break">{user.full_name || "Unnamed account"}</h2><p className="text-secondary text-break mb-0">{user.email}</p></div>
+            <div className="min-w-0"><h2 className="h5 mb-1 text-break">{displayName(user)}</h2><p className="text-secondary text-break mb-0">{user.email}</p></div>
             <span className={`badge align-self-start text-bg-${user.role === "TEACHER" ? "info" : "secondary"}`}>{user.role === "TEACHER" ? "Teacher" : "Student"}</span>
           </div>
           <div className="d-flex flex-wrap gap-2">
@@ -225,7 +226,7 @@ export function AdminUsersPage() {
         <button className="btn btn-primary" disabled={saving}>{saving ? "Saving…" : editing ? "Save changes" : "Create account"}</button>
       </form>
     </AppDialog>
-    <AppDialog open={!!deactivating} title={deactivating ? `Vô hiệu hóa ${displayName(deactivating)}` : "Vô hiệu hóa"} pending={deactivatingSaving} onClose={() => setDeactivating(null)}>
+    <AppDialog open={!!deactivating} title={deactivating ? `Vô hiệu hóa ${displayName(deactivating)}` : "Vô hiệu hóa"} pending={deactivatingSaving} fallbackFocus={accountsHeading} onClose={() => setDeactivating(null)}>
       <p>Bạn có chắc muốn vô hiệu hóa tài khoản này?</p>
       {error && <div className="alert alert-danger" role="alert">{error}</div>}
       <button className="btn btn-danger" type="button" disabled={deactivatingSaving} onClick={() => void deactivate()}>Vô hiệu hóa</button>
