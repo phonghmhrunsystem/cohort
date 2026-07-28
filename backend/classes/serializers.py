@@ -5,12 +5,19 @@ from accounts.models import User
 from .models import Class, Enrollment
 
 
+class TeacherDisplaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("id", "full_name", "email")
+
+
 class ClassSerializer(serializers.ModelSerializer):
     teacher_id = serializers.PrimaryKeyRelatedField(source="teacher", queryset=User.objects.all())
+    teacher = TeacherDisplaySerializer(read_only=True)
 
     class Meta:
         model = Class
-        fields = ("id", "teacher_id", "name", "description", "starts_at", "ends_at")
+        fields = ("id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at")
 
     def validate_name(self, value):
         value = value.strip()

@@ -1,7 +1,7 @@
 import { User } from "./auth";
 import { api } from "./api";
 
-export type Class = { id: number; teacher_id: number; name: string; description: string; starts_at: string; ends_at: string };
+export type Class = { id: number; teacher_id: number; teacher: Pick<User, "id" | "full_name" | "email">; name: string; description: string; starts_at: string; ends_at: string };
 export type Enrollment = { id: number; class_id: number; student_id: number };
 export type ClassDraft = Pick<Class, "name" | "description" | "starts_at" | "ends_at">;
 export type StudentProgress = Pick<User, "id" | "full_name" | "email"> & { submitted_assignments: number; graded_assignments: number };

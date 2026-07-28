@@ -116,6 +116,19 @@ class ClassApiTests(TestCase):
         self.assertEqual([item["id"] for item in response.data], [self.course.id])
         self.assertEqual(self.other_student_client.get("/api/classes").data, [])
 
+    def test_enrolled_student_sees_safe_teacher_details_but_not_another_class(self):
+        self.teacher.full_name = "Teacher Example"
+        self.teacher.save(update_fields=("full_name",))
+
+        response = self.student_client.get(f"/api/classes/{self.course.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["teacher"],
+            {"id": self.teacher.id, "full_name": "Teacher Example", "email": "teacher@example.test"},
+        )
+        self.assertEqual(self.student_client.get(f"/api/classes/{self.other_course.id}").status_code, 404)
+
     def test_detail_and_students_reads_are_role_scoped(self):
         self.assertEqual(self.admin_client.get(f"/api/classes/{self.other_course.id}").status_code, 200)
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}").status_code, 200)

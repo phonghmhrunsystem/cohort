@@ -23,11 +23,11 @@ from .serializers import (
 
 def scoped_classes(user):
     if user.role == User.Role.ADMIN:
-        return Class.objects.all()
+        return Class.objects.select_related("teacher")
     if user.role == User.Role.TEACHER:
-        return Class.objects.filter(teacher=user)
+        return Class.objects.select_related("teacher").filter(teacher=user)
     if user.role == User.Role.STUDENT:
-        return Class.objects.filter(enrollments__student=user)
+        return Class.objects.select_related("teacher").filter(enrollments__student=user)
     return Class.objects.none()
 
 
