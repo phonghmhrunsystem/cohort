@@ -17,6 +17,7 @@ export function AdminClassPage() {
   const [dialog, setDialog] = useState(false);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [rosterLoading, setRosterLoading] = useState(false);
   const studentsHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => { void load(); }, [query]);
@@ -31,21 +32,23 @@ export function AdminClassPage() {
   async function openRoster() {
     setError("");
     setDialog(true);
+    setRosterLoading(true);
     try {
       const [roster, candidates] = await Promise.all([listEnrolledStudents(classId), listClassStudents(classId)]);
       setStudentIds(roster.map((student) => student.id)); setStudentQuery(""); setCandidates(candidates);
-    } catch (response) { setError(message(response)); }
+    } catch (response) { setError(message(response)); } finally { setRosterLoading(false); }
   }
   function toggleStudent(id: number) {
     setStudentIds((ids) => ids.includes(id) ? ids.filter((studentId) => studentId !== id) : [...ids, id]);
   }
   async function saveRoster(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (rosterLoading) return;
     setSaving(true); setError("");
     try { setStudents(await replaceEnrollment(classId, studentIds)); setDialog(false); }
     catch (response) { setError(message(response)); } finally { setSaving(false); }
   }
   if (error && !class_) return <div className="alert alert-danger" role="alert">{error}</div>;
   if (!class_) return <div className="alert alert-secondary">Loading Class…</div>;
-  return <><header className="d-flex justify-content-between gap-3 mb-4"><div><a href="/admin/classes">Classes</a><h1 className="h2 mt-2">{class_.name}</h1><p className="text-secondary">{class_.description || "No description."}</p></div><a className="btn btn-outline-primary align-self-start" href={`/admin/classes?edit=${class_.id}`}>Edit Class</a></header>{error && <div className="alert alert-danger" role="alert">{error}</div>}<section className="card border-0 shadow-sm"><div className="card-body"><div className="d-flex justify-content-between gap-3 mb-3"><h2 ref={studentsHeading} tabIndex={-1} className="h4 mb-0">Students</h2><button className="btn btn-primary btn-sm" onClick={openRoster}>Edit roster</button></div><label className="form-label w-100">Search enrolled Students<input className="form-control" value={query} onChange={(event) => setQuery(event.target.value)} /></label>{students.length === 0 ? <p className="text-secondary mb-0">No enrolled Students match this search.</p> : <ul className="list-group list-group-flush">{students.map((student) => <li className="list-group-item" key={student.id}>{displayName(student)}</li>)}</ul>}</div></section><AppDialog open={dialog} title="Edit roster" pending={saving} fallbackFocus={studentsHeading} onClose={() => setDialog(false)}><form onSubmit={saveRoster}>{error && <div className="alert alert-danger" role="alert">{error}</div>}<label className="form-label w-100">Search Students<input className="form-control" type="search" value={studentQuery} onChange={(event) => void searchStudents(event.target.value)} /></label><div className="list-group">{candidates.map((student) => <label className="list-group-item" key={student.id}><input className="form-check-input me-2" type="checkbox" value={student.id} checked={studentIds.includes(student.id)} onChange={() => toggleStudent(student.id)} />{displayName(student)}</label>)}</div><button className="btn btn-primary mt-3" disabled={saving}>{saving ? "Saving…" : "Save roster"}</button></form></AppDialog></>;
+  return <><header className="d-flex justify-content-between gap-3 mb-4"><div><a href="/admin/classes">Classes</a><h1 className="h2 mt-2">{class_.name}</h1><p className="text-secondary">{class_.description || "No description."}</p></div><a className="btn btn-outline-primary align-self-start" href={`/admin/classes?edit=${class_.id}`}>Edit Class</a></header>{error && <div className="alert alert-danger" role="alert">{error}</div>}<section className="card border-0 shadow-sm"><div className="card-body"><div className="d-flex justify-content-between gap-3 mb-3"><h2 ref={studentsHeading} tabIndex={-1} className="h4 mb-0">Students</h2><button className="btn btn-primary btn-sm" onClick={openRoster}>Edit roster</button></div><label className="form-label w-100">Search enrolled Students<input className="form-control" value={query} onChange={(event) => setQuery(event.target.value)} /></label>{students.length === 0 ? <p className="text-secondary mb-0">No enrolled Students match this search.</p> : <ul className="list-group list-group-flush">{students.map((student) => <li className="list-group-item" key={student.id}>{displayName(student)}</li>)}</ul>}</div></section><AppDialog open={dialog} title="Edit roster" pending={saving} fallbackFocus={studentsHeading} onClose={() => setDialog(false)}><form onSubmit={saveRoster}>{error && <div className="alert alert-danger" role="alert">{error}</div>}<label className="form-label w-100">Search Students<input className="form-control" type="search" value={studentQuery} onChange={(event) => void searchStudents(event.target.value)} /></label><div className="list-group">{candidates.map((student) => <label className="list-group-item" key={student.id}><input className="form-check-input me-2" type="checkbox" value={student.id} checked={studentIds.includes(student.id)} onChange={() => toggleStudent(student.id)} />{displayName(student)}</label>)}</div><button className="btn btn-primary mt-3" disabled={saving || rosterLoading}>{saving ? "Saving…" : "Save roster"}</button></form></AppDialog></>;
 }

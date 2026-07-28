@@ -78,3 +78,18 @@ test("editing after a roster search retains members outside the page filter", as
   await act(async () => { click("Save roster"); await Promise.resolve(); });
   expect(harness.replaceEnrollment).toHaveBeenCalledWith(4, [7, 9]);
 });
+
+test("editing waits for the full roster before allowing a save", async () => {
+  let resolveRoster!: (students: Array<typeof enrolled>) => void;
+  harness.listEnrolledStudents.mockReset().mockReturnValue(new Promise<Array<typeof enrolled>>((resolve) => { resolveRoster = resolve; }));
+  harness.listClassStudents.mockResolvedValue([enrolled, candidate]);
+
+  await act(async () => { click("Edit roster"); await Promise.resolve(); });
+  const save = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Save roster") as HTMLButtonElement;
+  expect(save.disabled).toBe(true);
+  await act(async () => { save.click(); });
+  expect(harness.replaceEnrollment).not.toHaveBeenCalled();
+
+  await act(async () => { resolveRoster([enrolled]); await Promise.resolve(); });
+  expect(save.disabled).toBe(false);
+});
