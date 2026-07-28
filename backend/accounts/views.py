@@ -11,7 +11,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from audit.services import write_audit
 
 from .models import User
-from .serializers import LoginSerializer, UserCreateSerializer, UserSerializer, UserUpdateSerializer
+from .serializers import (
+    ChangePasswordSerializer,
+    LoginSerializer,
+    SelfProfileSerializer,
+    UserCreateSerializer,
+    UserSerializer,
+    UserUpdateSerializer,
+)
 
 
 class IsAdmin(BasePermission):
@@ -36,6 +43,39 @@ class MeView(APIView):
 
     def get(self, request):
         return Response(UserSerializer(request.user).data)
+
+    def patch(self, request):
+        serializer = SelfProfileSerializer(request.user, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        with transaction.atomic():
+            user = serializer.save()
+            write_audit(
+                actor=request.user,
+                action="account.self_updated",
+                target=user,
+                metadata=account_metadata(user),
+            )
+        return Response(UserSerializer(user).data)
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = ChangePasswordSerializer(request.user, data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        with transaction.atomic():
+            request.user.set_password(serializer.validated_data["new_password"])
+            request.user.save(update_fields=("password",))
+            write_audit(
+                actor=request.user,
+                action="account.password_changed",
+                target=request.user,
+                metadata={},
+            )
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class UsersView(APIView):

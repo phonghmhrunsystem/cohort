@@ -24,6 +24,8 @@ class AccountApiTests(TestCase):
         self.student = User.objects.create_user(
             "student@example.test", "pw", role="STUDENT"
         )
+        self.student_client = APIClient()
+        self.student_client.force_authenticate(self.student)
         self.admin_client = APIClient()
         self.admin_client.force_authenticate(self.admin)
 
@@ -59,6 +61,75 @@ class AccountApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 204)
+
+    def test_self_profile_patch_persists_allowed_fields_and_writes_safe_audit(self):
+        response = self.student_client.patch(
+            "/api/auth/me",
+            {"full_name": "  Updated Student  ", "phone": "+123456789", "address": "  Hanoi  "},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.full_name, "Updated Student")
+        self.assertEqual(self.student.phone, "+123456789")
+        self.assertEqual(self.student.address, "Hanoi")
+        log = AuditLog.objects.get()
+        self.assertEqual(log.action, "account.self_updated")
+        self.assertNotIn("password", log.metadata)
+        self.assertNotIn("hash", log.metadata)
+
+    def test_self_profile_patch_rejects_identity_state_and_password_fields(self):
+        for field, value in (
+            ("email", "changed@example.test"),
+            ("role", "TEACHER"),
+            ("is_active", False),
+            ("password", "new-password"),
+        ):
+            with self.subTest(field=field):
+                response = self.student_client.patch("/api/auth/me", {field: value}, format="json")
+                self.assertEqual(response.status_code, 422)
+                self.assertIn(field, response.data)
+
+        self.student.refresh_from_db()
+        self.assertEqual(self.student.email, "student@example.test")
+        self.assertEqual(self.student.role, "STUDENT")
+        self.assertTrue(self.student.is_active)
+        self.assertTrue(self.student.check_password("pw"))
+        self.assertEqual(AuditLog.objects.count(), 0)
+
+    def test_self_profile_patch_rejects_invalid_phone_and_date_of_birth(self):
+        for field, value in (("phone", "123-456-789"), ("date_of_birth", str(date.today()))):
+            with self.subTest(field=field):
+                response = self.student_client.patch("/api/auth/me", {field: value}, format="json")
+                self.assertEqual(response.status_code, 422)
+                self.assertIn(field, response.data)
+
+    def test_change_password_rejects_wrong_current_password_without_changing_hash(self):
+        response = self.student_client.post(
+            "/api/auth/change-password",
+            {"current_password": "wrong", "new_password": "Password2!"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.student.refresh_from_db()
+        self.assertTrue(self.student.check_password("pw"))
+        self.assertEqual(AuditLog.objects.count(), 0)
+
+    def test_change_password_updates_self_and_writes_safe_audit(self):
+        response = self.student_client.post(
+            "/api/auth/change-password",
+            {"current_password": "pw", "new_password": "Password2!"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 204)
+        self.student.refresh_from_db()
+        self.assertTrue(self.student.check_password("Password2!"))
+        log = AuditLog.objects.get()
+        self.assertEqual(log.action, "account.password_changed")
+        self.assertEqual(log.metadata, {})
 
     def test_token_signed_with_previous_process_secret_is_rejected(self):
         previous_jwt_signing_key = project_settings.JWT_SIGNING_KEY

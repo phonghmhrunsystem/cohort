@@ -93,3 +93,23 @@ class UserUpdateSerializer(ProfileValidationMixin, serializers.ModelSerializer):
         if not attrs or all(getattr(self.instance, field) == value for field, value in attrs.items()):
             raise serializers.ValidationError("Provide a changed account field.")
         return attrs
+
+
+class SelfProfileSerializer(UserUpdateSerializer):
+    pass
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    current_password = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8, max_length=128)
+
+    def validate(self, attrs):
+        allowed_fields = {"current_password", "new_password"}
+        unknown_fields = set(self.initial_data) - allowed_fields
+        if unknown_fields:
+            raise serializers.ValidationError(
+                {field: "This field cannot be updated." for field in unknown_fields}
+            )
+        if not self.instance.check_password(attrs["current_password"]):
+            raise serializers.ValidationError({"current_password": "Current password is incorrect."})
+        return attrs
