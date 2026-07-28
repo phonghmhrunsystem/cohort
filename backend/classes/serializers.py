@@ -44,6 +44,15 @@ class ClassSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class StudentProgressSerializer(serializers.ModelSerializer):
+    submitted_assignments = serializers.IntegerField(read_only=True)
+    graded_assignments = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = User
+        fields = ("id", "full_name", "email", "submitted_assignments", "graded_assignments")
+
+
 class EnrollmentSerializer(serializers.ModelSerializer):
     class_id = serializers.IntegerField(source="classroom_id", read_only=True)
     student_id = serializers.PrimaryKeyRelatedField(source="student", queryset=User.objects.all())

@@ -1,9 +1,9 @@
 from django.apps import apps
 from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import status, serializers
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -12,7 +12,7 @@ from accounts.models import User
 from audit.services import write_audit
 
 from .models import Class, Enrollment
-from .serializers import ClassSerializer, EnrollmentSerializer
+from .serializers import ClassSerializer, EnrollmentSerializer, StudentProgressSerializer
 
 
 def scoped_classes(user):
@@ -84,10 +84,36 @@ class StudentsView(APIView):
         class_ = get_scoped_class(request.user, class_id)
         if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
             return Response(status=status.HTTP_403_FORBIDDEN)
-        students = User.objects.filter(enrollments__classroom=class_, role=User.Role.STUDENT, is_active=True)
+        students = list(students_progress_queryset(class_).order_by("id"))
+        rows = students
         if query := request.query_params.get("q", "").strip():
-            students = students.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
-        return Response(StudentSerializer(students.order_by("id"), many=True).data)
+            query = query.lower()
+            rows = [
+                s for s in students
+                if query in s.full_name.lower() or query in s.email.lower()
+            ]
+        return Response(
+            {
+                "total_assignments": class_.assignments.count(),
+                "enrolled_students": len(students),
+                "submitted_students": sum(1 for s in students if s.submitted_assignments > 0),
+                "graded_students": sum(1 for s in students if s.graded_assignments > 0),
+                "students": StudentProgressSerializer(rows, many=True).data,
+            }
+        )
+
+
+class StudentDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, class_id, student_id):
+        class_ = get_scoped_class(request.user, class_id)
+        if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        student = get_object_or_404(students_progress_queryset(class_), id=student_id)
+        data = StudentProgressSerializer(student).data
+        data["total_assignments"] = class_.assignments.count()
+        return Response(data)
 
 
 class EnrollmentView(APIView):
@@ -131,10 +157,23 @@ class EnrollmentView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class StudentSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ("id", "full_name", "email")
+def students_progress_queryset(class_):
+    """Enrolled, active Students annotated with backend-computed progress counts
+    (never derive these from a filtered list on the frontend)."""
+    return User.objects.filter(
+        enrollments__classroom=class_, role=User.Role.STUDENT, is_active=True
+    ).annotate(
+        submitted_assignments=Count(
+            "submissions__assignment",
+            filter=Q(submissions__assignment__classroom=class_),
+            distinct=True,
+        ),
+        graded_assignments=Count(
+            "grading_grades__assignment",
+            filter=Q(grading_grades__assignment__classroom=class_),
+            distinct=True,
+        ),
+    )
 
 
 def get_scoped_class(user, class_id):

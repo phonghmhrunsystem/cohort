@@ -9,6 +9,8 @@ from accounts.models import User
 from assignments.models import Assignment
 from audit.models import AuditLog
 from classes.models import Class, Enrollment
+from grading.models import Grade
+from submissions.models import Submission
 
 
 class ClassApiTests(TestCase):
@@ -119,7 +121,7 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.student_client.get(f"/api/classes/{self.other_course.id}").status_code, 404)
         response = self.teacher_client.get(f"/api/classes/{self.course.id}/students")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([item["id"] for item in response.data], [self.student.id])
+        self.assertEqual([item["id"] for item in response.data["students"]], [self.student.id])
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students").status_code, 403)
 
     def test_ended_class_is_read_only_for_admin(self):
@@ -154,3 +156,123 @@ class ClassApiTests(TestCase):
             "ends_at": (now + timedelta(days=2)).isoformat(),
             **overrides,
         }
+
+
+class TeacherRosterProgressTests(TestCase):
+    def setUp(self):
+        now = timezone.now()
+        self.teacher = User.objects.create_user("teacher2@example.test", "pw", role="TEACHER")
+        self.other_teacher = User.objects.create_user("other-teacher2@example.test", "pw", role="TEACHER")
+        self.student = User.objects.create_user("student2@example.test", "pw", role="STUDENT")
+        self.other_student = User.objects.create_user("other-student2@example.test", "pw", role="STUDENT")
+        self.classroom = Class.objects.create(
+            teacher=self.teacher,
+            name="Roster Basics",
+            starts_at=now - timedelta(days=1),
+            ends_at=now + timedelta(days=2),
+        )
+        Enrollment.objects.bulk_create([
+            Enrollment(classroom=self.classroom, student=self.student),
+            Enrollment(classroom=self.classroom, student=self.other_student),
+        ])
+        self.assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Homework 1",
+            description="Solve the practice problems.",
+            due_at=now + timedelta(days=1),
+        )
+        self.second_assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Homework 2",
+            description="Solve more practice problems.",
+            due_at=now + timedelta(days=1),
+        )
+        # self.student: submitted + graded on the first assignment, nothing on the second.
+        submission = self.make_submission(self.assignment, self.student, version=1)
+        Grade.objects.create(
+            assignment=self.assignment,
+            student=self.student,
+            teacher=self.teacher,
+            submission=submission,
+            total_score=90,
+            feedback="Great work.",
+        )
+        # self.other_student: no submissions at all.
+
+        self.teacher_client = self.client_for(self.teacher)
+        self.other_teacher_client = self.client_for(self.other_teacher)
+        self.student_client = self.client_for(self.student)
+
+    def make_submission(self, assignment, student, version):
+        return Submission.objects.create(
+            assignment=assignment,
+            student=student,
+            version=version,
+            file_path=f"submissions/{assignment.id}-{student.id}-{version}.pdf",
+            original_filename="submission.pdf",
+            content_type="application/pdf",
+            size=10,
+            note="",
+        )
+
+    def client_for(self, user):
+        client = APIClient()
+        client.force_authenticate(user)
+        return client
+
+    def test_owner_teacher_sees_roster_with_backend_computed_counts(self):
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/students")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["total_assignments"], 2)
+        self.assertEqual(response.data["enrolled_students"], 2)
+        self.assertEqual(response.data["submitted_students"], 1)
+        self.assertEqual(response.data["graded_students"], 1)
+        by_id = {row["id"]: row for row in response.data["students"]}
+        self.assertEqual(by_id[self.student.id]["submitted_assignments"], 1)
+        self.assertEqual(by_id[self.student.id]["graded_assignments"], 1)
+        # 0/total edge case: no submissions or grades at all.
+        self.assertEqual(by_id[self.other_student.id]["submitted_assignments"], 0)
+        self.assertEqual(by_id[self.other_student.id]["graded_assignments"], 0)
+
+    def test_owner_teacher_sees_student_profile_with_progress(self):
+        response = self.teacher_client.get(
+            f"/api/classes/{self.classroom.id}/students/{self.student.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], self.student.id)
+        self.assertEqual(response.data["total_assignments"], 2)
+        self.assertEqual(response.data["submitted_assignments"], 1)
+        self.assertEqual(response.data["graded_assignments"], 1)
+
+        # 0/total edge case for a student with no activity yet.
+        response = self.teacher_client.get(
+            f"/api/classes/{self.classroom.id}/students/{self.other_student.id}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["total_assignments"], 2)
+        self.assertEqual(response.data["submitted_assignments"], 0)
+        self.assertEqual(response.data["graded_assignments"], 0)
+
+    def test_other_teacher_gets_404_not_403_for_roster_and_profile(self):
+        response = self.other_teacher_client.get(f"/api/classes/{self.classroom.id}/students")
+        self.assertEqual(response.status_code, 404)
+
+        response = self.other_teacher_client.get(
+            f"/api/classes/{self.classroom.id}/students/{self.student.id}"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_student_role_is_forbidden_from_roster_and_profile(self):
+        response = self.student_client.get(f"/api/classes/{self.classroom.id}/students")
+        self.assertEqual(response.status_code, 403)
+
+        response = self.student_client.get(
+            f"/api/classes/{self.classroom.id}/students/{self.student.id}"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_unenrolled_student_id_is_404_within_owned_class(self):
+        response = self.teacher_client.get(
+            f"/api/classes/{self.classroom.id}/students/{self.other_teacher.id}"
+        )
+        self.assertEqual(response.status_code, 404)
