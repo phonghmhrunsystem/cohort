@@ -15,6 +15,8 @@ export type User = {
   is_active: boolean;
 };
 
+export type ProfileDraft = Pick<User, "full_name" | "phone" | "date_of_birth" | "gender" | "address">;
+
 export const displayName = (user: Pick<User, "full_name" | "email">) => user.full_name?.trim() || user.email.split("@")[0];
 
 export async function login(email: string, password: string): Promise<User> {
@@ -34,3 +36,17 @@ export async function logout() {
     clearSession();
   }
 }
+
+export const getCurrentUser = () => api<User>("/auth/me");
+
+export const updateProfile = (profile: ProfileDraft) => api<User>("/auth/me", {
+  method: "PATCH",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(profile),
+});
+
+export const changePassword = (current_password: string, new_password: string) => api<void>("/auth/change-password", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ current_password, new_password }),
+});

@@ -62,6 +62,12 @@ test.each([
   expect(html).toContain(label);
 });
 
+test.each(["TEACHER", "STUDENT"] as const)("the %s shell links to the personal profile", (role) => {
+  vi.stubGlobal("location", { pathname: "" });
+
+  expect(renderToStaticMarkup(<AppShell user={user(role, "Nguyễn An")}>Page</AppShell>)).toContain('href="/profile"');
+});
+
 test("a pending dialog keeps every supplied close control unavailable", () => {
   const html = renderToStaticMarkup(<AppDialog open title="Gỡ Nguyễn An" pending onClose={vi.fn()}><p>Sure?</p></AppDialog>);
 

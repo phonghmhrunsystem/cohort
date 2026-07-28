@@ -5,8 +5,8 @@ import { redirectToLogin } from "./session";
 
 const links = {
   ADMIN: [["/admin/users", "Accounts"], ["/admin/classes", "Classes"], ["/admin/audit-logs", "Audit log"]],
-  TEACHER: [["/teacher/classes", "My Classes"]],
-  STUDENT: [["/student/classes", "My Classes"]],
+  TEACHER: [["/teacher/classes", "My Classes"], ["/profile", "Hồ sơ cá nhân"]],
+  STUDENT: [["/student/classes", "My Classes"], ["/profile", "Hồ sơ cá nhân"]],
 } as const;
 
 const roleLabel = { ADMIN: "Quản trị viên", TEACHER: "Giáo viên", STUDENT: "Học sinh" } as const;

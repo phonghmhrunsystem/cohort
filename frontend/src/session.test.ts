@@ -33,6 +33,11 @@ test("assignment submission routes remain scoped to their classroom role", () =>
   expect(canAccess("/student/assignments/3", "TEACHER")).toBe(false);
 });
 
+test("Teacher and Student can open their personal profile", () => {
+  expect(canAccess("/profile", "TEACHER")).toBe(true);
+  expect(canAccess("/profile", "STUDENT")).toBe(true);
+});
+
 test("roleHome sends every role to its workspace", () => {
   expect(roleHome("ADMIN")).toBe("/admin/users");
   expect(roleHome("TEACHER")).toBe("/teacher/classes");
