@@ -522,6 +522,30 @@ class AccountApiTests(TestCase):
             for key in audit.metadata
         ))
 
+    def test_account_lifecycle_mutations_refresh_updated_at(self):
+        stale = timezone.now() - timedelta(days=1)
+        User.objects.filter(id=self.student.id).update(updated_at=stale)
+
+        self.admin_client.patch(
+            f"/api/users/{self.student.id}/status", {"is_active": False}, format="json"
+        )
+        self.student.refresh_from_db()
+        self.assertGreater(self.student.updated_at, stale)
+
+        User.objects.filter(id=self.student.id).update(updated_at=stale)
+        self.admin_client.post(
+            f"/api/users/{self.student.id}/reset-password",
+            {"new_password": "Password2!", "confirm_new_password": "Password2!"},
+            format="json",
+        )
+        self.student.refresh_from_db()
+        self.assertGreater(self.student.updated_at, stale)
+
+        User.objects.filter(id=self.student.id).update(updated_at=stale)
+        self.admin_client.delete(f"/api/users/{self.student.id}")
+        self.student.refresh_from_db()
+        self.assertGreater(self.student.updated_at, stale)
+
     def test_delete_soft_deletes_and_deactivates_account_with_deleted_audit(self):
         response = self.admin_client.delete(f"/api/users/{self.student.id}")
 

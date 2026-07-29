@@ -204,7 +204,7 @@ class UserDetailView(APIView):
         with transaction.atomic():
             user.is_active = False
             user.is_deleted = True
-            user.save(update_fields=("is_active", "is_deleted"))
+            user.save(update_fields=("is_active", "is_deleted", "updated_at"))
             write_audit(
                 actor=request.user,
                 action="account.deleted",
@@ -234,7 +234,7 @@ class UserStatusView(APIView):
                 return blocked
         with transaction.atomic():
             user.is_active = is_active
-            user.save(update_fields=("is_active",))
+            user.save(update_fields=("is_active", "updated_at"))
             write_audit(
                 actor=request.user,
                 action="account.reactivated" if is_active else "account.deactivated",
@@ -255,7 +255,7 @@ class UserResetPasswordView(APIView):
         with transaction.atomic():
             user.set_password(serializer.validated_data["new_password"])
             user.must_change_password = True
-            user.save(update_fields=("password", "must_change_password"))
+            user.save(update_fields=("password", "must_change_password", "updated_at"))
             write_audit(
                 actor=request.user,
                 action="account.password_set",
