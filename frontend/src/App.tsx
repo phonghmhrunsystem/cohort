@@ -11,6 +11,11 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
+import { AdminUserEditPage } from "./pages/AdminUserEditPage";
+import { AdminUsersPage } from "./pages/AdminUsersPage";
+import { AdminUserViewPage } from "./pages/AdminUserViewPage";
+import { ProfileEditPage } from "./pages/ProfileEditPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 function Placeholder({ title }: { title: string }) { return <h1>{title}</h1>; }
 
@@ -32,10 +37,14 @@ export function App() {
     <Route element={<RequireAuth allowForced />}><Route path="/change-password" element={<ChangePasswordPage />} /></Route>
     <Route element={<RequireAuth />}><Route element={<ProtectedShell />}>
       <Route path="/dashboard" element={<DashboardPage />} />
-      <Route path="/profile" element={<Placeholder title="Profile" />} />
-      <Route path="/profile/edit" element={<Placeholder title="Edit profile" />} />
+      <Route path="/profile" element={<ProfilePage />} />
+      <Route path="/profile/edit" element={<ProfileEditPage />} />
       <Route path="/classes/*" element={<Placeholder title="Classes" />} />
-      <Route element={<RequireRole roles={["ADMIN"]} />}><Route path="/admin/users/*" element={<Placeholder title="Accounts" />} /></Route>
+      <Route element={<RequireRole roles={["ADMIN"]} />}>
+        <Route path="/admin/users" element={<AdminUsersPage />} />
+        <Route path="/admin/users/:userId" element={<AdminUserViewPage />} />
+        <Route path="/admin/users/:userId/edit" element={<AdminUserEditPage />} />
+      </Route>
     </Route></Route>
     <Route path="/" element={<Navigate replace to="/dashboard" />} />
     <Route path="*" element={<NotFoundPage />} />
