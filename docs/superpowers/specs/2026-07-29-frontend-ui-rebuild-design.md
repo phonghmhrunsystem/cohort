@@ -3,8 +3,10 @@
 ## Goal
 
 Replace the entire frontend UI of the class-management LMS with a new visual
-design and SPA navigation, while keeping the existing backend contracts
-unchanged. No backend changes are required by this project.
+design and SPA navigation. Most existing backend contracts are unchanged;
+the password-reset flow is redesigned and needs new backend endpoints — the
+UI is built first against a defined contract (below), backend implements to
+match.
 
 ## Scope
 
@@ -13,28 +15,34 @@ Full re-skin + re-architecture of `frontend/`:
 - Tailwind CSS replaces Bootstrap 5 (CDN link + `styles.css` removed).
 - React Router (client-side SPA) replaces the current full-reload routing in
   `main.tsx`.
-- All 17 existing pages get new markup/styling built on a small shared UI
+- All existing pages get new markup/styling built on a small shared UI
   primitive set. Functional behavior (what data is shown, what actions are
-  available, validation, error handling) is preserved unless called out
-  below.
-- Two additions: a role-aware **Dashboard** home page, and a **404** page.
+  available, error handling) is preserved unless called out below.
+- Three additions: a role-aware **Dashboard** home page, a **404** page, and
+  a self-service **forgot/reset password** flow (see below).
+- **Password reset redesigned**: self-service via emailed link replaces the
+  admin-approval-queue model. `/admin/password-reset-requests` is removed.
+  Admin keeps the ability to set a user's password directly, moved into a
+  per-row action on `/admin/users`.
+- **Client-side validation redesigned**: native browser validation
+  (`required`, `pattern`, `minLength` tooltips) is replaced everywhere with
+  JS validation that renders error messages inline, consistent with how
+  server-side field errors already render.
 - Test suite rewritten with `@testing-library/react` (new devDependency;
   `jsdom` is already present).
 
-Out of scope: any backend/API change, dark mode, calendar view, global
-search, self-service (token-based) password reset — admin-approval reset
-flow is kept as-is.
+Out of scope: dark mode, calendar view, global search.
 
 ## Routes
 
 ```
 /login
-/forgot-password        (new — split out of LoginPage's inline toggle)
+/forgot-password        (new — request a reset email)
+/reset-password          (new — set new password, ?token=... from email, no login required)
 /change-password
 /dashboard               (new — role home, replaces roleHome() target)
 /profile
-/admin/users
-/admin/password-reset-requests
+/admin/users             (per-row action: reset password modal)
 /admin/audit-logs
 /admin/classes
 /admin/classes/:id
@@ -50,21 +58,54 @@ flow is kept as-is.
 *                         (new — 404)
 ```
 
-`roleHome()` now returns `/dashboard` for every role. `/forgot-password` is
-reached via a "Forgot password?" link on `/login`; it calls the existing
-`requestPasswordReset` and shows the same "request sent to an Admin" notice.
-The admin approval page (`/admin/password-reset-requests`) is kept, just
-restyled.
+`roleHome()` now returns `/dashboard` for every role. `/admin/password-reset-requests`
+is removed — no route, no nav link.
 
 ## Flow
 
 ```
 /login ─ submit ──────────────► must_change_password? ─yes─► /change-password ─► /dashboard
-        └─ "Forgot password?" ─► /forgot-password ─ submit ─► notice, back to /login
+        └─ "Forgot password?" ─► /forgot-password ─ submit email ─► "check your email" notice
+
+email link ─► /reset-password?token=... ─ submit new password ─► /login (success notice)
+
+/admin/users ─ click reset-password icon on a row ─► modal: set new password ─► saved, modal closes
 
 /dashboard (role-aware cards: my classes + progress, upcoming deadlines,
             unread notifications) ─► role nav (sidebar) ─► existing per-role pages
 ```
+
+## Password reset — API contract (new backend work)
+
+The UI is built against this contract; backend implements to match.
+
+- `POST /password-reset-requests` `{ email }` → `204`. Behavior changes from
+  "queue a request for Admin" to "if the account exists, email it a
+  time-limited reset link containing a token". Response is unchanged
+  (always `204`, no account enumeration) so `requestPasswordReset()` in
+  `auth.ts` is reused as-is.
+- `POST /password-reset/:token` `{ password }` → `204` on success; `404`/`410`
+  with `{ detail }` if the token is invalid or expired. New function
+  `resetPassword(token, password)` added to `auth.ts`.
+- `POST /users/:id/reset-password` `{ password }` → returns the updated
+  `User`, admin-only. New function `resetUserPassword(id, password)` added
+  to `classes.ts` (alongside the other admin user-management calls).
+- Removed: `GET /password-reset-requests`, `POST /password-reset-requests/:id/resolve`.
+
+## Client-side validation
+
+Every form drops native HTML validation attributes that trigger browser
+tooltips (`required`, `pattern`, `minLength` as a *blocking* mechanism) in
+favor of explicit JS checks run on submit:
+
+- `<form noValidate>` everywhere.
+- Each page defines a small `validate(draft) → Record<field, string>` and
+  runs it before calling the API. On failure, set the same field-error state
+  already used for server-side `ApiFailure.fields`, so both sources render
+  through the one `Field` error slot — no separate error UI path.
+- Native attributes that aid input *type/affordance* (`type="email"`,
+  `type="date"`, `maxLength` as a hard character cap) are kept; only the
+  ones that currently pop a blocking tooltip on submit are replaced.
 
 ## Architecture
 
@@ -91,11 +132,14 @@ restyled.
 - **Modal**: `AppDialog` keeps its existing `<dialog>` + focus-restore logic
   (that part is markup-agnostic), only its Tailwind classes change.
 - **Icons**: keep `components/icons.tsx`, add `HomeIcon` (dashboard nav) and
-  an icon for the 404 page.
-- **Data layer**: `api.ts`, `auth.ts`, `classes.ts`, `assignments.ts`,
-  `grading.ts`, `notifications.ts` are unchanged — same functions, same
-  endpoints. Dashboard reuses `listClasses()` (already returns `progress`:
-  graded/total/nearest deadline) and `listNotifications()`; no new endpoints.
+  an icon for the 404 page. The existing `KeyIcon` (currently used for the
+  removed admin nav link) is reused for the per-row reset-password action on
+  `/admin/users`.
+- **Data layer**: `assignments.ts`, `grading.ts`, `notifications.ts`
+  unchanged. `auth.ts` gains `resetPassword(token, password)`; `classes.ts`
+  gains `resetUserPassword(id, password)` (see contract above). Dashboard
+  reuses `listClasses()` (already returns `progress`: graded/total/nearest
+  deadline) and `listNotifications()`; no new endpoints needed for it.
 
 ## Error handling
 
@@ -119,9 +163,9 @@ are not.
 2. UI primitives + icons.
 3. `AuthContext`, `RequireRole`, new `main.tsx` route table, rebuilt
    `AppShell`.
-4. Auth pages: Login, ForgotPassword, ChangePassword.
+4. Auth pages: Login, ForgotPassword, ResetPassword, ChangePassword.
 5. New Dashboard + 404.
-6. Admin pages (Users, PasswordResetRequests, AuditLog, Classes, ClassDetail).
+6. Admin pages (Users incl. reset-password modal, AuditLog, Classes, ClassDetail).
 7. Teacher pages (Classes, ClassDetail, Gradebook, Assignment, Grade).
 8. Student pages (Classes, ClassDetail, Assignment, Result) + shared
    Profile.
