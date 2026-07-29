@@ -96,9 +96,9 @@ Admin-provisioned identity: no self-registration. Covers login, forced password 
   - `View` → `/admin/users/{id}` (read-only).
   - `Edit` → `/admin/users/{id}/edit` (editable form).
   - `Delete` → confirm dialog, soft-deletes (`is_deleted = true`). Blocked (`422`) if the account owns/is enrolled in an active Class (same check as Disable). One-way — no restore/undelete action.
-  - `Change Password` → confirm dialog, admin sets the new password directly (no email sent — admin is top-level privilege); sets `must_change_password = true`.
+  - `Change Password` (`Đổi MK` in the table) → dialog with `New password` + `Confirm new password`, **admin types the value themselves**; nothing is generated server-side and nothing is emailed (admin is top-level privilege, and the whole point is that they can read it out to the user). Sets `must_change_password = true`, so the value the admin picked survives exactly one login.
   - `Enable/Disable` → toggles `is_active`. Disabling blocked (`422`) if tied to an active Class.
-- Create dialog: `full_name`, `email`, `role` (Teacher/Student), `phone`, `date_of_birth`, `gender`, `address`, `initial password`.
+- Create dialog: `full_name`, `email`, `role` (Teacher/Student), `phone`, `date_of_birth`, `gender`, `hometown`, `address`, `initial password`.
 - List/View/Edit scope: active Teacher/Student **and** disabled Teacher/Student (so admin can re-enable them). `is_deleted = true` rows are always excluded — never shown anywhere in this list, regardless of filters/pagination.
 
 ### 2.4 Profile (`/profile`, all roles)
@@ -113,6 +113,7 @@ View (`/profile`):
 | Phone     : ...                                      |
 | DOB       : ...                                      |
 | Gender    : ...                                      |
+| Quê quán  : ...                                      |
 | Address   : ...                                      |
 +----------------------------------------------------+
 ```
@@ -126,6 +127,7 @@ Edit (`/profile/edit`):
 | Phone     [______________]                           |
 | DOB       [______________]                           |
 | Gender    [______________]                           |
+| Quê quán  [______________]                           |
 | Address   [______________]                           |
 |                                                       |
 | [ Save changes ]   [ Cancel ]                        |
@@ -150,7 +152,7 @@ Edit (`/profile/edit`):
 | POST | `/api/users` | Admin | Create account |
 | PATCH | `/api/users/{id}` | Admin | Update account fields |
 | PATCH | `/api/users/{id}/status` | Admin | Toggle `is_active` (Enable/Disable); `422` if disabling and tied to an active Class |
-| POST | `/api/users/{id}/reset-password` | Admin | Sets a temp password, `must_change_password = true` |
+| POST | `/api/users/{id}/reset-password` | Admin | Body `{ new_password, confirm_new_password }` — the admin's own value, not a generated one. Sets the password + `must_change_password = true`. No email, no token. Audited as `account.password_set` ([08 §4](08-audit-log.md#4-db)) |
 | DELETE | `/api/users/{id}` | Admin | Soft-delete (`is_deleted = true`); `422` if tied to an active Class |
 
 Removed: `POST /api/password-reset-requests`, `GET /api/password-reset-requests`, `POST /api/password-reset-requests/{id}/resolve` — replaced by the self-service email-link flow above; there's no more admin-resolved queue.
@@ -164,7 +166,7 @@ Removed: `POST /api/password-reset-requests`, `GET /api/password-reset-requests`
 | `email` | unique |
 | `password` | Django hash (never stored/logged raw) |
 | `role` | `ADMIN` \| `TEACHER` \| `STUDENT` |
-| `full_name`, `phone`, `date_of_birth`, `gender`, `address` | nullable profile fields |
+| `full_name`, `phone`, `date_of_birth`, `gender`, `hometown`, `address` | nullable profile fields. `hometown` (tỉnh/thành) is shown as "Quê quán" on the admin Class roster — see [02](02-classes-and-enrollment.md) |
 | `must_change_password` | forces `/change-password` flow |
 | `is_active` | enable/disable flag (reversible, blocks login) |
 | `is_deleted` | soft-delete flag, set by admin `Delete`; excluded from all admin list/view/edit querysets |
@@ -181,10 +183,10 @@ Removed: `POST /api/password-reset-requests`, `GET /api/password-reset-requests`
 ## 5. Key functions / rules
 
 - `accounts/views.py::IsAdmin` — role check that also blocks any admin whose own `must_change_password` is still true.
-- `UsersView.delete` (soft-delete) — checks `user.classes.filter(ends_at__gt=now)` and `user.enrollments.filter(classroom__ends_at__gt=now)`; `422` if either is non-empty; else sets `is_deleted = true`. Same check as the disable toggle. No restore path.
+- `UsersView.delete` (soft-delete) — checks `user.classes.filter(is_active=True, ends_at__gt=now)` and `user.enrollments.filter(classroom__is_active=True, classroom__ends_at__gt=now)`; `422` if either is non-empty; else sets `is_deleted = true`. Same check as the disable toggle. No restore path. ("Active Class" = `is_active` **and** not yet ended — a disabled or ended Class never blocks an account operation; see [02](02-classes-and-enrollment.md).)
 - `UsersView` status toggle — same active-Class check applied when disabling (`is_active → false`); no check when enabling.
 - `account_metadata(user)` — builds the audit metadata dict for account writes; excludes `password`.
-- Every mutating account view wraps its write in `transaction.atomic()` + `write_audit(...)` (see [08-audit-log](08-audit-log.md)).
+- Every mutating account view wraps its write in `transaction.atomic()` + `write_audit(...)` (see [08-audit-log](08-audit-log.md)). Actions this app writes: `account.created`, `account.updated` (admin edit), `account.self_updated` (`PATCH /api/auth/me`), `account.deactivated` / `account.reactivated` (the status toggle, one action each way), `account.deleted` (soft-delete), `account.password_changed` (user changes their own — both the forced flow and the emailed-link reset), `account.password_set` (admin sets someone else's). Login, logout and `forgot-password` write nothing: they are not domain writes, and auditing failed logins would be a security feature nobody asked for.
 - Forgot-password is deliberately silent about whether the email exists (`204` either way) to avoid account enumeration.
 - Forgot-password request invalidates (`used_at = now`) any prior unused, unexpired token for that user before issuing a new one — only the newest link works.
 - `POST /api/auth/forgot-password` is rate-limited: max 1 request/min per email, and max 5 requests/hour per IP (via `django-ratelimit`). Rate-limited requests still return `204` — no signal leaked.
