@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { ApiFailure, api, apiResponse } from "../api";
 import { displayName, User } from "../auth";
@@ -64,6 +64,7 @@ export function AdminUsersPage() {
   const [deactivating, setDeactivating] = useState<User | null>(null);
   const [deactivatingSaving, setDeactivatingSaving] = useState(false);
   const accountsHeading = useRef<HTMLHeadingElement>(null);
+  const formId = useId();
 
   useEffect(() => {
     let current = true;
@@ -178,8 +179,8 @@ export function AdminUsersPage() {
         </li>
       )}</ul></section>}
 
-    <AppDialog open={dialogOpen} title={editing ? "Edit account" : "Create account"} pending={saving} onClose={closeDialog}>
-      <form onSubmit={save}>
+    <AppDialog open={dialogOpen} title={editing ? "Edit account" : "Create account"} pending={saving} onClose={closeDialog} formId={formId} submitLabel={saving ? "Saving…" : editing ? "Save changes" : "Create account"}>
+      <form id={formId} onSubmit={save}>
         {formFailure?.detail && formFailure.detail !== "Request failed." && <div className="alert alert-danger py-2" role="alert">{formFailure.detail}</div>}
         <div className="account-form-grid">
           <label className="form-label">Full name
@@ -219,7 +220,6 @@ export function AdminUsersPage() {
             {fieldError("address") && <span className="invalid-feedback d-block">{fieldError("address")}</span>}
           </label>
         </div>
-        <button className="btn btn-primary" disabled={saving}>{saving ? "Saving…" : editing ? "Save changes" : "Create account"}</button>
       </form>
     </AppDialog>
     <AppDialog open={!!deactivating} title={deactivating ? `Vô hiệu hóa ${displayName(deactivating)}` : "Vô hiệu hóa"} pending={deactivatingSaving} fallbackFocus={accountsHeading} onClose={() => setDeactivating(null)}>

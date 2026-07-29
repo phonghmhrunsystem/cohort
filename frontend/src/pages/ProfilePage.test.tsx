@@ -16,6 +16,7 @@ vi.mock("react", async (importActual) => {
       harness.setters[index] = setter;
       return [index < harness.states.length ? harness.states[index] : initial, setter];
     },
+    useId: () => "test-id",
   };
 });
 

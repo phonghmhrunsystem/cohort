@@ -1,11 +1,14 @@
 import { ReactNode, RefObject, useEffect, useId, useRef } from "react";
 
-export function AppDialog({ open, title, pending = false, fallbackFocus, onClose, children }: {
+export function AppDialog({ open, title, pending = false, fallbackFocus, onClose, formId, submitLabel, submitDisabled, children }: {
   open: boolean;
   title: string;
   pending?: boolean;
   fallbackFocus?: RefObject<HTMLElement | null>;
   onClose: () => void;
+  formId?: string;
+  submitLabel?: string;
+  submitDisabled?: boolean;
   children: ReactNode;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -41,6 +44,7 @@ export function AppDialog({ open, title, pending = false, fallbackFocus, onClose
     {children}
     <div className="d-flex justify-content-end gap-2 mt-3">
       <button className="btn btn-outline-secondary" type="button" disabled={pending} onClick={close}>Cancel</button>
+      {submitLabel && <button className="btn btn-primary" type="submit" form={formId} disabled={pending || submitDisabled}>{submitLabel}</button>}
     </div>
   </dialog>;
 }

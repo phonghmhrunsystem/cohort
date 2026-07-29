@@ -18,6 +18,7 @@ vi.mock("react", async (importActual) => {
     ...actual,
     useEffect: (effect: () => void | (() => void)) => harness.effects.push(effect),
     useRef: () => ({ current: { close: vi.fn(), showModal: vi.fn() } }),
+    useId: () => "test-id",
     useState: <T,>(initial: T) => {
       const index = harness.index++;
       const setter = vi.fn();

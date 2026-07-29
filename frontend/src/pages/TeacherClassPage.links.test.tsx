@@ -5,7 +5,7 @@ const harness = vi.hoisted(() => ({ index: 0, states: [] as unknown[] }));
 
 vi.mock("react", async (importActual) => {
   const actual = await importActual<typeof import("react")>();
-  return { ...actual, useEffect: vi.fn(), useState: <T,>(initial: T) => [harness.index < harness.states.length ? harness.states[harness.index++] as T : initial, vi.fn()] as const };
+  return { ...actual, useEffect: vi.fn(), useId: () => "test-id", useState: <T,>(initial: T) => [harness.index < harness.states.length ? harness.states[harness.index++] as T : initial, vi.fn()] as const };
 });
 
 import { TeacherClassPage } from "./TeacherClassPage";
