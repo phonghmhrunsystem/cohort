@@ -170,11 +170,16 @@ class AccountApiTests(TestCase):
     def test_change_password_rejects_wrong_current_password_without_changing_hash(self):
         response = self.student_client.post(
             "/api/auth/change-password",
-            {"current_password": "wrong", "new_password": "Password2!"},
+            {
+                "current_password": "wrong",
+                "new_password": "Password2!",
+                "confirm_new_password": "Password2!",
+            },
             format="json",
         )
 
         self.assertEqual(response.status_code, 422)
+        self.assertIn("current_password", response.data)
         self.student.refresh_from_db()
         self.assertTrue(self.student.check_password("pw"))
         self.assertEqual(AuditLog.objects.count(), 0)
