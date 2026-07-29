@@ -38,4 +38,22 @@ describe("request", () => {
       status: 422,
     } satisfies Partial<ApiFailure>);
   });
+
+  it("keeps a 422 detail response out of field errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ detail: "The class is no longer active." }), {
+          headers: { "Content-Type": "application/json" },
+          status: 422,
+        }),
+      ),
+    );
+
+    await expect(request("/classes/1/enrollments", { method: "POST" })).rejects.toMatchObject({
+      fields: undefined,
+      message: "The class is no longer active.",
+      status: 422,
+    } satisfies Partial<ApiFailure>);
+  });
 });

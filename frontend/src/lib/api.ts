@@ -24,7 +24,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   if (!response.ok) {
     const detail = typeof data?.detail === "string" ? data.detail : "Request failed.";
-    const fields = data && typeof data === "object" && !Array.isArray(data) ? data as FieldErrors : undefined;
+    const fieldEntries = data && typeof data === "object" && !Array.isArray(data)
+      ? Object.entries(data).filter(
+        (entry): entry is [string, string[]] => Array.isArray(entry[1]) && entry[1].every((value) => typeof value === "string"),
+      )
+      : [];
+    const fields: FieldErrors | undefined = fieldEntries.length ? Object.fromEntries(fieldEntries) : undefined;
     throw new ApiFailure(response.status, fields, detail);
   }
 
