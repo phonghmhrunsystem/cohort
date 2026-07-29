@@ -169,6 +169,28 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Dashboard" }).getAttribute("tabindex")).toBeNull();
   });
 
+  it("keeps focus on a selected desktop sidebar link", async () => {
+    window.history.replaceState({}, "", "/dashboard");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 1, full_name: "Ada", email: "ada@example.test", role: "TEACHER", phone: null,
+      date_of_birth: null, gender: null, hometown: null, address: null, is_active: true, must_change_password: false,
+    }), { headers: { "Content-Type": "application/json" } })));
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "Dashboard" });
+    const profileLink = screen.getByRole("link", { name: "Profile" });
+    await user.click(profileLink);
+    expect(profileLink).toBe(document.activeElement);
+  });
+
   it("returns focus to the menu opener after Escape closes the drawer", async () => {
     window.history.replaceState({}, "", "/dashboard");
     sessionStorage.setItem("access_token", "token");

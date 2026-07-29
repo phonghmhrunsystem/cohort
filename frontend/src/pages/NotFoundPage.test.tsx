@@ -4,8 +4,10 @@ import { expect, it } from "vitest";
 
 import { NotFoundPage } from "./NotFoundPage";
 
-it("gives the recovery link a 44px target", () => {
+it("renders the recovery link as a 44px inline-flex target", () => {
   render(<BrowserRouter><NotFoundPage /></BrowserRouter>);
 
-  expect(getComputedStyle(screen.getByRole("link", { name: "Go to dashboard" })).minHeight).toBe("44px");
+  const link = getComputedStyle(screen.getByRole("link", { name: "Go to dashboard" }));
+  expect(link.display).toBe("inline-flex");
+  expect(link.minHeight).toBe("44px");
 });

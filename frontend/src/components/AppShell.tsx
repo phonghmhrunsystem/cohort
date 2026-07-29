@@ -12,7 +12,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeDrawer = () => {
     setOpen(false);
-    menuButton.current?.focus();
+    if (mobile) menuButton.current?.focus();
   };
   useEffect(() => {
     if (!window.matchMedia) return;
