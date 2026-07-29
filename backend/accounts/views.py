@@ -1,32 +1,32 @@
+import hashlib
+
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import AllowAny, BasePermission
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 
 from audit.services import write_audit
 
-from .models import PasswordResetRequest, User
-from .permissions import IsAuthenticated
+from .mail import send_password_reset_email
+from .models import PasswordResetToken, User
+from .permissions import IsAdmin, IsAuthenticated
 from .serializers import (
     ChangePasswordSerializer,
+    ForgotPasswordSerializer,
     LoginSerializer,
-    PasswordResetRequestSerializer,
-    PasswordResetResolveSerializer,
+    ResetPasswordSerializer,
     SelfProfileSerializer,
     UserCreateSerializer,
     UserSerializer,
     UserUpdateSerializer,
 )
-
-
-class IsAdmin(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and not request.user.must_change_password and request.user.role == User.Role.ADMIN
+from .services import consume_reset_token, issue_reset_token
+from .throttling import allow_password_reset
 
 
 class LoginView(TokenObtainPairView):
@@ -34,50 +34,54 @@ class LoginView(TokenObtainPairView):
     serializer_class = LoginSerializer
 
 
-class PasswordResetRequestView(APIView):
+class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        serializer = PasswordResetRequestSerializer(data=request.data)
-        if serializer.is_valid():
+        serializer = ForgotPasswordSerializer(data=request.data)
+        if serializer.is_valid() and allow_password_reset(
+            serializer.validated_data["email"], request.META.get("REMOTE_ADDR", "")
+        ):
             user = User.objects.filter(
-                email=serializer.validated_data["email"], is_active=True,
+                email=serializer.validated_data["email"], is_active=True, is_deleted=False,
                 role__in=(User.Role.TEACHER, User.Role.STUDENT),
             ).first()
             if user:
-                PasswordResetRequest.objects.get_or_create(
-                    user=user, status=PasswordResetRequest.Status.PENDING
-                )
+                send_password_reset_email(user, issue_reset_token(user))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    def get(self, request):
-        if not request.user.is_authenticated or request.user.role != User.Role.ADMIN:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        rows = PasswordResetRequest.objects.filter(status=PasswordResetRequest.Status.PENDING).select_related("user")
-        return Response([{"id": row.id, "email": row.user.email, "requested_at": row.requested_at} for row in rows])
+
+class ResetPasswordPreflightView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, token):
+        token = PasswordResetToken.objects.filter(token_hash=hashlib.sha256(token.encode()).hexdigest()).first()
+        if token is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if token.used_at or token.expires_at <= timezone.now():
+            return Response(status=status.HTTP_410_GONE)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class PasswordResetResolveView(APIView):
-    permission_classes = [IsAdmin]
+class ResetPasswordView(APIView):
+    permission_classes = [AllowAny]
 
-    def post(self, request, request_id):
-        serializer = PasswordResetResolveSerializer(data=request.data)
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        with transaction.atomic():
-            reset = get_object_or_404(PasswordResetRequest.objects.select_for_update(), id=request_id)
-            if reset.status != PasswordResetRequest.Status.PENDING:
-                return Response(status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-            user = reset.user
-            user.set_password(serializer.validated_data["password"])
-            user.must_change_password = True
-            user.save(update_fields=("password", "must_change_password"))
-            reset.status = PasswordResetRequest.Status.RESOLVED
-            reset.resolver = request.user
-            reset.resolved_at = timezone.now()
-            reset.save(update_fields=("status", "resolver", "resolved_at"))
-            write_audit(actor=request.user, action="account.password_reset_resolved", target=user, metadata={})
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        result = consume_reset_token(
+            serializer.validated_data["token"],
+            serializer.validated_data["new_password"],
+            serializer.validated_data["confirm_new_password"],
+        )
+        if result == "ok":
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        if result == "unknown":
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        if result in ("expired", "used"):
+            return Response(status=status.HTTP_410_GONE)
+        return Response({"new_password": ["Invalid password."]}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
 
 class LogoutView(APIView):
@@ -129,11 +133,9 @@ class ChangePasswordView(APIView):
 
 
 class UsersView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdmin]
 
     def get(self, request):
-        if request.user.role != User.Role.ADMIN:
-            return Response(status=status.HTTP_403_FORBIDDEN)
         users = User.objects.filter(
             is_active=True, role__in=(User.Role.TEACHER, User.Role.STUDENT)
         )
@@ -146,8 +148,6 @@ class UsersView(APIView):
         return Response(UserSerializer(users.order_by("id"), many=True).data)
 
     def post(self, request):
-        if request.user.role != User.Role.ADMIN:
-            return Response(status=status.HTTP_403_FORBIDDEN)
         serializer = UserCreateSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)

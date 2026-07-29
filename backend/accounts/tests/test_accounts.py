@@ -2,15 +2,17 @@ import importlib
 import os
 from unittest.mock import patch
 
+import hashlib
 from datetime import date, timedelta
 
 from django.conf import settings
+from django.core.cache import cache
 from django.test import TestCase
 from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from accounts.models import PasswordResetRequest, PasswordResetToken, User
+from accounts.models import PasswordResetToken, User
 from audit.models import AuditLog
 from classes.models import Class, Enrollment
 from config import settings as project_settings
@@ -64,16 +66,20 @@ class AccountApiTests(TestCase):
         self.admin_client = APIClient()
         self.admin_client.force_authenticate(self.admin)
 
-    def test_inactive_user_cannot_obtain_token(self):
-        user = User.objects.create_user(
+    def test_inactive_or_deleted_user_cannot_obtain_token(self):
+        inactive = User.objects.create_user(
             "inactive@example.test", "pw", role="STUDENT", is_active=False
         )
-
-        response = self.client.post(
-            "/api/auth/login", {"email": user.email, "password": "pw"}
+        deleted = User.objects.create_user(
+            "deleted@example.test", "pw", role="STUDENT", is_deleted=True
         )
 
-        self.assertEqual(response.status_code, 401)
+        for user in (inactive, deleted):
+            with self.subTest(user=user.email):
+                response = self.client.post(
+                    "/api/auth/login", {"email": user.email, "password": "pw"}
+                )
+                self.assertEqual(response.status_code, 401)
 
     def test_login_returns_access_token_and_user(self):
         response = self.client.post(
@@ -84,6 +90,16 @@ class AccountApiTests(TestCase):
         self.assertEqual(set(response.data), {"access_token", "user"})
         self.assertEqual(response.data["user"]["email"], self.student.email)
         self.assertEqual(response.data["user"]["role"], "STUDENT")
+
+    def test_user_payload_includes_hometown_but_not_deletion_status(self):
+        self.student.hometown = "Hanoi"
+        self.student.save(update_fields=("hometown",))
+
+        response = self.student_client.get("/api/auth/me")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["hometown"], "Hanoi")
+        self.assertNotIn("is_deleted", response.data)
 
     def test_authenticated_logout_returns_no_content(self):
         login = self.client.post(
@@ -96,6 +112,15 @@ class AccountApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 204)
+
+    def test_forced_user_can_only_use_the_auth_allowlist(self):
+        self.student.must_change_password = True
+        self.student.save(update_fields=("must_change_password",))
+
+        self.assertEqual(self.student_client.get("/api/auth/me").status_code, 200)
+        self.assertEqual(self.student_client.post("/api/auth/logout").status_code, 204)
+        self.assertEqual(self.student_client.get("/api/classes").status_code, 403)
+        self.assertEqual(self.student_client.get("/api/users").status_code, 403)
 
     def test_self_profile_patch_persists_allowed_fields_and_writes_safe_audit(self):
         response = self.student_client.patch(
@@ -119,6 +144,8 @@ class AccountApiTests(TestCase):
             ("email", "changed@example.test"),
             ("role", "TEACHER"),
             ("is_active", False),
+            ("is_deleted", True),
+            ("must_change_password", True),
             ("password", "new-password"),
         ):
             with self.subTest(field=field):
@@ -155,7 +182,11 @@ class AccountApiTests(TestCase):
     def test_change_password_updates_self_and_writes_safe_audit(self):
         response = self.student_client.post(
             "/api/auth/change-password",
-            {"current_password": "pw", "new_password": "Password2!"},
+            {
+                "current_password": "pw",
+                "new_password": "Password2!",
+                "confirm_new_password": "Password2!",
+            },
             format="json",
         )
 
@@ -170,18 +201,22 @@ class AccountApiTests(TestCase):
         for new_password, expected_status in (
             ("Pass7!!", 422),
             ("x" * 129, 422),
-            ("Password", 204),
+            ("UniquePass42!", 204),
         ):
             with self.subTest(length=len(new_password)):
                 response = self.student_client.post(
                     "/api/auth/change-password",
-                    {"current_password": "pw", "new_password": new_password},
+                    {
+                        "current_password": "pw",
+                        "new_password": new_password,
+                        "confirm_new_password": new_password,
+                    },
                     format="json",
                 )
                 self.assertEqual(response.status_code, expected_status)
 
         self.student.refresh_from_db()
-        self.assertTrue(self.student.check_password("Password"))
+        self.assertTrue(self.student.check_password("UniquePass42!"))
 
     def test_account_change_writes_audit_row(self):
         response = self.admin_client.patch(f"/api/users/{self.student.id}", {"full_name": "Updated Student"})
@@ -314,6 +349,7 @@ class AccountApiTests(TestCase):
                 "phone": None,
                 "date_of_birth": None,
                 "gender": None,
+                "hometown": None,
                 "address": None,
                 "is_active": True,
                 "must_change_password": False,
@@ -392,39 +428,83 @@ class AccountApiTests(TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertTrue(User.objects.get(id=self.student.id).is_active)
 
-    def test_password_reset_request_is_private_and_deduplicated(self):
+    def test_forgot_password_always_returns_no_content_without_enumerating_accounts(self):
+        cache.clear()
         inactive = User.objects.create_user(
             "inactive@example.test", "pw", role="STUDENT", is_active=False
         )
-
-        for email in ("none@example.test", inactive.email, self.admin.email):
-            self.assertEqual(
-                self.client.post("/api/password-reset-requests", {"email": email}).status_code,
-                204,
-            )
-
-        self.assertEqual(
-            self.client.post("/api/password-reset-requests", {"email": self.student.email}).status_code,
-            204,
+        deleted = User.objects.create_user(
+            "deleted-forgot@example.test", "pw", role="STUDENT", is_deleted=True
         )
-        self.assertEqual(PasswordResetRequest.objects.filter(user=self.student).count(), 1)
 
-    def test_admin_resolves_pending_reset_once_and_forces_password_change(self):
-        reset = PasswordResetRequest.objects.create(user=self.student)
-        url = f"/api/password-reset-requests/{reset.id}/resolve"
+        for email in (self.student.email, "none@example.test", inactive.email, deleted.email, self.admin.email):
+            with self.subTest(email=email):
+                self.assertEqual(
+                    self.client.post("/api/auth/forgot-password", {"email": email}, format="json").status_code,
+                    204,
+                )
 
-        self.assertEqual(self.student_client.post(url, {"password": "Temporary1!"}).status_code, 403)
-        self.assertEqual(self.admin_client.post(url, {"password": "short"}).status_code, 422)
-        self.assertEqual(self.admin_client.post(url, {"password": "Temporary1!"}).status_code, 204)
-        self.assertEqual(self.admin_client.post(url, {"password": "Temporary1!"}).status_code, 422)
+        self.assertEqual(PasswordResetToken.objects.filter(user=self.student).count(), 1)
 
+    def test_reset_password_preflight_distinguishes_valid_missing_and_unusable_tokens(self):
+        valid = "valid"
+        expired = "expired"
+        used = "used"
+        PasswordResetToken.objects.create(
+            user=self.student,
+            token_hash=hashlib.sha256(valid.encode()).hexdigest(),
+            expires_at=timezone.now() + timedelta(minutes=1),
+        )
+        PasswordResetToken.objects.create(
+            user=self.student,
+            token_hash=hashlib.sha256(expired.encode()).hexdigest(),
+            expires_at=timezone.now() - timedelta(seconds=1),
+        )
+        PasswordResetToken.objects.create(
+            user=self.student,
+            token_hash=hashlib.sha256(used.encode()).hexdigest(),
+            expires_at=timezone.now() + timedelta(minutes=1),
+            used_at=timezone.now(),
+        )
+
+        self.assertEqual(self.client.get(f"/api/auth/reset-password/{valid}").status_code, 204)
+        self.assertEqual(self.client.get("/api/auth/reset-password/missing").status_code, 404)
+        self.assertEqual(self.client.get(f"/api/auth/reset-password/{expired}").status_code, 410)
+        self.assertEqual(self.client.get(f"/api/auth/reset-password/{used}").status_code, 410)
+
+    def test_password_confirmation_mismatch_returns_a_field_error(self):
+        response = self.student_client.post(
+            "/api/auth/change-password",
+            {
+                "current_password": "pw",
+                "new_password": "Password2!",
+                "confirm_new_password": "Different2!",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("confirm_new_password", response.data)
+
+    def test_reset_password_consumes_a_valid_token(self):
+        token = "reset-token"
+        PasswordResetToken.objects.create(
+            user=self.student,
+            token_hash=hashlib.sha256(token.encode()).hexdigest(),
+            expires_at=timezone.now() + timedelta(minutes=1),
+        )
+
+        response = self.client.post(
+            "/api/auth/reset-password",
+            {"token": token, "new_password": "UniquePass42!", "confirm_new_password": "UniquePass42!"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 204)
         self.student.refresh_from_db()
-        reset.refresh_from_db()
-        self.assertTrue(self.student.must_change_password)
-        self.assertTrue(self.student.check_password("Temporary1!"))
-        self.assertEqual(reset.status, PasswordResetRequest.Status.RESOLVED)
-        self.assertEqual(self.student_client.get("/api/classes").status_code, 403)
-        self.assertEqual(
-            self.client.post("/api/password-reset-requests", {"email": self.student.email}).status_code,
-            204,
-        )
+        self.assertTrue(self.student.check_password("UniquePass42!"))
+
+    def test_legacy_password_reset_queue_routes_are_not_registered(self):
+        response = self.client.post("/api/password-reset-requests", {"email": self.student.email}, format="json")
+
+        self.assertEqual(response.status_code, 404)

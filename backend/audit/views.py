@@ -1,16 +1,10 @@
-from rest_framework.permissions import BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import User
+from accounts.permissions import IsAdmin
 
 from .models import AuditLog
 from .serializers import AuditLogSerializer
-
-
-class IsAdmin(BasePermission):
-    def has_permission(self, request, view):
-        return request.user.is_authenticated and not request.user.must_change_password and request.user.role == User.Role.ADMIN
 
 
 class AuditLogView(APIView):

@@ -1,7 +1,10 @@
 import re
 from datetime import date
 
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import User
@@ -10,13 +13,15 @@ from .models import User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "full_name", "email", "role", "phone", "date_of_birth", "gender", "address", "is_active", "must_change_password")
+        fields = ("id", "full_name", "email", "role", "phone", "date_of_birth", "gender", "hometown", "address", "is_active", "must_change_password")
         read_only_fields = ("id", "is_active")
 
 
 class LoginSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
+        if self.user.is_deleted:
+            raise AuthenticationFailed(self.error_messages["no_active_account"], "no_active_account")
         user = UserSerializer(self.user).data
         user["must_change_password"] = self.user.must_change_password
         return {"access_token": data["access"], "user": user}
@@ -54,6 +59,9 @@ class ProfileValidationMixin:
     def validate_address(self, value):
         return value.strip() or None
 
+    def validate_hometown(self, value):
+        return value.strip() or None
+
 
 class UserCreateSerializer(ProfileValidationMixin, serializers.ModelSerializer):
     full_name = serializers.CharField(min_length=2, max_length=100)
@@ -63,11 +71,12 @@ class UserCreateSerializer(ProfileValidationMixin, serializers.ModelSerializer):
     phone = serializers.CharField(required=False, allow_blank=True, max_length=16)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     gender = serializers.ChoiceField(choices=("NAM", "NU", "KHAC"), required=False, allow_null=True)
+    hometown = serializers.CharField(required=False, allow_blank=True, max_length=100)
     address = serializers.CharField(required=False, allow_blank=True, max_length=255)
 
     class Meta:
         model = User
-        fields = ("id", "full_name", "email", "password", "role", "phone", "date_of_birth", "gender", "address")
+        fields = ("id", "full_name", "email", "password", "role", "phone", "date_of_birth", "gender", "hometown", "address")
         read_only_fields = ("id",)
 
     def create(self, validated_data):
@@ -80,13 +89,14 @@ class UserUpdateSerializer(ProfileValidationMixin, serializers.ModelSerializer):
     phone = serializers.CharField(required=False, allow_blank=True, max_length=16)
     date_of_birth = serializers.DateField(required=False, allow_null=True)
     gender = serializers.ChoiceField(choices=("NAM", "NU", "KHAC"), required=False, allow_null=True)
+    hometown = serializers.CharField(required=False, allow_blank=True, max_length=100)
     address = serializers.CharField(required=False, allow_blank=True, max_length=255)
     class Meta:
         model = User
-        fields = ("full_name", "phone", "date_of_birth", "gender", "address")
+        fields = ("full_name", "phone", "date_of_birth", "gender", "hometown", "address")
 
     def validate(self, attrs):
-        allowed_fields = {"full_name", "phone", "date_of_birth", "gender", "address"}
+        allowed_fields = {"full_name", "phone", "date_of_birth", "gender", "hometown", "address"}
         unknown_fields = set(self.initial_data) - allowed_fields
         if unknown_fields:
             raise serializers.ValidationError(
@@ -104,9 +114,10 @@ class SelfProfileSerializer(UserUpdateSerializer):
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True, trim_whitespace=False)
     new_password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8, max_length=128)
+    confirm_new_password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8, max_length=128)
 
     def validate(self, attrs):
-        allowed_fields = {"current_password", "new_password"}
+        allowed_fields = {"current_password", "new_password", "confirm_new_password"}
         unknown_fields = set(self.initial_data) - allowed_fields
         if unknown_fields:
             raise serializers.ValidationError(
@@ -114,15 +125,38 @@ class ChangePasswordSerializer(serializers.Serializer):
             )
         if not self.instance.check_password(attrs["current_password"]):
             raise serializers.ValidationError({"current_password": "Current password is incorrect."})
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+            raise serializers.ValidationError({"confirm_new_password": "Passwords do not match."})
+        try:
+            validate_password(attrs["new_password"], self.instance)
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"new_password": error.messages})
         return attrs
 
 
-class PasswordResetRequestSerializer(serializers.Serializer):
+class ForgotPasswordSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
     def validate_email(self, value):
         return value.strip().lower()
 
 
-class PasswordResetResolveSerializer(serializers.Serializer):
-    password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8, max_length=128)
+class ResetPasswordSerializer(serializers.Serializer):
+    token = serializers.CharField(write_only=True, trim_whitespace=False)
+    new_password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8, max_length=128)
+    confirm_new_password = serializers.CharField(write_only=True, trim_whitespace=False, min_length=8, max_length=128)
+
+    def validate(self, attrs):
+        allowed_fields = {"token", "new_password", "confirm_new_password"}
+        unknown_fields = set(self.initial_data) - allowed_fields
+        if unknown_fields:
+            raise serializers.ValidationError(
+                {field: "This field cannot be updated." for field in unknown_fields}
+            )
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+            raise serializers.ValidationError({"confirm_new_password": "Passwords do not match."})
+        try:
+            validate_password(attrs["new_password"])
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"new_password": error.messages})
+        return attrs
