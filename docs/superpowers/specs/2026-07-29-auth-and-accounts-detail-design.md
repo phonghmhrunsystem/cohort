@@ -121,7 +121,7 @@ Use React, Vite, TypeScript, Tailwind CSS, React Router, and small shared primit
 
 Desktop is a dark-indigo role sidebar with a light content canvas, topbar user/logout menu, and notification bell for Teacher/Student. Mobile uses a topbar and focus-trapped drawer with backdrop, Escape close, body-scroll lock. Tables scroll horizontally; row actions become an accessible menu rather than disappearing.
 
-Forms are controlled, use noValidate, preserve drafts after 422, and show both client/server errors in the Field error slot. Keep useful native input types and maximum lengths. Visible focus, labels, focus restore, and text or accessible names for every icon are required.
+Forms are controlled, use noValidate, preserve drafts after 422, and show both client/server validation as a persistent inline error message in the Field error slot. Validation feedback must never use browser-native validation bubbles, hover tooltips, title attributes, or icon-only tooltips; a tooltip may explain an action but never report an invalid field. Keep useful native input types and maximum lengths. Visible focus, labels, focus restore, and text or accessible names for every icon are required.
 
 ### 6.2 Routes and guards
 
@@ -173,7 +173,7 @@ Dashboard reuses class lists/progress/deadlines and notifications; it is a launc
 - Used, expired, malformed, or raced tokens cannot change a password. A new request invalidates old tokens.
 - Disabled accounts are visible/editable to Admin; deleted accounts are 404; disable/delete of anyone attached to an active Class returns 422.
 - Tests cover filtering, pagination, forced routes, status/direct reset/delete, audit safety, recovery races, and no executable reference to the legacy queue.
-- Frontend route/guard/form tests cover inline errors and retained drafts. Run typecheck, tests, production build, and keyboard/mobile checks on auth, accounts, profile, and one Class screen.
+- Frontend route/guard/form tests cover inline error messages (and assert that validation never relies on a tooltip), retained drafts, and server 422 mapping. Run typecheck, tests, production build, and keyboard/mobile checks on auth, accounts, profile, and one Class screen.
 
 ## 8. Next plan boundary
 
