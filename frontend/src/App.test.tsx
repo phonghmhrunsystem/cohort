@@ -43,6 +43,29 @@ describe("App", () => {
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeTruthy();
   });
 
+  it.each([
+    ["ADMIN", ["Dashboard", "Accounts", "Classes", "Audit"]],
+    ["TEACHER", ["Dashboard", "My Classes", "Profile", "Notifications"]],
+    ["STUDENT", ["Dashboard", "My Classes", "Profile", "Notifications"]],
+  ] as const)("shows the %s navigation", async (role, links) => {
+    window.history.replaceState({}, "", "/dashboard");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 1, full_name: "Ada", email: "ada@example.test", role, phone: null,
+      date_of_birth: null, gender: null, hometown: null, address: null, is_active: true, must_change_password: false,
+    }), { headers: { "Content-Type": "application/json" } })));
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "Dashboard" });
+    for (const link of links) expect(screen.getByRole("link", { name: link })).toBeTruthy();
+  });
+
   it("allows a forced user only on change password", async () => {
     window.history.replaceState({}, "", "/profile");
     sessionStorage.setItem("access_token", "token");

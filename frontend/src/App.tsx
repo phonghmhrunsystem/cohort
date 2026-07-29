@@ -40,7 +40,9 @@ export function App() {
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/profile/edit" element={<ProfileEditPage />} />
       <Route path="/classes/*" element={<Placeholder title="Classes" />} />
+      <Route path="/notifications" element={<Placeholder title="Notifications" />} />
       <Route element={<RequireRole roles={["ADMIN"]} />}>
+        <Route path="/audit" element={<Placeholder title="Audit" />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="/admin/users/:userId" element={<AdminUserViewPage />} />
         <Route path="/admin/users/:userId/edit" element={<AdminUserEditPage />} />
