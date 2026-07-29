@@ -1,6 +1,5 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
-from django.db.models import Q
 
 
 class UserManager(BaseUserManager):
@@ -45,25 +44,6 @@ class User(AbstractUser):
     REQUIRED_FIELDS = []
 
     objects = UserManager()
-
-
-class PasswordResetRequest(models.Model):
-    class Status(models.TextChoices):
-        PENDING = "PENDING"
-        RESOLVED = "RESOLVED"
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_reset_requests")
-    requested_at = models.DateTimeField(auto_now_add=True)
-    status = models.CharField(max_length=8, choices=Status.choices, default=Status.PENDING)
-    resolver = models.ForeignKey(User, on_delete=models.PROTECT, null=True, blank=True, related_name="resolved_password_reset_requests")
-    resolved_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=("user",), condition=Q(status="PENDING"), name="one_pending_password_reset_per_user"
-            )
-        ]
 
 
 class PasswordResetToken(models.Model):

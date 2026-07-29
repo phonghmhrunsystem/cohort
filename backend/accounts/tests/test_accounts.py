@@ -1,5 +1,6 @@
 import importlib
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import hashlib
@@ -677,7 +678,10 @@ class AccountApiTests(TestCase):
         self.student.refresh_from_db()
         self.assertTrue(self.student.check_password("UniquePass42!"))
 
-    def test_legacy_password_reset_queue_routes_are_not_registered(self):
-        response = self.client.post("/api/password-reset-requests", {"email": self.student.email}, format="json")
-
-        self.assertEqual(response.status_code, 404)
+    def test_legacy_queue_has_no_runtime_reference(self):
+        files = (
+            file
+            for file in Path(settings.BASE_DIR / "accounts").glob("**/*.py")
+            if not {"migrations", "tests"}.intersection(file.parts)
+        )
+        self.assertFalse(any("PasswordResetRequest" in file.read_text() for file in files))
