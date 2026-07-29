@@ -1,9 +1,10 @@
-import secrets
+import os
 
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = "development-only-secret-key"
+SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "development-only-secret-key-change-me-before-deploy")
+DJANGO_SECRET_KEY = SECRET_KEY
 DEBUG = True
 ALLOWED_HOSTS = []
 
@@ -41,7 +42,12 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [
+    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+    {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+    {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
+]
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
@@ -55,5 +61,10 @@ AUTH_USER_MODEL = "accounts.User"
 
 REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"]}
 
-JWT_SIGNING_KEY = secrets.token_urlsafe(64)
+JWT_SIGNING_KEY = DJANGO_SECRET_KEY
 SIMPLE_JWT = {"SIGNING_KEY": JWT_SIGNING_KEY}
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "no-reply@localhost")
+CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}

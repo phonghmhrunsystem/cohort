@@ -10,6 +10,7 @@ class Class(models.Model):
     description = models.TextField(blank=True, max_length=1000)
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
+    is_active = models.BooleanField(default=True)
 
 
 class Enrollment(models.Model):

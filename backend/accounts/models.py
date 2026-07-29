@@ -34,8 +34,12 @@ class User(AbstractUser):
     phone = models.CharField(max_length=16, null=True, blank=True)
     date_of_birth = models.DateField(null=True, blank=True)
     gender = models.CharField(max_length=4, null=True, blank=True)
+    hometown = models.CharField(max_length=100, null=True, blank=True)
     address = models.CharField(max_length=255, null=True, blank=True)
     must_change_password = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True, db_index=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -60,3 +64,11 @@ class PasswordResetRequest(models.Model):
                 fields=("user",), condition=Q(status="PENDING"), name="one_pending_password_reset_per_user"
             )
         ]
+
+
+class PasswordResetToken(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="password_reset_tokens")
+    token_hash = models.CharField(max_length=64, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(db_index=True)
+    used_at = models.DateTimeField(null=True, blank=True)

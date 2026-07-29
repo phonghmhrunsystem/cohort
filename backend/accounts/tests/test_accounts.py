@@ -1,18 +1,53 @@
 import importlib
+import os
 from unittest.mock import patch
 
 from datetime import date, timedelta
 
+from django.conf import settings
 from django.test import TestCase
+from django.test import override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
-from rest_framework_simplejwt.backends import TokenBackend
-from rest_framework_simplejwt.tokens import AccessToken
 
-from accounts.models import PasswordResetRequest, User
+from accounts.models import PasswordResetRequest, PasswordResetToken, User
 from audit.models import AuditLog
 from classes.models import Class, Enrollment
 from config import settings as project_settings
+
+
+class AccountLifecycleModelTests(TestCase):
+    def test_user_lifecycle_defaults_are_recorded(self):
+        user = User.objects.create_user("lifecycle@example.test", "pw", role=User.Role.STUDENT)
+
+        self.assertIsNone(user.hometown)
+        self.assertFalse(user.is_deleted)
+        self.assertIsNotNone(user.created_at)
+        self.assertIsNotNone(user.updated_at)
+        for field_name in ("is_deleted", "created_at", "updated_at"):
+            self.assertTrue(User._meta.get_field(field_name).db_index)
+
+    def test_password_reset_token_stores_hashed_single_use_lifecycle(self):
+        user = User.objects.create_user("reset@example.test", "pw", role=User.Role.STUDENT)
+        token = PasswordResetToken.objects.create(
+            user=user,
+            token_hash="a" * 64,
+            expires_at=timezone.now() + timedelta(minutes=30),
+        )
+
+        self.assertEqual(token.user, user)
+        self.assertIsNotNone(token.created_at)
+        self.assertIsNone(token.used_at)
+        self.assertTrue(PasswordResetToken._meta.get_field("token_hash").unique)
+        self.assertTrue(PasswordResetToken._meta.get_field("expires_at").db_index)
+
+    @override_settings(DJANGO_SECRET_KEY="stable-test-key")
+    def test_jwt_key_uses_the_environment_key_after_settings_reload(self):
+        with patch.dict(os.environ, {"DJANGO_SECRET_KEY": settings.DJANGO_SECRET_KEY}):
+            reloaded_settings = importlib.reload(project_settings)
+
+        self.assertEqual(reloaded_settings.SIMPLE_JWT["SIGNING_KEY"], "stable-test-key")
+        importlib.reload(project_settings)
 
 
 class AccountApiTests(TestCase):
@@ -147,25 +182,6 @@ class AccountApiTests(TestCase):
 
         self.student.refresh_from_db()
         self.assertTrue(self.student.check_password("Password"))
-
-    def test_token_signed_with_previous_process_secret_is_rejected(self):
-        previous_jwt_signing_key = project_settings.JWT_SIGNING_KEY
-        token = AccessToken.for_user(self.student)
-        token = TokenBackend(
-            algorithm="HS256", signing_key=previous_jwt_signing_key
-        ).encode(token.payload)
-        current_jwt_signing_key = importlib.reload(project_settings).JWT_SIGNING_KEY
-        self.assertNotEqual(previous_jwt_signing_key, current_jwt_signing_key)
-
-        with patch(
-            "rest_framework_simplejwt.state.token_backend",
-            TokenBackend(algorithm="HS256", signing_key=current_jwt_signing_key),
-        ):
-            response = self.client.get(
-                "/api/auth/me", HTTP_AUTHORIZATION=f"Bearer {token}"
-            )
-
-        self.assertEqual(response.status_code, 401)
 
     def test_account_change_writes_audit_row(self):
         response = self.admin_client.patch(f"/api/users/{self.student.id}", {"full_name": "Updated Student"})

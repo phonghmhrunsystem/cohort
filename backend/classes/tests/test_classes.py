@@ -15,6 +15,18 @@ from grading.models import Grade
 from submissions.models import Submission
 
 
+class ClassLifecycleModelTests(TestCase):
+    def test_class_is_active_by_default(self):
+        classroom = Class.objects.create(
+            teacher=User.objects.create_user("teacher-lifecycle@example.test", "pw", role=User.Role.TEACHER),
+            name="Lifecycle",
+            starts_at=timezone.now(),
+            ends_at=timezone.now() + timedelta(days=1),
+        )
+
+        self.assertTrue(classroom.is_active)
+
+
 class ClassApiTests(TestCase):
     def setUp(self):
         now = timezone.now()
