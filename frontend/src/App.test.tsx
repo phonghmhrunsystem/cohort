@@ -169,7 +169,7 @@ describe("App", () => {
     expect(screen.getByRole("link", { name: "Dashboard" }).getAttribute("tabindex")).toBeNull();
   });
 
-  it("closes the drawer on Escape and releases the body scroll lock", async () => {
+  it("returns focus to the menu opener after Escape closes the drawer", async () => {
     window.history.replaceState({}, "", "/dashboard");
     sessionStorage.setItem("access_token", "token");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -187,10 +187,11 @@ describe("App", () => {
     await waitFor(() => {
       expect(document.body.style.overflow).toBe("");
       expect(document.querySelector('aside[aria-label="Main navigation"]')?.getAttribute("aria-hidden")).toBe("true");
+      expect(screen.getByRole("button", { name: "Open menu" })).toBe(document.activeElement);
     });
   });
 
-  it("closes the drawer from its backdrop", async () => {
+  it("returns focus to the menu opener after the backdrop closes the drawer", async () => {
     window.history.replaceState({}, "", "/dashboard");
     sessionStorage.setItem("access_token", "token");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -207,7 +208,25 @@ describe("App", () => {
     await waitFor(() => {
       expect(document.body.style.overflow).toBe("");
       expect(document.querySelector('aside[aria-label="Main navigation"]')?.getAttribute("aria-hidden")).toBe("true");
+      expect(screen.getByRole("button", { name: "Open menu" })).toBe(document.activeElement);
     });
+  });
+
+  it("closes the drawer when a navigation link is selected", async () => {
+    window.history.replaceState({}, "", "/dashboard");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 1, full_name: "Ada", email: "ada@example.test", role: "TEACHER", phone: null,
+      date_of_birth: null, gender: null, hometown: null, address: null, is_active: true, must_change_password: false,
+    }), { headers: { "Content-Type": "application/json" } })));
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "Dashboard" });
+    await user.click(screen.getByRole("button", { name: "Open menu" }));
+    await user.click(screen.getByRole("link", { name: "Profile" }));
+    await waitFor(() => expect(document.querySelector('aside[aria-label="Main navigation"]')?.getAttribute("aria-hidden")).toBe("true"));
   });
 
   it("cleans up the body scroll lock when the shell unmounts", async () => {
@@ -227,7 +246,7 @@ describe("App", () => {
     expect(document.body.style.overflow).toBe("");
   });
 
-  it("provides a skip link to the main content", async () => {
+  it("moves focus to the main content when the skip link is activated", async () => {
     window.history.replaceState({}, "", "/dashboard");
     sessionStorage.setItem("access_token", "token");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -238,7 +257,8 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("heading", { name: "Dashboard" });
-    expect(screen.getByRole("link", { name: "Skip to main content" }).getAttribute("href")).toBe("#main-content");
-    expect(document.getElementById("main-content")).toBeTruthy();
+    await userEvent.setup().click(screen.getByRole("link", { name: "Skip to main content" }));
+    expect(document.getElementById("main-content")).toBe(document.activeElement);
+    expect(document.getElementById("main-content")?.getAttribute("tabindex")).toBe("-1");
   });
 });
