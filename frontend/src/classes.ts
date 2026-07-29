@@ -1,7 +1,9 @@
 import { User } from "./auth";
 import { api } from "./api";
+import { accessToken } from "./session";
 
-export type Class = { id: number; teacher_id: number; teacher: Pick<User, "id" | "full_name" | "email">; name: string; description: string; starts_at: string; ends_at: string };
+export type ClassProgress = { graded_assignments: number; total_assignments: number; nearest_deadline: string | null };
+export type Class = { id: number; teacher_id: number; teacher: Pick<User, "id" | "full_name" | "email">; name: string; description: string; starts_at: string; ends_at: string; progress?: ClassProgress | null };
 export type Enrollment = { id: number; class_id: number; student_id: number };
 export type ClassDraft = Pick<Class, "name" | "description" | "starts_at" | "ends_at">;
 export type StudentProgress = Pick<User, "id" | "full_name" | "email"> & { submitted_assignments: number; graded_assignments: number };
@@ -9,6 +11,8 @@ export type ClassRoster = { total_assignments: number; enrolled_students: number
 export type StudentProfile = StudentProgress & { phone: string | null; date_of_birth: string | null; gender: User["gender"]; address: string | null; total_assignments: number; shared_classes: Class[] };
 export type Student = Pick<User, "id" | "full_name" | "email">;
 export type ClassResource = { id: number; title: string; description: string; url: string };
+export type LearningState = "OPEN" | "SUBMITTED" | "GRADED" | "CLOSED";
+export type Gradebook = { assignments: { id: number; title: string; maximum_score: number }[]; students: (Pick<User, "id" | "full_name" | "email"> & { grades: { assignment_id: number; learning_state: LearningState; score: number | null }[] })[] };
 
 const query = (value = "") => value ? `?${new URLSearchParams({ q: value })}` : "";
 const json = (method: string, body: unknown) => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -28,3 +32,15 @@ export const listTeachers = (q = "") => api<User[]>(`/users?${new URLSearchParam
 export const listStudentAccounts = (q = "") => api<User[]>(`/users?${new URLSearchParams({ q, role: "STUDENT" })}`);
 export const listResources = (id: number) => api<ClassResource[]>(`/classes/${id}/resources`);
 export const createResource = (id: number, resource: Omit<ClassResource, "id">) => api<ClassResource>(`/classes/${id}/resources`, json("POST", resource));
+export const getClassGradebook = (id: number) => api<Gradebook>(`/classes/${id}/gradebook`);
+
+export async function downloadClassGradebook(id: number, filename: string) {
+  const response = await fetch(`/api/classes/${id}/gradebook.csv`, { headers: { Authorization: `Bearer ${accessToken()}` } });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { detail?: string };
+    throw new Error(body.detail || "Unable to download this gradebook.");
+  }
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement("a");
+  link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
+}

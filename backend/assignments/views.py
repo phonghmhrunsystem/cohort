@@ -61,7 +61,10 @@ class ClassAssignmentsView(APIView):
         classroom = get_object_or_404(scoped_classes(request.user), id=class_id)
         if request.user.role not in (User.Role.TEACHER, User.Role.STUDENT):
             return Response(status=status.HTTP_403_FORBIDDEN)
-        return Response(AssignmentSerializer(classroom.assignments.all(), many=True, context={"classroom": classroom}).data)
+        context = {"classroom": classroom}
+        if request.user.role == User.Role.STUDENT:
+            context["student"] = request.user
+        return Response(AssignmentSerializer(classroom.assignments.all(), many=True, context=context).data)
 
     def post(self, request, class_id):
         classroom = assigned_class(request.user, class_id)
@@ -84,7 +87,10 @@ class AssignmentDetailView(APIView):
         if request.user.role not in (User.Role.TEACHER, User.Role.STUDENT):
             return Response(status=status.HTTP_403_FORBIDDEN)
         assignment = scoped_assignment(request.user, assignment_id)
-        return Response(AssignmentSerializer(assignment, context={"classroom": assignment.classroom}).data)
+        context = {"classroom": assignment.classroom}
+        if request.user.role == User.Role.STUDENT:
+            context["student"] = request.user
+        return Response(AssignmentSerializer(assignment, context=context).data)
 
     def patch(self, request, assignment_id):
         assignment = assigned_assignment(request.user, assignment_id)

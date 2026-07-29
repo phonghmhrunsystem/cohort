@@ -129,6 +129,51 @@ class ClassApiTests(TestCase):
         )
         self.assertEqual(self.student_client.get(f"/api/classes/{self.other_course.id}").status_code, 404)
 
+    def test_enrolled_student_class_includes_server_computed_progress_and_nearest_deadline(self):
+        now = timezone.now()
+        graded_assignment = Assignment.objects.create(
+            classroom=self.course,
+            title="Graded work",
+            description="Build a documented project.",
+            due_at=now + timedelta(hours=2),
+        )
+        open_assignment = Assignment.objects.create(
+            classroom=self.course,
+            title="Open work",
+            description="Build a documented project.",
+            due_at=now + timedelta(hours=4),
+        )
+        submission = Submission.objects.create(
+            assignment=graded_assignment,
+            student=self.student,
+            version=1,
+            file_path="submissions/graded.pdf",
+            original_filename="graded.pdf",
+            content_type="application/pdf",
+            size=10,
+            note="",
+        )
+        Grade.objects.create(
+            assignment=graded_assignment,
+            student=self.student,
+            teacher=self.teacher,
+            submission=submission,
+            total_score=90,
+            feedback="Good work.",
+        )
+
+        response = self.student_client.get(f"/api/classes/{self.course.id}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["progress"],
+            {
+                "graded_assignments": 1,
+                "total_assignments": 2,
+                "nearest_deadline": open_assignment.due_at.isoformat(),
+            },
+        )
+
     def test_detail_and_students_reads_are_role_scoped(self):
         self.assertEqual(self.admin_client.get(f"/api/classes/{self.other_course.id}").status_code, 200)
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}").status_code, 200)
@@ -427,3 +472,152 @@ class TeacherRosterProgressTests(TestCase):
             f"/api/classes/{self.classroom.id}/students/{self.other_teacher.id}"
         )
         self.assertEqual(response.status_code, 404)
+
+
+class GradebookApiTests(TestCase):
+    def setUp(self):
+        now = timezone.now()
+        self.teacher = User.objects.create_user("gradebook-teacher@example.test", "pw", role="TEACHER")
+        self.other_teacher = User.objects.create_user("gradebook-other@example.test", "pw", role="TEACHER")
+        self.admin = User.objects.create_user("gradebook-admin@example.test", "pw", role="ADMIN")
+        self.student = User.objects.create_user("gradebook-student@example.test", "pw", role="STUDENT")
+        self.other_student = User.objects.create_user("gradebook-other-student@example.test", "pw", role="STUDENT")
+        self.classroom = Class.objects.create(
+            teacher=self.teacher,
+            name="Gradebook Basics",
+            starts_at=now - timedelta(days=1),
+            ends_at=now + timedelta(days=2),
+        )
+        Enrollment.objects.bulk_create([
+            Enrollment(classroom=self.classroom, student=self.student),
+            Enrollment(classroom=self.classroom, student=self.other_student),
+        ])
+        self.teacher_client = self.client_for(self.teacher)
+        self.other_teacher_client = self.client_for(self.other_teacher)
+        self.admin_client = self.client_for(self.admin)
+
+    def client_for(self, user):
+        client = APIClient()
+        client.force_authenticate(user)
+        return client
+
+    def make_submission(self, assignment, student, version=1):
+        return Submission.objects.create(
+            assignment=assignment,
+            student=student,
+            version=version,
+            file_path="private/submission.pdf",
+            original_filename="submission.pdf",
+            content_type="application/pdf",
+            size=10,
+            note="",
+        )
+
+    def test_assigned_teacher_gets_empty_gradebook_only(self):
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"assignments": [], "students": [
+            {"id": self.student.id, "full_name": None, "email": "gradebook-student@example.test", "grades": []},
+            {"id": self.other_student.id, "full_name": None, "email": "gradebook-other-student@example.test", "grades": []},
+        ]})
+        self.assertEqual(
+            self.other_teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook").status_code,
+            404,
+        )
+        self.assertEqual(
+            self.admin_client.get(f"/api/classes/{self.classroom.id}/gradebook").status_code,
+            403,
+        )
+
+    def test_gradebook_reports_every_student_assignment_state_and_score(self):
+        now = timezone.now()
+        open_assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Open", description="x", due_at=now + timedelta(days=1)
+        )
+        submitted_assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Submitted", description="x", due_at=now + timedelta(days=1)
+        )
+        graded_assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Graded", description="x", due_at=now + timedelta(days=1)
+        )
+        closed_assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Closed", description="x", due_at=now - timedelta(seconds=1)
+        )
+        self.make_submission(submitted_assignment, self.student)
+        self.make_submission(graded_assignment, self.student, version=1)
+        graded_submission = self.make_submission(graded_assignment, self.student, version=2)
+        Grade.objects.create(
+            assignment=graded_assignment,
+            student=self.student,
+            teacher=self.teacher,
+            submission=graded_submission,
+            total_score=88,
+            feedback="Nice work.",
+        )
+
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["assignments"], [
+            {"id": open_assignment.id, "title": "Open", "maximum_score": 100},
+            {"id": submitted_assignment.id, "title": "Submitted", "maximum_score": 100},
+            {"id": graded_assignment.id, "title": "Graded", "maximum_score": 100},
+            {"id": closed_assignment.id, "title": "Closed", "maximum_score": 100},
+        ])
+        self.assertEqual(response.data["students"][0]["grades"], [
+            {"assignment_id": open_assignment.id, "learning_state": "OPEN", "score": None},
+            {"assignment_id": submitted_assignment.id, "learning_state": "SUBMITTED", "score": None},
+            {"assignment_id": graded_assignment.id, "learning_state": "GRADED", "score": 88},
+            {"assignment_id": closed_assignment.id, "learning_state": "CLOSED", "score": None},
+        ])
+        self.assertEqual(
+            response.data["students"][1]["grades"],
+            [{"assignment_id": assignment.id, "learning_state": "OPEN" if assignment != closed_assignment else "CLOSED", "score": None}
+             for assignment in (open_assignment, submitted_assignment, graded_assignment, closed_assignment)],
+        )
+
+    def test_gradebook_prefetches_assignment_classrooms(self):
+        Assignment.objects.create(
+            classroom=self.classroom, title="One", description="x", due_at=timezone.now() + timedelta(days=1)
+        )
+        Assignment.objects.create(
+            classroom=self.classroom, title="Two", description="x", due_at=timezone.now() + timedelta(days=1)
+        )
+
+        with CaptureQueriesContext(connection) as queries:
+            response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(queries), 4)
+
+    def test_gradebook_csv_is_utf8_private_safe_and_matches_roster(self):
+        self.student.full_name = "Nguyễn Văn A"
+        self.student.save(update_fields=("full_name",))
+        assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Essay",
+            description="x",
+            due_at=timezone.now() + timedelta(days=1),
+        )
+        submission = self.make_submission(assignment, self.student)
+        Grade.objects.create(
+            assignment=assignment,
+            student=self.student,
+            teacher=self.teacher,
+            submission=submission,
+            total_score=91,
+            feedback="Good.",
+        )
+
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook.csv")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        self.assertTrue(response.content.startswith(b"\xef\xbb\xbf"))
+        content = response.content.decode("utf-8-sig")
+        self.assertIn("Họ tên,Email,Essay (100)\r\n", content)
+        self.assertIn("Nguyễn Văn A,gradebook-student@example.test,GRADED: 91\r\n", content)
+        self.assertIn(",gradebook-other-student@example.test,OPEN\r\n", content)
+        self.assertNotIn("file_path", content)
+        self.assertNotIn("private/submission.pdf", content)

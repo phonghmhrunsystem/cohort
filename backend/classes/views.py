@@ -1,6 +1,9 @@
 from django.apps import apps
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Count, F, Q
+import csv
+
+from django.db.models import Count, F, OuterRef, Prefetch, Q, Subquery
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers, status
@@ -9,14 +12,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import User
+from assignments.models import Assignment
 from audit.services import write_audit
 from notifications.services import create_notifications
+from submissions.models import Submission
 
 from .models import Class, ClassResource, Enrollment
 from .serializers import (
     ClassSerializer,
     EnrollmentSerializer,
     EnrollmentSetSerializer,
+    GradebookSerializer,
     StudentProfileSerializer,
     StudentProgressSerializer,
     ClassResourceSerializer,
@@ -40,7 +46,8 @@ class ClassesView(APIView):
         classes = scoped_classes(request.user)
         if query := request.query_params.get("q", "").strip():
             classes = classes.filter(name__icontains=query)
-        return Response(ClassSerializer(classes.order_by("id").distinct(), many=True).data)
+        context = {"student": request.user} if request.user.role == User.Role.STUDENT else {}
+        return Response(ClassSerializer(classes.order_by("id").distinct(), many=True, context=context).data)
 
     def post(self, request):
         if request.user.role != User.Role.ADMIN:
@@ -63,7 +70,8 @@ class ClassDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, class_id):
-        return Response(ClassSerializer(get_scoped_class(request.user, class_id)).data)
+        context = {"student": request.user} if request.user.role == User.Role.STUDENT else {}
+        return Response(ClassSerializer(get_scoped_class(request.user, class_id), context=context).data)
 
     def patch(self, request, class_id):
         if request.user.role != User.Role.ADMIN:
@@ -83,6 +91,44 @@ class ClassDetailView(APIView):
                 metadata=class_metadata(class_),
             )
         return Response(ClassSerializer(class_).data)
+
+
+class GradebookView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, class_id):
+        classroom = teacher_gradebook_class(request.user, class_id)
+        if classroom is None:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        return Response(gradebook_data(classroom))
+
+
+class GradebookCsvView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, class_id):
+        classroom = teacher_gradebook_class(request.user, class_id)
+        if classroom is None:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        gradebook = gradebook_data(classroom)
+        response = HttpResponse(content_type="text/csv; charset=utf-8")
+        response.write("\ufeff")
+        writer = csv.writer(response)
+        assignments = gradebook["assignments"]
+        writer.writerow(["Họ tên", "Email", *[
+            csv_value(f"{assignment['title']} ({assignment['maximum_score']})")
+            for assignment in assignments
+        ]])
+        for student in gradebook["students"]:
+            writer.writerow([
+                csv_value(student["full_name"] or ""),
+                csv_value(student["email"]),
+                *[
+                    f"{grade['learning_state']}: {grade['score']}" if grade["score"] is not None else grade["learning_state"]
+                    for grade in student["grades"]
+                ],
+            ])
+        return response
 
 
 class StudentsView(APIView):
@@ -255,6 +301,52 @@ def students_progress_queryset(class_):
             distinct=True,
         ),
     )
+
+
+def teacher_gradebook_class(user, class_id):
+    if user.role != User.Role.TEACHER:
+        return None
+    return get_object_or_404(Class.objects.filter(teacher=user), id=class_id)
+
+
+def gradebook_data(classroom):
+    students = list(
+        User.objects.filter(
+            enrollments__classroom=classroom,
+            role=User.Role.STUDENT,
+            is_active=True,
+        ).order_by("id")
+    )
+    latest = Submission.objects.filter(
+        assignment_id=OuterRef("assignment_id"),
+        student_id=OuterRef("student_id"),
+    ).order_by("-version").values("id")[:1]
+    assignments = list(
+        Assignment.objects.filter(classroom=classroom).select_related("classroom").prefetch_related(
+            Prefetch(
+                "submissions",
+                queryset=Submission.objects.filter(
+                    student__in=students,
+                    id=Subquery(latest),
+                ).select_related("grade"),
+                to_attr="gradebook_submissions",
+            )
+        )
+    )
+    latest_submissions = {
+        (assignment.id, submission.student_id): submission
+        for assignment in assignments
+        for submission in assignment.gradebook_submissions
+    }
+    return GradebookSerializer(
+        {"assignments": assignments, "students": students},
+        context={"now": timezone.now(), "latest_submissions": latest_submissions},
+    ).data
+
+
+def csv_value(value):
+    value = str(value)
+    return f"'{value}" if value.startswith(("=", "+", "-", "@")) else value
 
 
 class StudentSerializer(serializers.ModelSerializer):

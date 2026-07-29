@@ -5,8 +5,11 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from assignments.models import Assignment
 from audit.models import AuditLog
 from classes.models import Class, Enrollment
+from grading.models import Grade
+from submissions.models import Submission
 
 
 class AssignmentApiTests(TestCase):
@@ -179,6 +182,88 @@ class AssignmentApiTests(TestCase):
 
         criteria_after = self.teacher_client.get(f"/api/assignments/{assignment['id']}").data["criteria"]
         self.assertEqual(criteria_after, criteria_before)
+
+    def test_student_assignment_list_returns_the_authoritative_learning_states(self):
+        from assignments.services import assignment_learning_state, deadline_badge
+
+        now = timezone.now()
+        open_assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Open assignment",
+            description="Build and document a small application.",
+            due_at=now + timedelta(days=1),
+        )
+        submitted_assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Submitted assignment",
+            description="Build and document a small application.",
+            due_at=now + timedelta(days=1),
+        )
+        graded_assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Graded assignment",
+            description="Build and document a small application.",
+            due_at=now - timedelta(days=1),
+        )
+        closed_assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Closed assignment",
+            description="Build and document a small application.",
+            due_at=now - timedelta(seconds=1),
+        )
+        submission = Submission.objects.create(
+            assignment=submitted_assignment,
+            student=self.student,
+            version=1,
+            file_path="submissions/submitted.pdf",
+            original_filename="submitted.pdf",
+            content_type="application/pdf",
+            size=10,
+            note="",
+        )
+        graded_submission = Submission.objects.create(
+            assignment=graded_assignment,
+            student=self.student,
+            version=1,
+            file_path="submissions/graded.pdf",
+            original_filename="graded.pdf",
+            content_type="application/pdf",
+            size=10,
+            note="",
+        )
+        Grade.objects.create(
+            assignment=graded_assignment,
+            student=self.student,
+            teacher=self.teacher,
+            submission=graded_submission,
+            total_score=90,
+            feedback="Good work.",
+        )
+
+        self.assertEqual(assignment_learning_state(open_assignment, self.student, now), "OPEN")
+        self.assertEqual(assignment_learning_state(submitted_assignment, self.student, now), "SUBMITTED")
+        self.assertEqual(assignment_learning_state(graded_assignment, self.student, now), "GRADED")
+        self.assertEqual(assignment_learning_state(closed_assignment, self.student, now), "CLOSED")
+        self.assertEqual(deadline_badge(now + timedelta(hours=1), now), "Còn hôm nay")
+        self.assertEqual(deadline_badge(now + timedelta(days=1), now), "Còn 1 ngày")
+        self.assertEqual(deadline_badge(now + timedelta(days=3), now), "Còn 3 ngày")
+        self.assertEqual(deadline_badge(now - timedelta(seconds=1), now), "Đã hết hạn")
+
+        response = self.student_client.get(f"/api/classes/{self.classroom.id}/assignments")
+        self.assertEqual(response.status_code, 200)
+        by_id = {assignment["id"]: assignment for assignment in response.data}
+        self.assertEqual(by_id[open_assignment.id]["learning_state"], "OPEN")
+        self.assertEqual(by_id[submitted_assignment.id]["learning_state"], "SUBMITTED")
+        self.assertEqual(by_id[graded_assignment.id]["learning_state"], "GRADED")
+        self.assertEqual(by_id[closed_assignment.id]["learning_state"], "CLOSED")
+        self.assertEqual(by_id[closed_assignment.id]["closure_reason"], "Deadline has passed.")
+        self.assertEqual(by_id[open_assignment.id]["deadline_badge"], "Còn 1 ngày")
+
+        self.classroom.ends_at = now - timedelta(seconds=1)
+        self.classroom.save(update_fields=("ends_at",))
+        self.assertEqual(
+            assignment_learning_state(open_assignment, self.student, now), "CLOSED"
+        )
 
     def payload(self, **overrides):
         return {
