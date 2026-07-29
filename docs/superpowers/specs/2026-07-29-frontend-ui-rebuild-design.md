@@ -106,6 +106,12 @@ favor of explicit JS checks run on submit:
 - Native attributes that aid input *type/affordance* (`type="email"`,
   `type="date"`, `maxLength` as a hard character cap) are kept; only the
   ones that currently pop a blocking tooltip on submit are replaced.
+- On submit failure (client validation or `ApiFailure` from the API), field
+  values are never cleared or reset — only the error message/state updates.
+  This already holds for controlled fields (`value` bound to draft state,
+  untouched on error); uncontrolled forms (e.g. `LoginPage`, which reads
+  `FormData` and holds no draft state) move to controlled state for this
+  reason.
 
 ## Architecture
 
