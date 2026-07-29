@@ -75,6 +75,31 @@ describe("Admin accounts", () => {
     expect(fetchMock.mock.calls[3][0]).toBe("/api/users?q=Ada&role=TEACHER&page=2");
   });
 
+  it("ignores an older list response that resolves after a submitted search", async () => {
+    const searched = { ...account, id: 3, full_name: "Grace Student", email: "grace@example.test", role: "STUDENT" };
+    let resolveInitial!: (response: Response) => void;
+    let resolveSearch!: (response: Response) => void;
+    const initialResponse = new Promise<Response>((resolve) => { resolveInitial = resolve; });
+    const searchResponse = new Promise<Response>((resolve) => { resolveSearch = resolve; });
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(admin))
+      .mockReturnValueOnce(initialResponse)
+      .mockReturnValueOnce(searchResponse);
+    openAccounts(fetchMock);
+    const events = userEvent.setup();
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await events.type(screen.getByLabelText("Search accounts"), "Grace");
+    await events.click(screen.getByRole("button", { name: "Search" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+    resolveSearch(json(page([searched])));
+    expect(await screen.findByText("grace@example.test")).toBeTruthy();
+
+    resolveInitial(json(page()));
+    await waitFor(() => expect(screen.queryByText("ada@example.test")).toBeNull());
+    expect(screen.getByText("grace@example.test")).toBeTruthy();
+  });
+
   it("shows disabled accounts and exposes every row action from an accessible menu", async () => {
     openAccounts(vi.fn().mockResolvedValueOnce(json(admin)).mockResolvedValueOnce(json(page())));
     const events = userEvent.setup();

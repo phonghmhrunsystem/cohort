@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { AccountActions } from "../components/AccountActions";
 import { AccountForm, accountFormPayload, accountFormValue } from "../components/AccountForm";
@@ -35,16 +35,18 @@ export function AdminUsersPage() {
   const [confirmation, setConfirmation] = useState<{ kind: "status" | "delete"; account: User }>();
   const [confirmationError, setConfirmationError] = useState("");
   const [busy, setBusy] = useState(false);
+  const requestGeneration = useRef(0);
 
   const load = useCallback(async () => {
+    const generation = ++requestGeneration.current;
     setLoading(true); setFailure("");
     try {
       const result = await request<Page<User>>(usersPath({ ...submitted, page: pageNumber === 1 ? undefined : pageNumber }), { token: token() });
-      if (result) setData(result);
+      if (generation === requestGeneration.current && result) setData(result);
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "Unable to load accounts.");
+      if (generation === requestGeneration.current) setFailure(error instanceof Error ? error.message : "Unable to load accounts.");
     } finally {
-      setLoading(false);
+      if (generation === requestGeneration.current) setLoading(false);
     }
   }, [submitted, pageNumber, refreshKey]);
 
