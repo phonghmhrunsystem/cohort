@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Link, Navigate, Outlet, Route, Routes } from "react-router-dom";
 
-import { AuthProvider } from "./auth/AuthProvider";
+import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { RequireAuth } from "./auth/RequireAuth";
 import { RequireRole } from "./auth/RequireRole";
 import { AppShell } from "./components/AppShell";
 import { Card } from "./components/Card";
 import { Field } from "./components/Field";
+import { Spinner } from "./components/Spinner";
 import { DashboardPage } from "./pages/DashboardPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
@@ -19,11 +20,19 @@ function Placeholder({ title }: { title: string }) { return <h1>{title}</h1>; }
 
 function ProtectedShell() { return <AppShell />; }
 
+function RedirectForcedUser() {
+  const { user, loading } = useAuth();
+  if (loading) return <Spinner label="Loading account" />;
+  return user?.must_change_password ? <Navigate replace to="/change-password" /> : <Outlet />;
+}
+
 export function App() {
   return <BrowserRouter><AuthProvider><Routes>
-    <Route path="/login" element={<PublicPage title="Sign in" password />} />
-    <Route path="/forgot-password" element={<PublicPage title="Forgot password" />} />
-    <Route path="/reset-password" element={<PublicPage title="Reset password" password />} />
+    <Route element={<RedirectForcedUser />}>
+      <Route path="/login" element={<PublicPage title="Sign in" password />} />
+      <Route path="/forgot-password" element={<PublicPage title="Forgot password" />} />
+      <Route path="/reset-password" element={<PublicPage title="Reset password" password />} />
+    </Route>
     <Route element={<RequireAuth allowForced />}><Route path="/change-password" element={<PublicPage title="Change password" password />} /></Route>
     <Route element={<RequireAuth />}><Route element={<ProtectedShell />}>
       <Route path="/dashboard" element={<DashboardPage />} />
