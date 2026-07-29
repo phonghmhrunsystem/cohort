@@ -18,7 +18,7 @@ export function ForgotPasswordPage() {
 
   return <main className="public-page"><Card><h1>Forgot password</h1><p>Enter your email, we'll send a reset link.</p><form noValidate onSubmit={submit}>
     {notice && <p role="alert">{notice}</p>}
-    <Field id="email" label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} error={error} />
+    <Field id="email" label="Email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} error={error} />
     <button type="submit">Send reset link</button>
   </form></Card></main>;
 }

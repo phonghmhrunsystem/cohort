@@ -33,8 +33,8 @@ export function LoginPage() {
 
   return <main className="public-page"><Card><h1>Sign in</h1><form noValidate onSubmit={submit}>
     {(notice || params.get("reset") === "success") && <p role="alert">{notice || "Your password has been reset. Sign in with your new password."}</p>}
-    <Field id="email" label="Email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} error={errors.email?.[0]} />
-    <Field id="password" label="Password" type={shown ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} error={errors.password?.[0]} />
+    <Field id="email" label="Email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} error={errors.email?.[0]} />
+    <Field id="password" label="Password" type={shown ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} error={errors.password?.[0]} />
     <button type="button" aria-label={shown ? "Hide password" : "Show password"} onClick={() => setShown(!shown)}>{shown ? "Hide" : "Show"}</button>
     <button type="submit">Sign in</button>
   </form><Link to="/forgot-password">Forgot password?</Link></Card></main>;

@@ -88,4 +88,28 @@ describe("authentication pages", () => {
     expect(form.querySelector("[title]")).toBeNull();
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
+
+  it("uses credential autocomplete semantics", async () => {
+    window.history.replaceState({}, "", "/login");
+    vi.stubGlobal("fetch", vi.fn());
+    const { unmount } = render(<App />);
+    expect((await screen.findByLabelText("Email")).getAttribute("autocomplete")).toBe("email");
+    expect(screen.getByLabelText("Password").getAttribute("autocomplete")).toBe("current-password");
+    unmount();
+
+    window.history.replaceState({}, "", "/reset-password?token=valid");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+    const reset = render(<App />);
+    expect((await screen.findByLabelText("New password")).getAttribute("autocomplete")).toBe("new-password");
+    expect(screen.getByLabelText("Confirm new password").getAttribute("autocomplete")).toBe("new-password");
+    reset.unmount();
+
+    window.history.replaceState({}, "", "/change-password");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(user), { headers: { "Content-Type": "application/json" } })));
+    render(<App />);
+    expect((await screen.findByLabelText("Current password")).getAttribute("autocomplete")).toBe("current-password");
+    expect(screen.getByLabelText("New password").getAttribute("autocomplete")).toBe("new-password");
+    expect(screen.getByLabelText("Confirm new password").getAttribute("autocomplete")).toBe("new-password");
+  });
 });

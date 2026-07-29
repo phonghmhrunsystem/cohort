@@ -38,8 +38,8 @@ export function ResetPasswordPage() {
   if (invalid) return <main className="public-page"><Card><h1>Reset password</h1><p role="alert">This reset link is invalid or has expired.</p><Link to="/forgot-password">Request a new reset link</Link></Card></main>;
   if (!ready) return <main className="public-page"><Card><h1>Reset password</h1><p>Checking reset link…</p></Card></main>;
   return <main className="public-page"><Card><h1>Reset password</h1><form noValidate onSubmit={submit}>
-    <Field id="new-password" label="New password" type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} error={errors.new_password?.[0]} />
-    <Field id="confirm-new-password" label="Confirm new password" type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} error={errors.confirm_new_password?.[0]} />
+    <Field id="new-password" label="New password" type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} error={errors.new_password?.[0]} />
+    <Field id="confirm-new-password" label="Confirm new password" type="password" autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} error={errors.confirm_new_password?.[0]} />
     <button type="submit">Reset password</button>
   </form></Card></main>;
 }

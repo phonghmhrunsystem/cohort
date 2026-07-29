@@ -30,9 +30,9 @@ export function ChangePasswordPage() {
   }
 
   return <main className="public-page"><Card><h1>Change password</h1>{user?.must_change_password && <p>Set a new password to continue.</p>}<form noValidate onSubmit={submit}>
-    <Field id="current-password" label="Current password" type="password" value={current} onChange={(event) => setCurrent(event.target.value)} error={errors.current_password?.[0]} />
-    <Field id="new-password" label="New password" type="password" value={nextPassword} onChange={(event) => setNextPassword(event.target.value)} error={errors.new_password?.[0]} />
-    <Field id="confirm-new-password" label="Confirm new password" type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} error={errors.confirm_new_password?.[0]} />
+    <Field id="current-password" label="Current password" type="password" autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} error={errors.current_password?.[0]} />
+    <Field id="new-password" label="New password" type="password" autoComplete="new-password" value={nextPassword} onChange={(event) => setNextPassword(event.target.value)} error={errors.new_password?.[0]} />
+    <Field id="confirm-new-password" label="Confirm new password" type="password" autoComplete="new-password" value={confirm} onChange={(event) => setConfirm(event.target.value)} error={errors.confirm_new_password?.[0]} />
     <button type="submit">Continue</button>
   </form></Card></main>;
 }
