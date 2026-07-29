@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { expect, it } from "vitest";
 
-import { NotFoundPage } from "./NotFoundPage";
+import { NotFoundPage } from "../../pages/NotFoundPage";
 
 it("renders the recovery link as a 44px inline-flex target", () => {
   render(<BrowserRouter><NotFoundPage /></BrowserRouter>);

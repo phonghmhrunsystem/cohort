@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { useState } from "react";
 
-import { Dialog } from "./Dialog";
+import { Dialog } from "../../components/Dialog";
 
 const originalShowModal = HTMLDialogElement.prototype.showModal;
 const originalClose = HTMLDialogElement.prototype.close;

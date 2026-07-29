@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { App } from "../App";
+import { App } from "../../App";
 
 const admin = {
   id: 1, full_name: "Admin", email: "admin@example.test", role: "ADMIN",
@@ -110,7 +110,7 @@ describe("Admin accounts", () => {
     expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
     await events.click(trigger);
     const menu = screen.getByRole("menu");
-    for (const name of ["View", "Edit", "Change password", "Enable", "Delete"]) {
+    for (const name of ["View", "Change password", "Enable", "Delete"]) {
       expect(menu.querySelector(`[aria-label="${name} ada@example.test"]`)).toBeTruthy();
     }
   });
@@ -124,13 +124,13 @@ describe("Admin accounts", () => {
     await events.click(trigger);
     expect(screen.getByRole("menuitem", { name: "View ada@example.test" })).toBe(document.activeElement);
     await events.keyboard("{ArrowDown}");
-    expect(screen.getByRole("menuitem", { name: "Edit ada@example.test" })).toBe(document.activeElement);
+    expect(screen.getByRole("menuitem", { name: "Change password ada@example.test" })).toBe(document.activeElement);
     await events.keyboard("{Escape}");
     expect(trigger).toBe(document.activeElement);
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
-  it("keeps create-account drafts after a 422 response", async () => {
+  it("keeps create-account drafts after a 422 response on its own page", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(admin))
       .mockResolvedValueOnce(json(page()))
@@ -138,7 +138,8 @@ describe("Admin accounts", () => {
     openAccounts(fetchMock);
     const events = userEvent.setup();
 
-    await events.click(await screen.findByRole("button", { name: "Create account" }));
+    await events.click(await screen.findByRole("link", { name: "Create User" }));
+    expect(window.location.pathname).toBe("/admin/users/new");
     await events.type(screen.getByLabelText("Full name"), "New Teacher");
     await events.type(screen.getByLabelText("Email"), "used@example.test");
     await events.type(screen.getByLabelText("Initial password"), "Temporary123!");
@@ -146,7 +147,26 @@ describe("Admin accounts", () => {
 
     expect(await screen.findByText("Already exists.")).toBeTruthy();
     expect((screen.getByLabelText(/^Email/) as HTMLInputElement).value).toBe("used@example.test");
-    expect(screen.getByRole("dialog", { name: "Create account" })).toBeTruthy();
+    expect(window.location.pathname).toBe("/admin/users/new");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("returns to the accounts list after creating an account", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(admin))
+      .mockResolvedValueOnce(json(page()))
+      .mockResolvedValueOnce(json({ ...account, id: 4 }, 201))
+      .mockResolvedValueOnce(json(page()));
+    openAccounts(fetchMock);
+    const events = userEvent.setup();
+
+    await events.click(await screen.findByRole("link", { name: "Create User" }));
+    await events.type(screen.getByLabelText("Full name"), "New Teacher");
+    await events.type(screen.getByLabelText("Email"), "new@example.test");
+    await events.type(screen.getByLabelText("Initial password"), "Temporary123!");
+    await events.click(screen.getByRole("button", { name: "Create" }));
+
+    await waitFor(() => expect(window.location.pathname).toBe("/admin/users"));
   });
 
   it("keeps set-password drafts after a 422 response", async () => {

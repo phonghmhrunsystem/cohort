@@ -1,14 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { AccountForm, accountFormPayload, accountFormValue, type AccountFormValue } from "../components/AccountForm";
+import { AccountForm, accountFormErrors, accountFormPayload, accountFormValue, type AccountFormValue } from "../components/AccountForm";
 import { Alert } from "../components/Alert";
+import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Spinner } from "../components/Spinner";
 import { request } from "../lib/api";
 import { ApiFailure } from "../lib/errors";
 import type { FieldErrors, User } from "../types";
+import { Info } from "./AdminUserViewPage";
 import { roleLabel } from "./AdminUsersPage";
 
 export function AdminUserEditPage() {
@@ -27,7 +29,10 @@ export function AdminUserEditPage() {
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!draft) return;
-    setErrors({}); setFailure(""); setBusy(true);
+    setFailure("");
+    const invalid = accountFormErrors(draft);
+    if (Object.keys(invalid).length) return setErrors(invalid);
+    setErrors({}); setBusy(true);
     try {
       await request(`/users/${userId}`, { method: "PATCH", token: sessionStorage.getItem("access_token") ?? undefined, body: accountFormPayload(draft) });
       navigate(`/admin/users/${userId}`);
@@ -38,8 +43,20 @@ export function AdminUserEditPage() {
   }
   if (failure && !account) return <Alert>{failure}</Alert>;
   if (!account || !draft) return <Spinner label="Loading account" />;
-  return <section className="page-stack"><h1>Edit account</h1><Card>
-    <dl className="identity-grid" aria-label="Immutable identity"><div><dt>Email</dt><dd>{account.email}</dd></div><div><dt>Role</dt><dd>{roleLabel(account.role)}</dd></div></dl>
-    <form noValidate onSubmit={save}>{failure && <Alert>{failure}</Alert>}<AccountForm prefix="admin-edit" value={draft} onChange={setDraft} errors={errors} /><div className="form-actions"><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</Button><Link to={`/admin/users/${userId}`}>Cancel</Link></div></form>
-  </Card></section>;
+  return <section className="page-stack">
+    <div className="page-header"><h1>Edit User</h1></div>
+    <Card>
+      <h2 className="section-title">Account access</h2>
+      <dl className="identity-grid" aria-label="Immutable identity">
+        <Info label="Email" value={account.email} />
+        <Info label="Role" value={roleLabel(account.role)} />
+        <Info label="Status" value={<Badge className={account.is_active ? "badge-active" : "badge-disabled"}>{account.is_active ? "Active" : "Disabled"}</Badge>} />
+      </dl>
+    </Card>
+    <Card><form noValidate onSubmit={save}>
+      {failure && <Alert>{failure}</Alert>}
+      <AccountForm prefix="admin-edit" value={draft} onChange={setDraft} errors={errors} />
+      <div className="form-actions"><Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</Button><Link to={`/admin/users/${userId}`}>Cancel</Link></div>
+    </form></Card>
+  </section>;
 }

@@ -11,6 +11,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage";
+import { AdminUserCreatePage } from "./pages/AdminUserCreatePage";
 import { AdminUserEditPage } from "./pages/AdminUserEditPage";
 import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AdminUserViewPage } from "./pages/AdminUserViewPage";
@@ -44,6 +45,7 @@ export function App() {
       <Route element={<RequireRole roles={["ADMIN"]} />}>
         <Route path="/audit" element={<Placeholder title="Audit" />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
+        <Route path="/admin/users/new" element={<AdminUserCreatePage />} />
         <Route path="/admin/users/:userId" element={<AdminUserViewPage />} />
         <Route path="/admin/users/:userId/edit" element={<AdminUserEditPage />} />
       </Route>

@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AuthProvider, useAuth } from "./AuthProvider";
+import { AuthProvider, useAuth } from "../../auth/AuthProvider";
 
 function AuthState() {
   const { loading, user } = useAuth();

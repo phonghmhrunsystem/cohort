@@ -2,8 +2,10 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { useAuth, roleHome } from "../auth/AuthProvider";
+import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Field } from "../components/Field";
+import { PasswordToggleIcon } from "../components/PasswordToggleIcon";
 import { ApiFailure } from "../lib/errors";
 
 export function LoginPage() {
@@ -32,10 +34,13 @@ export function LoginPage() {
   }
 
   return <main className="public-page"><Card><h1>Sign in</h1><form noValidate onSubmit={submit}>
-    {(notice || params.get("reset") === "success") && <p role="alert">{notice || "Your password has been reset. Sign in with your new password."}</p>}
-    <Field id="email" label="Email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} error={errors.email?.[0]} />
-    <Field id="password" label="Password" type={shown ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} error={errors.password?.[0]} />
-    <button type="button" aria-label={shown ? "Hide password" : "Show password"} onClick={() => setShown(!shown)}>{shown ? "Hide" : "Show"}</button>
-    <button type="submit">Sign in</button>
-  </form><Link to="/forgot-password">Forgot password?</Link></Card></main>;
+    {(notice || params.get("reset") === "success") && <p role="alert" className={notice ? "alert" : "notice"}>{notice || "Your password has been reset. Sign in with your new password."}</p>}
+    <Field id="email" label="Email" type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} error={errors.email?.[0]} />
+    <Field
+      id="password" label="Password" type={shown ? "text" : "password"} required autoComplete="current-password"
+      value={password} onChange={(event) => setPassword(event.target.value)} error={errors.password?.[0]}
+      adornment={<button type="button" className="password-toggle" aria-label={shown ? "Hide password" : "Show password"} onClick={() => setShown(!shown)}><PasswordToggleIcon shown={shown} /></button>}
+    />
+    <Button type="submit">Sign in</Button>
+  </form><Link className="link-underline" to="/forgot-password">Forgot password?</Link></Card></main>;
 }
