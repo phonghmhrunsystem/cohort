@@ -1,20 +1,16 @@
-import { useState } from "react";
-import { BrowserRouter, Link, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { RequireAuth } from "./auth/RequireAuth";
 import { RequireRole } from "./auth/RequireRole";
 import { AppShell } from "./components/AppShell";
-import { Card } from "./components/Card";
-import { Field } from "./components/Field";
 import { Spinner } from "./components/Spinner";
+import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
+import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
-
-function PublicPage({ title, password = false }: { title: string; password?: boolean }) {
-  const [shown, setShown] = useState(false);
-  return <main className="public-page"><Card><h1>{title}</h1>{password && <Field id="password" label="Password" type={shown ? "text" : "password"} />}{password && <button aria-label={shown ? "Hide password" : "Show password"} onClick={() => setShown(!shown)}>{shown ? "Hide" : "Show"}</button>}{title === "Sign in" && <Link to="/forgot-password">Forgot password?</Link>}</Card></main>;
-}
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 
 function Placeholder({ title }: { title: string }) { return <h1>{title}</h1>; }
 
@@ -29,11 +25,11 @@ function RedirectForcedUser() {
 export function App() {
   return <BrowserRouter><AuthProvider><Routes>
     <Route element={<RedirectForcedUser />}>
-      <Route path="/login" element={<PublicPage title="Sign in" password />} />
-      <Route path="/forgot-password" element={<PublicPage title="Forgot password" />} />
-      <Route path="/reset-password" element={<PublicPage title="Reset password" password />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
     </Route>
-    <Route element={<RequireAuth allowForced />}><Route path="/change-password" element={<PublicPage title="Change password" password />} /></Route>
+    <Route element={<RequireAuth allowForced />}><Route path="/change-password" element={<ChangePasswordPage />} /></Route>
     <Route element={<RequireAuth />}><Route element={<ProtectedShell />}>
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/profile" element={<Placeholder title="Profile" />} />
