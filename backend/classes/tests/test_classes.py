@@ -88,6 +88,44 @@ class ClassApiTests(TestCase):
         self.course.refresh_from_db()
         self.assertEqual(self.course.teacher_id, self.teacher.id)
 
+    def test_deleted_accounts_cannot_be_selected_or_appear_in_rosters(self):
+        deleted_teacher = User.objects.create_user(
+            "deleted-teacher@example.test", "pw", role="TEACHER", is_deleted=True
+        )
+        deleted_student = User.objects.create_user(
+            "deleted-student@example.test", "pw", role="STUDENT", is_deleted=True
+        )
+        Enrollment.objects.create(classroom=self.course, student=deleted_student)
+
+        create = self.admin_client.post(
+            "/api/classes",
+            self.class_payload(teacher_id=deleted_teacher.id),
+            format="json",
+        )
+        enroll = self.admin_client.post(
+            f"/api/classes/{self.course.id}/enrollments",
+            {"student_id": deleted_student.id},
+            format="json",
+        )
+        candidates = self.admin_client.get(
+            f"/api/classes/{self.course.id}/students", {"candidates": "1"}
+        )
+        roster = self.admin_client.get(f"/api/classes/{self.course.id}/students")
+
+        self.assertEqual(create.status_code, 422)
+        self.assertEqual(enroll.status_code, 422)
+        self.assertNotIn(deleted_student.id, [student["id"] for student in candidates.data])
+        self.assertNotIn(deleted_student.id, [student["id"] for student in roster.data["students"]])
+
+    def test_disabled_student_remains_in_roster(self):
+        self.student.is_active = False
+        self.student.save(update_fields=("is_active",))
+
+        response = self.admin_client.get(f"/api/classes/{self.course.id}/students")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.student.id, [student["id"] for student in response.data["students"]])
+
     def test_create_requires_start_before_end(self):
         now = timezone.now()
         response = self.admin_client.post(

@@ -139,7 +139,9 @@ class StudentsView(APIView):
         if request.query_params.get("candidates") == "1":
             if request.user.role != User.Role.ADMIN:
                 return Response(status=status.HTTP_403_FORBIDDEN)
-            students = User.objects.filter(role=User.Role.STUDENT, is_active=True)
+            students = User.objects.filter(
+                role=User.Role.STUDENT, is_active=True, is_deleted=False
+            )
             if query := request.query_params.get("q", "").strip():
                 students = students.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
             return Response(StudentSerializer(students.order_by("id"), many=True).data)
@@ -185,7 +187,9 @@ class EnrollmentView(APIView):
         if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
             return Response(status=status.HTTP_403_FORBIDDEN)
         class_ = get_scoped_class(request.user, class_id)
-        students = User.objects.filter(enrollments__classroom=class_, role=User.Role.STUDENT)
+        students = User.objects.filter(
+            enrollments__classroom=class_, role=User.Role.STUDENT, is_deleted=False
+        )
         if query := request.query_params.get("q", "").strip():
             students = students.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
         return Response(StudentSerializer(students.order_by("id"), many=True).data)
@@ -262,7 +266,12 @@ class EnrollmentView(APIView):
                 target=class_,
                 metadata={"class_id": class_.id, "student_ids": sorted(requested)},
             )
-        students = User.objects.filter(id__in=requested, role=User.Role.STUDENT, is_active=True).order_by("id")
+        students = User.objects.filter(
+            id__in=requested,
+            role=User.Role.STUDENT,
+            is_active=True,
+            is_deleted=False,
+        ).order_by("id")
         return Response(StudentSerializer(students, many=True).data)
 
 
@@ -285,10 +294,10 @@ class ClassResourcesView(APIView):
 
 
 def students_progress_queryset(class_):
-    """Enrolled, active Students annotated with backend-computed progress counts
+    """Enrolled, non-deleted Students annotated with backend-computed progress counts
     (never derive these from a filtered list on the frontend)."""
     return User.objects.filter(
-        enrollments__classroom=class_, role=User.Role.STUDENT, is_active=True
+        enrollments__classroom=class_, role=User.Role.STUDENT, is_deleted=False
     ).annotate(
         submitted_assignments=Count(
             "submissions__assignment",
@@ -314,7 +323,7 @@ def gradebook_data(classroom):
         User.objects.filter(
             enrollments__classroom=classroom,
             role=User.Role.STUDENT,
-            is_active=True,
+            is_deleted=False,
         ).order_by("id")
     )
     latest = Submission.objects.filter(

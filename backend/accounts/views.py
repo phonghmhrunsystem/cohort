@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,16 +17,20 @@ from .mail import send_password_reset_email
 from .models import PasswordResetToken, User
 from .permissions import IsAdmin, IsAuthenticated
 from .serializers import (
+    AdminResetPasswordSerializer,
+    AdminUserSerializer,
     ChangePasswordSerializer,
     ForgotPasswordSerializer,
     LoginSerializer,
     ResetPasswordSerializer,
     SelfProfileSerializer,
     UserCreateSerializer,
+    UserListFilterSerializer,
     UserSerializer,
+    UserStatusSerializer,
     UserUpdateSerializer,
 )
-from .services import consume_reset_token, issue_reset_token
+from .services import consume_reset_token, has_active_class, issue_reset_token, manageable_users
 from .throttling import allow_password_reset
 
 
@@ -136,16 +141,24 @@ class UsersView(APIView):
     permission_classes = [IsAdmin]
 
     def get(self, request):
-        users = User.objects.filter(
-            is_active=True, role__in=(User.Role.TEACHER, User.Role.STUDENT)
-        )
-        if query := request.query_params.get("q", "").strip():
+        filters = UserListFilterSerializer(data=request.query_params)
+        if not filters.is_valid():
+            return Response(filters.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        values = filters.validated_data
+        users = manageable_users()
+        if query := values.get("q", "").strip():
             users = users.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
-        if role := request.query_params.get("role", ""):
-            if role not in (User.Role.TEACHER, User.Role.STUDENT):
-                return Response({"role": ["Choose Teacher or Student."]}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        if role := values.get("role"):
             users = users.filter(role=role)
-        return Response(UserSerializer(users.order_by("id"), many=True).data)
+        for field in ("created", "updated"):
+            if value := values.get(f"{field}_from"):
+                users = users.filter(**{f"{field}_at__date__gte": value})
+            if value := values.get(f"{field}_to"):
+                users = users.filter(**{f"{field}_at__date__lte": value})
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(users.order_by("-updated_at", "-id"), request)
+        return paginator.get_paginated_response(AdminUserSerializer(page, many=True).data)
 
     def post(self, request):
         serializer = UserCreateSerializer(data=request.data)
@@ -159,19 +172,17 @@ class UsersView(APIView):
                 target=user,
                 metadata=account_metadata(user),
             )
-        return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
+        return Response(AdminUserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 
 class UserDetailView(APIView):
     permission_classes = [IsAdmin]
 
+    def get(self, request, user_id):
+        return Response(AdminUserSerializer(get_object_or_404(manageable_users(), id=user_id)).data)
+
     def patch(self, request, user_id):
-        user = get_object_or_404(
-            User.objects.filter(
-                is_active=True, role__in=(User.Role.TEACHER, User.Role.STUDENT)
-            ),
-            id=user_id,
-        )
+        user = get_object_or_404(manageable_users(), id=user_id)
         serializer = UserUpdateSerializer(user, data=request.data, partial=True)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -183,37 +194,91 @@ class UserDetailView(APIView):
                 target=user,
                 metadata=account_metadata(user),
             )
-        return Response(UserSerializer(user).data)
+        return Response(AdminUserSerializer(user).data)
 
     def delete(self, request, user_id):
-        user = get_object_or_404(
-            User.objects.filter(
-                is_active=True, role__in=(User.Role.TEACHER, User.Role.STUDENT)
-            ),
-            id=user_id,
-        )
-        if user.classes.filter(ends_at__gt=timezone.now()).exists() or user.enrollments.filter(classroom__ends_at__gt=timezone.now()).exists():
-            return Response(
-                {"detail": "Accounts assigned to or enrolled in an active Class cannot be deactivated."},
-                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            )
+        user = get_object_or_404(manageable_users(), id=user_id)
+        blocked = active_class_response(user)
+        if blocked:
+            return blocked
         with transaction.atomic():
             user.is_active = False
-            user.save(update_fields=("is_active",))
+            user.is_deleted = True
+            user.save(update_fields=("is_active", "is_deleted"))
             write_audit(
                 actor=request.user,
-                action="account.deactivated",
+                action="account.deleted",
                 target=user,
                 metadata=account_metadata(user),
             )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+class UserStatusView(APIView):
+    permission_classes = [IsAdmin]
+
+    def patch(self, request, user_id):
+        user = get_object_or_404(manageable_users(), id=user_id)
+        serializer = UserStatusSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        is_active = serializer.validated_data["is_active"]
+        if user.is_active == is_active:
+            return Response(
+                {"is_active": ["Provide a changed status."]},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+        if user.is_active and not is_active:
+            blocked = active_class_response(user)
+            if blocked:
+                return blocked
+        with transaction.atomic():
+            user.is_active = is_active
+            user.save(update_fields=("is_active",))
+            write_audit(
+                actor=request.user,
+                action="account.reactivated" if is_active else "account.deactivated",
+                target=user,
+                metadata=account_metadata(user),
+            )
+        return Response(AdminUserSerializer(user).data)
+
+
+class UserResetPasswordView(APIView):
+    permission_classes = [IsAdmin]
+
+    def post(self, request, user_id):
+        user = get_object_or_404(manageable_users(), id=user_id)
+        serializer = AdminResetPasswordSerializer(user, data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        with transaction.atomic():
+            user.set_password(serializer.validated_data["new_password"])
+            user.must_change_password = True
+            user.save(update_fields=("password", "must_change_password"))
+            write_audit(
+                actor=request.user,
+                action="account.password_set",
+                target=user,
+                metadata=account_metadata(user),
+            )
+        return Response(AdminUserSerializer(user).data)
+
+
+def active_class_response(user):
+    if not has_active_class(user):
+        return None
+    return Response(
+        {"detail": "Accounts assigned to or enrolled in an active Class cannot be disabled or deleted."},
+        status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+    )
+
+
 def account_metadata(user):
-    metadata = {
-        field: getattr(user, field)
-        for field in ("full_name", "email", "role", "phone", "date_of_birth", "gender", "address", "is_active")
+    return {
+        "user_id": user.id,
+        "role": user.role,
+        "is_active": user.is_active,
+        "is_deleted": user.is_deleted,
+        "must_change_password": user.must_change_password,
     }
-    if metadata["date_of_birth"]:
-        metadata["date_of_birth"] = metadata["date_of_birth"].isoformat()
-    return metadata

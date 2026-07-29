@@ -17,6 +17,12 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ("id", "is_active")
 
 
+class AdminUserSerializer(UserSerializer):
+    class Meta(UserSerializer.Meta):
+        fields = UserSerializer.Meta.fields + ("created_at", "updated_at")
+        read_only_fields = UserSerializer.Meta.read_only_fields + ("created_at", "updated_at")
+
+
 class LoginSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
@@ -81,7 +87,9 @@ class UserCreateSerializer(ProfileValidationMixin, serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop("password")
-        return User.objects.create_user(password=password, **validated_data)
+        return User.objects.create_user(
+            password=password, must_change_password=True, **validated_data
+        )
 
 
 class UserUpdateSerializer(ProfileValidationMixin, serializers.ModelSerializer):
@@ -157,6 +165,64 @@ class ResetPasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({"confirm_new_password": "Passwords do not match."})
         try:
             validate_password(attrs["new_password"])
+        except DjangoValidationError as error:
+            raise serializers.ValidationError({"new_password": error.messages})
+        return attrs
+
+
+class UserListFilterSerializer(serializers.Serializer):
+    q = serializers.CharField(required=False, allow_blank=True)
+    role = serializers.ChoiceField(
+        choices=(User.Role.TEACHER, User.Role.STUDENT), required=False
+    )
+    created_from = serializers.DateField(required=False)
+    created_to = serializers.DateField(required=False)
+    updated_from = serializers.DateField(required=False)
+    updated_to = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        for prefix in ("created", "updated"):
+            start = attrs.get(f"{prefix}_from")
+            end = attrs.get(f"{prefix}_to")
+            if start and end and start > end:
+                raise serializers.ValidationError(
+                    {f"{prefix}_to": ["Must be on or after the from date."]}
+                )
+        return attrs
+
+
+class UserStatusSerializer(serializers.Serializer):
+    is_active = serializers.BooleanField()
+
+    def validate(self, attrs):
+        unknown = set(self.initial_data) - {"is_active"}
+        if unknown:
+            raise serializers.ValidationError(
+                {field: "This field cannot be updated." for field in unknown}
+            )
+        return attrs
+
+
+class AdminResetPasswordSerializer(serializers.Serializer):
+    new_password = serializers.CharField(
+        write_only=True, trim_whitespace=False, min_length=8, max_length=128
+    )
+    confirm_new_password = serializers.CharField(
+        write_only=True, trim_whitespace=False, min_length=8, max_length=128
+    )
+
+    def validate(self, attrs):
+        unknown = set(self.initial_data) - {"new_password", "confirm_new_password"}
+        if unknown:
+            raise serializers.ValidationError(
+                {field: "This field cannot be updated." for field in unknown}
+            )
+        if attrs["new_password"] != attrs["confirm_new_password"]:
+            raise serializers.ValidationError(
+                {"confirm_new_password": "Passwords do not match."}
+            )
+        try:
+            validate_password(attrs["new_password"], self.instance)
         except DjangoValidationError as error:
             raise serializers.ValidationError({"new_password": error.messages})
         return attrs

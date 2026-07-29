@@ -14,7 +14,12 @@ class TeacherDisplaySerializer(serializers.ModelSerializer):
 
 
 class ClassSerializer(serializers.ModelSerializer):
-    teacher_id = serializers.PrimaryKeyRelatedField(source="teacher", queryset=User.objects.all())
+    teacher_id = serializers.PrimaryKeyRelatedField(
+        source="teacher",
+        queryset=User.objects.filter(
+            role=User.Role.TEACHER, is_active=True, is_deleted=False
+        ),
+    )
     teacher = TeacherDisplaySerializer(read_only=True)
     progress = serializers.SerializerMethodField()
 
@@ -141,7 +146,12 @@ class StudentProfileSerializer(StudentProgressSerializer):
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     class_id = serializers.IntegerField(source="classroom_id", read_only=True)
-    student_id = serializers.PrimaryKeyRelatedField(source="student", queryset=User.objects.all())
+    student_id = serializers.PrimaryKeyRelatedField(
+        source="student",
+        queryset=User.objects.filter(
+            role=User.Role.STUDENT, is_active=True, is_deleted=False
+        ),
+    )
 
     class Meta:
         model = Enrollment
@@ -159,7 +169,7 @@ class EnrollmentSetSerializer(serializers.Serializer):
     def validate_student_ids(self, ids):
         if len(ids) != len(set(ids)):
             raise serializers.ValidationError("Student IDs must be unique.")
-        students = list(User.objects.filter(id__in=ids))
+        students = list(User.objects.filter(id__in=ids, is_deleted=False))
         if len(students) != len(ids) or any(
             student.role != User.Role.STUDENT or not student.is_active for student in students
         ):
