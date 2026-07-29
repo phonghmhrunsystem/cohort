@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --color-nav: #1E1B4B;
+  --color-primary: #2563EB;
+  --color-success: #059669;
+  --color-danger: #DC2626;
+  --color-canvas: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-text: #0F172A;
+  --color-muted: #475569;
+  --color-border: #E2E8F0;
+  --focus-ring: #2563EB;
+}
+
+:root {
+  color: var(--color-text);
+  background: var(--color-canvas);
+  font-family: "Noto Sans", system-ui, sans-serif;
+}
+
+body { margin: 0; }
+
+h1 { font-family: "Be Vietnam Pro", system-ui, sans-serif; }

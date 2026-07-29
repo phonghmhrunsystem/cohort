@@ -1,0 +1,41 @@
+import type { FieldErrors, UserFilters } from "../types";
+import { ApiFailure } from "./errors";
+
+type RequestOptions = Omit<RequestInit, "body" | "headers"> & {
+  body?: unknown;
+  headers?: HeadersInit;
+  token?: string;
+};
+
+export async function request<T>(path: string, options: RequestOptions = {}): Promise<T | undefined> {
+  const { body, headers: providedHeaders, token, ...init } = options;
+  const headers = Object.fromEntries(new Headers(providedHeaders));
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+
+  const response = await fetch(`/api${path}`, {
+    ...init,
+    body: body === undefined ? undefined : JSON.stringify(body),
+    headers,
+  });
+  const data = response.status !== 204 && response.headers.get("content-type")?.includes("application/json")
+    ? await response.json()
+    : undefined;
+
+  if (!response.ok) {
+    const detail = typeof data?.detail === "string" ? data.detail : "Request failed.";
+    const fields = data && typeof data === "object" && !Array.isArray(data) ? data as FieldErrors : undefined;
+    throw new ApiFailure(response.status, fields, detail);
+  }
+
+  return data as T | undefined;
+}
+
+export function usersPath(filters: UserFilters = {}): string {
+  const query = new URLSearchParams(
+    Object.entries(filters)
+      .filter(([, value]) => value !== undefined && value !== "")
+      .map(([key, value]) => [key, String(value)]),
+  );
+  return query.size ? `/users?${query}` : "/users";
+}
