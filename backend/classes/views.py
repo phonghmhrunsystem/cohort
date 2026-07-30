@@ -33,9 +33,9 @@ def scoped_classes(user):
     if user.role == User.Role.ADMIN:
         return Class.objects.select_related("teacher")
     if user.role == User.Role.TEACHER:
-        return Class.objects.select_related("teacher").filter(teacher=user)
+        return Class.objects.select_related("teacher").filter(teacher=user, is_active=True)
     if user.role == User.Role.STUDENT:
-        return Class.objects.select_related("teacher").filter(enrollments__student=user)
+        return Class.objects.select_related("teacher").filter(enrollments__student=user, is_active=True)
     return Class.objects.none()
 
 
@@ -370,6 +370,11 @@ def get_scoped_class(user, class_id):
 
 def is_ended(class_):
     return timezone.now() >= class_.ends_at
+
+
+def is_open(class_):
+    now = timezone.now()
+    return class_.is_active and class_.starts_at <= now < class_.ends_at
 
 
 def closed_response(detail="Class has ended and is read-only."):

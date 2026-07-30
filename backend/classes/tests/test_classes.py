@@ -359,6 +359,21 @@ class ClassApiTests(TestCase):
             self.assertEqual(self.admin_client.put(url, {"student_ids": []}, format="json").status_code, 422)
         self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), before)
 
+    def test_disabled_class_is_invisible_and_404s_for_teacher_and_student(self):
+        self.course.is_active = False
+        self.course.save(update_fields=("is_active",))
+
+        list_response = self.teacher_client.get("/api/classes")
+        self.assertNotIn(self.course.id, [row["id"] for row in list_response.data])
+        self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}").status_code, 404)
+
+        student_list = self.student_client.get("/api/classes")
+        self.assertNotIn(self.course.id, [row["id"] for row in student_list.data])
+        self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}").status_code, 404)
+
+        # Admin is unaffected.
+        self.assertEqual(self.admin_client.get(f"/api/classes/{self.course.id}").status_code, 200)
+
     def class_payload(self, **overrides):
         now = timezone.now()
         return {
