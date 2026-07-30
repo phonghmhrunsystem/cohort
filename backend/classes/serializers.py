@@ -21,12 +21,17 @@ class ClassSerializer(serializers.ModelSerializer):
         ),
     )
     teacher = TeacherDisplaySerializer(read_only=True)
-    progress = serializers.SerializerMethodField()
     student_count = serializers.IntegerField(read_only=True)
+    assignment_count = serializers.SerializerMethodField()
+    graded_count = serializers.SerializerMethodField()
+    next_due_at = serializers.SerializerMethodField()
 
     class Meta:
         model = Class
-        fields = ("id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at", "progress", "is_active", "student_count")
+        fields = (
+            "id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at",
+            "is_active", "student_count", "assignment_count", "graded_count", "next_due_at",
+        )
         read_only_fields = ("is_active",)
 
     def validate_name(self, value):
@@ -60,26 +65,33 @@ class ClassSerializer(serializers.ModelSerializer):
             )
         return attrs
 
-    def get_progress(self, classroom):
+    def _student_states(self, classroom):
         student = self.context.get("student")
         if not student:
             return None
-        from assignments.services import assignment_learning_state
-
         now = timezone.now()
-        states = [
+        return [
             (assignment, assignment_learning_state(assignment, student, now))
             for assignment in classroom.assignments.all()
         ]
+
+    def get_assignment_count(self, classroom):
+        states = self._student_states(classroom)
+        return len(states) if states is not None else None
+
+    def get_graded_count(self, classroom):
+        states = self._student_states(classroom)
+        return sum(state == "GRADED" for _, state in states) if states is not None else None
+
+    def get_next_due_at(self, classroom):
+        states = self._student_states(classroom)
+        if states is None:
+            return None
         nearest = min(
             (assignment.due_at for assignment, state in states if state in ("OPEN", "SUBMITTED")),
             default=None,
         )
-        return {
-            "graded_assignments": sum(state == "GRADED" for _, state in states),
-            "total_assignments": len(states),
-            "nearest_deadline": nearest.isoformat() if nearest else None,
-        }
+        return nearest.isoformat() if nearest else None
 
 
 class StudentProgressSerializer(serializers.ModelSerializer):

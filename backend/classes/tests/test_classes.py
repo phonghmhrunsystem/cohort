@@ -283,14 +283,9 @@ class ClassApiTests(TestCase):
         response = self.student_client.get(f"/api/classes/{self.course.id}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.data["progress"],
-            {
-                "graded_assignments": 1,
-                "total_assignments": 2,
-                "nearest_deadline": open_assignment.due_at.isoformat(),
-            },
-        )
+        self.assertEqual(response.data["graded_count"], 1)
+        self.assertEqual(response.data["assignment_count"], 2)
+        self.assertEqual(response.data["next_due_at"], open_assignment.due_at.isoformat())
 
     def test_detail_and_students_reads_are_role_scoped(self):
         self.assertEqual(self.admin_client.get(f"/api/classes/{self.other_course.id}").status_code, 200)
