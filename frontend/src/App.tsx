@@ -25,6 +25,7 @@ import { AdminClassViewPage } from "./pages/admin/classes/AdminClassViewPage";
 import { ClassStudentViewPage } from "./pages/classes/ClassStudentViewPage";
 import { StudentClassesPage } from "./pages/student/StudentClassesPage";
 import { StudentClassPage } from "./pages/student/StudentClassPage";
+import { StudentAssignmentPage } from "./pages/student/StudentAssignmentPage";
 import { TeacherClassesPage } from "./pages/teacher/TeacherClassesPage";
 import { TeacherClassPage } from "./pages/teacher/TeacherClassPage";
 import { TeacherAssignmentPage } from "./pages/teacher/TeacherAssignmentPage";
@@ -63,6 +64,7 @@ export function App() {
       <Route element={<RequireRole roles={["STUDENT"]} />}>
         <Route path="/student/classes" element={<StudentClassesPage />} />
         <Route path="/student/classes/:classId" element={<StudentClassPage />} />
+        <Route path="/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
       </Route>
       <Route element={<RequireRole roles={["ADMIN"]} />}>
         <Route path="/audit" element={<Placeholder title="Audit" />} />
