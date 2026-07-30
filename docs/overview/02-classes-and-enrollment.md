@@ -19,25 +19,28 @@ A Class is never deleted. The only lifecycle levers are the `starts_at`/`ends_at
 | Class name                            Teacher                                                    |
 | [ Name_____________________]          [ Teacher name_______________]                [ Search ]   |
 |                                                                                                   |
-| Name                     | Teacher          | Starts     | Ends       | Students | Status    | Action |
-| AI Engineering Cohort 5  | Nguyen Giao Vien | 01/07/2026 | 30/09/2026 | 24       | (Active)  |   :    |
-| AI Engineering Cohort 6  | Tran Giao Vien   | 01/10/2026 | 31/12/2026 | 0        | (Disabled)|   :    |
+| Name                     | Teacher          | Starts     | Ends       | Students | Status    | Action  |
+| AI Engineering Cohort 5  | Nguyen Giao Vien | 01/07/2026 | 30/09/2026 | 24       | (Active)  | (o)(x)  |
+| AI Engineering Cohort 6  | Tran Giao Vien   | 01/10/2026 | 31/12/2026 | 0        | (Disabled)| (o)(x)  |
 +-------------------------------------------------------------------------------------------------+
                             [ Previous ]    Page 1    [ Next ]                       (10 classes/page)
 
-Row action menu (the ":" trigger)
-+---------------------+
-| View                |
-| Disable  / Enable   |
-+---------------------+
+Row actions are icon buttons, not a "..." menu: (o) View, (x) Disable/Enable (power icon).
+Clicking the power icon opens a confirm dialog before the PATCH fires:
++-----------------------------------------------------------------+
+| Disable class                                                    |
+| Disable AI Engineering Cohort 5? Students and the teacher will   |
+| lose access.                                                     |
+|                                          [ Cancel ]  [ Disable ] |
++-----------------------------------------------------------------+
 ```
 - Class name + Teacher are filters; nothing searches on change. Search only fires when `[ Search ]` is clicked (not real-time). Both are server-side (`?q=`, `?teacher=`), never client-side filtering of a loaded page.
 - Table columns: Name, Teacher, Starts (`starts_at`), Ends (`ends_at`), Students (`student_count`), Status (`Active`/`Disabled` badge), Action. Dates render `en-GB` (`dd/mm/yyyy`), matching [01](01-auth-and-accounts.md).
 - Paginated, 10 classes/page, `Previous` / `Page N` / `Next` — same pagination component as the Admin Accounts list ([01 §2.3](01-auth-and-accounts.md#23-admin--accounts-adminusers)).
 - Rows with `is_active = false` show a `Disabled` status badge — admin is the only role that sees them at all.
-- Actions live in a per-row `:` menu (same `role="menu"` component as [01 §2.3](01-auth-and-accounts.md#23-admin--accounts-adminusers)): `View`, `Disable`/`Enable`. **No `Edit`** — Edit is reached from the Class Detail screen, same split as [01 §2.3](01-auth-and-accounts.md#23-admin--accounts-adminusers).
+- Actions are per-row icon buttons (`IconLinkButton`/`IconButton`, tooltip-only labels, no dropdown) — **not** the `:` `role="menu"` pattern used by Accounts ([01 §2.3](01-auth-and-accounts.md#23-admin--accounts-adminusers)): an eye icon for `View`, a power icon for `Disable`/`Enable`. **No `Edit`** — Edit is reached from the Class Detail screen.
   - `View` → `/admin/classes/{id}`.
-  - `Disable`/`Enable` → toggles `is_active`. **`Disable` is only offered while `now < starts_at`**; once a Class has started the item is disabled with a tooltip. `Enable` (re-enable) is always available.
+  - `Disable`/`Enable` → opens a confirm dialog ("Disable {name}? Students and the teacher will lose access." / "Enable {name}?"); confirming `PATCH`es `is_active`. **`Disable` is only offered while `now < starts_at`**; once a Class has started the icon is disabled with a tooltip ("Class has already started."). `Enable` (re-enable) is always available and needs no confirm-dialog warning text.
 - `Create Class` → `/admin/classes/new` (own page, see [2.1.a](#21a-admin--create-class-adminclassesnew) — not a dialog).
 
 ### 2.1.a Admin — Create Class (`/admin/classes/new`)
@@ -86,25 +89,31 @@ Class Detail                                       Edit Class
 | Search Students [______________]    [ Search ]
 |
 | Name         | Quê quán  | Phone      | Enrolled   | Action
-| Nguyen Van A | Ha Noi    | 09xxxxxxxx | 02/07/2026 | View Remove
-| Tran Thi B   | Da Nang   | 09xxxxxxxx | 02/07/2026 | View
+| Nguyen Van A | Ha Noi    | 09xxxxxxxx | 02/07/2026 | (o)(trash)
+| Tran Thi B   | Da Nang   | 09xxxxxxxx | 02/07/2026 | (o)
 +---------------------------------------------+
                 [ Previous ]  Page 1  [ Next ]  (10 students/page)
 | Back to classes                              |
 +---------------------------------------------+
 
-Edit roster dialog: search Students, checkbox list, [Save roster]
--> replaces the whole roster in one PUT.
+Ended-Class header (Detail screen only): "Edit Class" link is replaced
+by an inline extend control, since Edit is otherwise blocked once ended:
+| AI Engineering Cohort 5 (Active)   [ dd/mm/yyyy ] [ Extend end date ] |
+
+Edit roster dialog: a Search box + checkbox list, [Save roster] -> replaces
+the whole roster in one PUT. The Search box filters the already-fetched
+candidate list client-side (in-memory on `full_name`/`email`), unlike every
+other search box on this page, which is server-side.
 ```
 - Same `fieldset` (`Class details`) and same `Field`/`Select` components as [2.1.a](#21a-admin--create-class-adminclassesnew), so Create/Edit cannot drift apart — mirrors [01 §2.3.b](01-auth-and-accounts.md#23b-admin--user-detail-adminusersid-and-edit-adminusersidedit).
-- `Status` is never editable on the Edit screen: it is changed from the list's `:` menu ([2.1](#21-admin--classes-list-adminclasses)), same rule as Status on the account Edit screen.
-- Edit `Cancel` → `/admin/classes/{id}`; a successful save → `/admin/classes/{id}`. Edit is disabled once the Class has ended, except for extending `ends_at` (see [5](#5-key-functions--rules)).
+- `Status` is never editable on the Edit screen: it is changed from the list's row icon buttons ([2.1](#21-admin--classes-list-adminclasses)), same rule as Status on the account Edit screen.
+- Edit `Cancel` → `/admin/classes/{id}`; a successful save → `/admin/classes/{id}`. Edit is disabled once the Class has ended, except for extending `ends_at` — on an ended Class the Detail screen swaps the `Edit Class` link for an inline date field + `Extend end date` button that `PATCH`es `ends_at` directly, rather than routing through the Edit screen (see [5](#5-key-functions--rules)).
 - The roster ("Students" section, search, table, `Edit roster`) only appears on the **Detail** screen, not on Edit — the same split as the account Detail/Edit pair, which also confines list-scoped actions to Detail.
 - Table columns: Name (`full_name`), Quê quán (`hometown` — kept in Vietnamese, same exception as [01 §4](01-auth-and-accounts.md#4-db)), Phone (`phone`), Enrolled (`enrollments.created_at`, `dd/mm/yyyy`), Action.
 - Paginated, 10 students/page, `Previous` / `Page N` / `Next`. Search is server-side (`?q=` over `full_name` + `email`).
-- Action buttons per row: `View`, `Remove`.
+- Action buttons per row: icon buttons, not text links — an eye icon (`View`) and a trash icon (`Remove`), each with a tooltip label.
   - `View` → `/admin/classes/{id}/students/{student_id}` (read-only profile + per-Class progress).
-  - `Remove` → removes that student from the roster. **Hidden**, not just rejected, when the student already has a submission in this Class or the Class has ended (row 2 above) — the server still enforces it with a `422` (see [6](#6-edge-cases)).
+  - `Remove` (trash icon) → removes that student from the roster. **Hidden**, not just rejected, when the student already has a submission in this Class or the Class has ended (row 2 above) — the server still enforces it with a `422` (see [6](#6-edge-cases)).
 - `Edit roster` is hidden once the Class has ended.
 - Changing the teacher happens on the `Edit Class` screen (see [5](#5-key-functions--rules)) — it is allowed until the Class ends.
 
@@ -116,12 +125,12 @@ Edit roster dialog: search Students, checkbox list, [Save roster]
 | Search Classes [_______________]           [ Search ]        |
 |                                                                |
 | Name                    | Students    | Action              |
-| AI Engineering Cohort 5 | 24          | View                |
+| AI Engineering Cohort 5 | 24          | (o)                 |
 +------------------------------------------------------------+
              [ Previous ]    Page 1    [ Next ]   (10 classes/page)
 ```
 - Table columns: Name, Students (`student_count`), Action.
-- Action: `View` → opens `/teacher/classes/{id}`.
+- Action: an eye icon button (`View`, tooltip label) → opens `/teacher/classes/{id}`.
 - Only Classes where `teacher_id = me` **and** `is_active = true` appear.
 
 ### 2.4 Teacher — Class detail, Students tab (`/teacher/classes/{id}?tab=students`)
@@ -137,14 +146,14 @@ Edit roster dialog: search Students, checkbox list, [Save roster]
 | Đã ghi danh 24 · Đã nộp 18 · Đã chấm 12                        |
 |                                                                |
 | Name         | Phone      | Action  |
-| Nguyen Van A | 09xxxxxxxx | View    |
+| Nguyen Van A | 09xxxxxxxx | (o)     |
 +------------------------------------------------------------+
              [ Previous ]    Page 1    [ Next ]   (10 students/page)
 ```
 - Table columns: Name (`full_name`), Phone (`phone`), Action.
-- Action: `View` → student profile with per-Class progress (Nộp bài / Chấm điểm).
+- Action: an eye icon button (`View`) → student profile with per-Class progress (Nộp bài / Chấm điểm). Teachers get no `Remove`/`Edit roster` action anywhere — roster membership is admin-only, matching [2.1.b](#21b-admin--class-detail-adminclassesid-and-edit-adminclassesidedit).
 - The three header counts (`enrolled_students`, `submitted_students`, `graded_students`) are whole-roster totals computed by the server and are **not** affected by the search box or the current page.
-(Assignments tab: see [03-assignments-and-rubrics](03-assignments-and-rubrics.md). Bảng điểm: see [06-gradebook](06-gradebook.md).)
+(Assignments tab: see [03-assignments-and-rubrics](03-assignments-and-rubrics.md). Bảng điểm: see [06-gradebook](06-gradebook.md) — no header shortcut to it is wired up on this page yet.)
 
 ### 2.5 Student — My Classes / Class detail
 
@@ -154,7 +163,7 @@ Edit roster dialog: search Students, checkbox list, [Save roster]
 | My Classes                                            |
 |                                                         |
 | Name                    | Teacher          | Action    |
-| AI Engineering Cohort 5 | Nguyen Giao Vien | View      |
+| AI Engineering Cohort 5 | Nguyen Giao Vien | (o)       |
 +-----------------------------------------------------+
 
 /student/classes/{id}
@@ -180,7 +189,7 @@ Edit roster dialog: search Students, checkbox list, [Save roster]
 | Homework 4     | 2026-07-20 20:00            | Đã đóng    | —       | View       |
 +--------------------------------------------------------------------------------+
 ```
-- Classes list table columns: Name, Teacher, Action (`View`). Not paginated — a student's enrolled Class count is small.
+- Classes list table columns: Name, Teacher, Action (eye icon button, `View`). Not paginated, no search box — a student's enrolled Class count is small.
 - Class detail: Giáo viên shows name only (no mailto link). Class resources and Assignments are separate tabs.
 - "Tiến độ: 2/5 đã chấm · Hạn ..." comes from `graded_count`/`assignment_count` + `next_due_at` on `GET /api/classes/{id}` ([§3](#3-api)) — one number pair for the whole Class, not a count of the rows currently rendered below. `next_due_at` is the earliest `due_at` still in the future; with none left the Hạn segment is dropped rather than showing a past date.
 - Only Classes the student is enrolled in **and** with `is_active = true` appear.
