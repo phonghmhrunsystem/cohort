@@ -75,7 +75,7 @@ describe("Teacher assignment page", () => {
   });
 
   it("Chia đều splits 100 evenly with the remainder on the first criterion", async () => {
-    openPage(vi.fn().mockResolvedValueOnce(json(assignment({ criteria: [{ id: 1, title: "A", maximum_score: 34 }, { id: 2, title: "B", maximum_score: 33 }, { id: 3, title: "C", maximum_score: 33 }] }))));
+    openPage(vi.fn().mockResolvedValueOnce(json(assignment({ criteria: [{ id: 1, title: "A", maximum_score: 10 }, { id: 2, title: "B", maximum_score: 10 }, { id: 3, title: "C", maximum_score: 10 }] }))));
     const events = userEvent.setup();
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     await events.click(screen.getByRole("button", { name: "Sửa rubric" }));
@@ -87,7 +87,7 @@ describe("Teacher assignment page", () => {
   });
 
   it("Dùng mẫu mặc định fills the three default criteria", async () => {
-    openPage(vi.fn().mockResolvedValueOnce(json(assignment({ criteria: [] }))));
+    openPage(vi.fn().mockResolvedValueOnce(json(assignment({ criteria: [{ id: 1, title: "Custom A", maximum_score: 50 }, { id: 2, title: "Custom B", maximum_score: 50 }] }))));
     const events = userEvent.setup();
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     await events.click(screen.getByRole("button", { name: "Sửa rubric" }));

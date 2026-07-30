@@ -36,7 +36,7 @@ export function StudentClassPage() {
     if (!classId) return;
     request<Assignment[]>(classAssignmentsPath(Number(classId)), { token: sessionStorage.getItem("access_token") ?? undefined })
       .then((value) => value && setAssignments(value))
-      .catch(() => setAssignmentsFailure("Unable to load assignments."));
+      .catch(() => { setAssignmentsFailure("Unable to load assignments."); setAssignments([]); });
   }, [classId]);
   useEffect(() => { if (tab === "assignments") loadAssignments(); }, [loadAssignments, tab]);
   if (failure) return <Alert>{failure}</Alert>;

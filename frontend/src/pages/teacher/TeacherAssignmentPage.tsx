@@ -86,7 +86,7 @@ export function TeacherAssignmentPage() {
     <p>Hạn nộp: {formatDateTime(assignment.due_at)}</p>
     <Button onClick={openRubric}>Sửa rubric</Button>
     <Card><p className="muted">Submissions — see 04-submissions.</p></Card>
-    {rubricOpen && <Dialog open onClose={() => setRubricOpen(false)} title="Sửa rubric" className="dialog-fixed">
+    {rubricOpen && <Dialog open onClose={() => setRubricOpen(false)} title="Sửa rubric">
       <form noValidate onSubmit={saveRubric}>
         {rubricFailure && <Alert>{rubricFailure}</Alert>}
         <p>Total: {total} / 100 <span className={total !== 100 ? "rubric-total-invalid" : ""}>Còn lại: {100 - total}</span></p>

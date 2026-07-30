@@ -60,7 +60,7 @@ export function TeacherClassPage() {
     if (!classId) return;
     request<Assignment[]>(classAssignmentsPath(Number(classId)), { token: token() })
       .then((value) => value && setAssignments(value))
-      .catch(() => setAssignmentsFailure("Unable to load assignments."));
+      .catch(() => { setAssignmentsFailure("Unable to load assignments."); setAssignments([]); });
   }, [classId]);
   useEffect(() => { if (tab === "assignments") loadAssignments(); }, [loadAssignments, tab]);
 
@@ -76,7 +76,10 @@ export function TeacherClassPage() {
     setDialogAssignment("new");
   }
   function openEdit(assignment: Assignment) {
-    setAssignmentDraft({ title: assignment.title, description: assignment.description, due_at: assignment.due_at.slice(0, 16) });
+    const due = new Date(assignment.due_at);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const localDueAt = `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}T${pad(due.getHours())}:${pad(due.getMinutes())}`;
+    setAssignmentDraft({ title: assignment.title, description: assignment.description, due_at: localDueAt });
     setAssignmentErrors({});
     setDialogAssignment(assignment);
   }
@@ -84,7 +87,7 @@ export function TeacherClassPage() {
     event.preventDefault();
     if (!dialogAssignment || !classId) return;
     setAssignmentBusy(true);
-    const payload = { title: assignmentDraft.title.trim(), description: assignmentDraft.description.trim(), due_at: assignmentDraft.due_at };
+    const payload = { title: assignmentDraft.title.trim(), description: assignmentDraft.description.trim(), due_at: new Date(assignmentDraft.due_at).toISOString() };
     try {
       if (dialogAssignment === "new") {
         await request<Assignment>(classAssignmentsPath(Number(classId)), { method: "POST", token: token(), body: payload });
