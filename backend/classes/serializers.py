@@ -85,10 +85,14 @@ class ClassSerializer(serializers.ModelSerializer):
 class StudentProgressSerializer(serializers.ModelSerializer):
     submitted_assignments = serializers.IntegerField(read_only=True)
     graded_assignments = serializers.IntegerField(read_only=True)
+    enrolled_at = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = User
-        fields = ("id", "full_name", "email", "submitted_assignments", "graded_assignments")
+        fields = (
+            "id", "full_name", "email", "phone", "hometown", "is_active",
+            "enrolled_at", "submitted_assignments", "graded_assignments",
+        )
 
 
 class GradebookSerializer(serializers.Serializer):

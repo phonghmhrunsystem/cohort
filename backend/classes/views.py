@@ -178,20 +178,19 @@ class StudentsView(APIView):
         if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
             return Response(status=status.HTTP_403_FORBIDDEN)
         students = list(students_progress_queryset(class_).order_by("id"))
-        rows = students
+        rows = students_progress_queryset(class_).order_by("id")
         if query := request.query_params.get("q", "").strip():
-            rows = list(
-                students_progress_queryset(class_)
-                .filter(Q(full_name__icontains=query) | Q(email__icontains=query))
-                .order_by("id")
-            )
+            rows = rows.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(rows, request)
         return Response(
             {
                 "total_assignments": class_.assignments.count(),
                 "enrolled_students": len(students),
                 "submitted_students": sum(1 for s in students if s.submitted_assignments > 0),
                 "graded_students": sum(1 for s in students if s.graded_assignments > 0),
-                "students": StudentProgressSerializer(rows, many=True).data,
+                "students": paginator.get_paginated_response(StudentProgressSerializer(page, many=True).data).data,
             }
         )
 
@@ -325,10 +324,11 @@ class ClassResourcesView(APIView):
 
 def students_progress_queryset(class_):
     """Enrolled, non-deleted Students annotated with backend-computed progress counts
-    (never derive these from a filtered list on the frontend)."""
+    and enrollment date (never derive these from a filtered list on the frontend)."""
     return User.objects.filter(
         enrollments__classroom=class_, role=User.Role.STUDENT, is_deleted=False
     ).annotate(
+        enrolled_at=F("enrollments__created_at"),
         submitted_assignments=Count(
             "submissions__assignment",
             filter=Q(submissions__assignment__classroom=class_),
@@ -391,7 +391,7 @@ def csv_value(value):
 class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ("id", "full_name", "email")
+        fields = ("id", "full_name", "email", "phone", "hometown", "is_active")
 
 
 def get_scoped_class(user, class_id):

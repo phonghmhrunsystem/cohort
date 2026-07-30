@@ -152,7 +152,7 @@ class ClassApiTests(TestCase):
         self.assertEqual(create.status_code, 422)
         self.assertEqual(enroll.status_code, 422)
         self.assertNotIn(deleted_student.id, [student["id"] for student in candidates.data])
-        self.assertNotIn(deleted_student.id, [student["id"] for student in roster.data["students"]])
+        self.assertNotIn(deleted_student.id, [student["id"] for student in roster.data["students"]["results"]])
 
     def test_disabled_student_remains_in_roster(self):
         self.student.is_active = False
@@ -161,7 +161,18 @@ class ClassApiTests(TestCase):
         response = self.admin_client.get(f"/api/classes/{self.course.id}/students")
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn(self.student.id, [student["id"] for student in response.data["students"]])
+        self.assertIn(self.student.id, [student["id"] for student in response.data["students"]["results"]])
+
+    def test_roster_is_paginated_with_full_fields_and_whole_roster_totals(self):
+        for index in range(12):
+            student = User.objects.create_user(f"bulk-student-{index}@example.test", "pw", role="STUDENT", hometown="Ha Noi")
+            Enrollment.objects.create(classroom=self.course, student=student)
+        response = self.admin_client.get(f"/api/classes/{self.course.id}/students")
+        self.assertEqual(len(response.data["students"]["results"]), 10)
+        self.assertEqual(response.data["enrolled_students"], 13)  # self.student + 12 bulk
+        row = response.data["students"]["results"][0]
+        for key in ("phone", "hometown", "enrolled_at", "is_active"):
+            self.assertIn(key, row)
 
     def test_create_requires_start_before_end(self):
         now = timezone.now()
@@ -296,7 +307,10 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students?candidates=1").status_code, 403)
 
     def test_enrollment_read_returns_current_roster_to_admin_and_assigned_teacher(self):
-        expected = [{"id": self.student.id, "full_name": None, "email": "student@example.test"}]
+        expected = [{
+            "id": self.student.id, "full_name": None, "email": "student@example.test",
+            "phone": None, "hometown": None, "is_active": True,
+        }]
 
         for client in (self.admin_client, self.teacher_client):
             response = client.get(f"/api/classes/{self.course.id}/enrollments")
@@ -335,7 +349,10 @@ class ClassApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, [{"id": self.other_student.id, "full_name": None, "email": "other-student@example.test"}])
+        self.assertEqual(response.data, [{
+            "id": self.other_student.id, "full_name": None, "email": "other-student@example.test",
+            "phone": None, "hometown": None, "is_active": True,
+        }])
         self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), [self.other_student.id])
         audit = AuditLog.objects.get(action="enrollment.replaced")
         self.assertEqual((audit.target_type, audit.target_id), ("classes.class", self.course.id))
@@ -497,7 +514,7 @@ class TeacherRosterProgressTests(TestCase):
         self.assertEqual(response.data["enrolled_students"], 2)
         self.assertEqual(response.data["submitted_students"], 1)
         self.assertEqual(response.data["graded_students"], 1)
-        by_id = {row["id"]: row for row in response.data["students"]}
+        by_id = {row["id"]: row for row in response.data["students"]["results"]}
         self.assertEqual(by_id[self.student.id]["submitted_assignments"], 1)
         self.assertEqual(by_id[self.student.id]["graded_assignments"], 1)
         # 0/total edge case: no submissions or grades at all.
@@ -512,7 +529,7 @@ class TeacherRosterProgressTests(TestCase):
 
         response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/students?q=nguyen")
         self.assertEqual(response.status_code, 200)
-        ids = [row["id"] for row in response.data["students"]]
+        ids = [row["id"] for row in response.data["students"]["results"]]
         self.assertIn(self.student.id, ids)
         self.assertNotIn(self.other_student.id, ids)
         # Summary counts stay computed from the full roster, unaffected by the filter.
@@ -522,7 +539,7 @@ class TeacherRosterProgressTests(TestCase):
             f"/api/classes/{self.classroom.id}/students?q={self.other_student.email}"
         )
         self.assertEqual(response.status_code, 200)
-        ids = [row["id"] for row in response.data["students"]]
+        ids = [row["id"] for row in response.data["students"]["results"]]
         self.assertEqual(ids, [self.other_student.id])
 
     def test_owner_teacher_sees_student_profile_with_progress(self):
