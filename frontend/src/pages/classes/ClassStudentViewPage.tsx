@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 
-import { Alert } from "../components/Alert";
-import { Card } from "../components/Card";
-import { Spinner } from "../components/Spinner";
-import { request } from "../lib/api";
-import { Info } from "./AdminUserViewPage";
+import { Alert } from "../../components/Alert";
+import { Card } from "../../components/Card";
+import { Spinner } from "../../components/Spinner";
+import { Info } from "../../components/Info";
+import { request } from "../../lib/api";
 
 interface StudentDetail {
   full_name: string; email: string; phone: string | null; hometown: string | null;

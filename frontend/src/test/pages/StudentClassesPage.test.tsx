@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
-import { StudentClassesPage } from "../../pages/StudentClassesPage";
+import { StudentClassesPage } from "../../pages/student/StudentClassesPage";
 
 const teacher = { id: 2, full_name: "Ada Teacher", email: "ada@example.test" };
 const row = (overrides = {}) => ({

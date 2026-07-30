@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { Alert } from "../components/Alert";
-import { Badge } from "../components/Badge";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Dialog } from "../components/Dialog";
-import { EmptyState } from "../components/EmptyState";
-import { Field } from "../components/Field";
-import { EyeIcon, IconButton, IconLinkButton, TrashIcon } from "../components/IconButton";
-import { Spinner } from "../components/Spinner";
-import { Table } from "../components/Table";
-import { useToast } from "../components/Toast";
-import { classStudentsPath, request } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import type { Candidate, ClassRow, Page, RosterResponse, RosterStudent } from "../types";
-import { formatDate } from "./AdminUsersPage";
-import { Info } from "./AdminUserViewPage";
+import { Alert } from "../../../components/Alert";
+import { Badge } from "../../../components/Badge";
+import { Button } from "../../../components/Button";
+import { Card } from "../../../components/Card";
+import { Dialog } from "../../../components/Dialog";
+import { EmptyState } from "../../../components/EmptyState";
+import { Field } from "../../../components/Field";
+import { EyeIcon, IconButton, IconLinkButton, TrashIcon } from "../../../components/IconButton";
+import { Spinner } from "../../../components/Spinner";
+import { Table } from "../../../components/Table";
+import { useToast } from "../../../components/Toast";
+import { classStudentsPath, request } from "../../../lib/api";
+import { ApiFailure } from "../../../lib/errors";
+import { Info } from "../../../components/Info";
+import { formatDate } from "../../../lib/format";
+import type { Candidate, ClassRow, Page, RosterResponse, RosterStudent } from "../../../types";
 
 const token = () => sessionStorage.getItem("access_token") ?? undefined;
 

@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
-import { Alert } from "../components/Alert";
-import { Card } from "../components/Card";
-import { EmptyState } from "../components/EmptyState";
-import { Field } from "../components/Field";
-import { Button } from "../components/Button";
-import { EyeIcon, IconLinkButton } from "../components/IconButton";
-import { Spinner } from "../components/Spinner";
-import { Table } from "../components/Table";
-import { classesPath, request } from "../lib/api";
-import type { ClassRow, Page } from "../types";
+import { Alert } from "../../components/Alert";
+import { Card } from "../../components/Card";
+import { EmptyState } from "../../components/EmptyState";
+import { Field } from "../../components/Field";
+import { Button } from "../../components/Button";
+import { EyeIcon, IconLinkButton } from "../../components/IconButton";
+import { Spinner } from "../../components/Spinner";
+import { Table } from "../../components/Table";
+import { classesPath, request } from "../../lib/api";
+import type { ClassRow, Page } from "../../types";
 
 export function TeacherClassesPage() {
   const [query, setQuery] = useState("");

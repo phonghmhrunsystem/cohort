@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { genderLabel } from "../components/AccountForm";
-import { Alert } from "../components/Alert";
-import { Badge } from "../components/Badge";
-import { Card } from "../components/Card";
-import { Spinner } from "../components/Spinner";
-import { request } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import type { User } from "../types";
-import { formatDate, roleLabel } from "./AdminUsersPage";
+import { genderLabel } from "../../../components/AccountForm";
+import { Alert } from "../../../components/Alert";
+import { Badge } from "../../../components/Badge";
+import { Card } from "../../../components/Card";
+import { Info } from "../../../components/Info";
+import { Spinner } from "../../../components/Spinner";
+import { request } from "../../../lib/api";
+import { ApiFailure } from "../../../lib/errors";
+import { formatDate, roleLabel } from "../../../lib/format";
+import type { User } from "../../../types";
 
 export function AdminUserViewPage() {
   const { userId } = useParams();
@@ -45,8 +46,4 @@ export function AdminUserViewPage() {
     </dl></Card>
     <Link to="/admin/users">Back to accounts</Link>
   </section>;
-}
-
-export function Info({ label, value, wide }: { label: string; value: React.ReactNode; wide?: boolean }) {
-  return <div className={wide ? "field-full" : undefined}><dt>{label}</dt><dd>{value || "—"}</dd></div>;
 }

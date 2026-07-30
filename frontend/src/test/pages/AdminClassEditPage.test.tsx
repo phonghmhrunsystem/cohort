@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
-import { AdminClassEditPage } from "../../pages/AdminClassEditPage";
+import { AdminClassEditPage } from "../../pages/admin/classes/AdminClassEditPage";
 
 const navigateMock = vi.fn();
 

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
-import { AdminClassViewPage } from "../../pages/AdminClassViewPage";
+import { AdminClassViewPage } from "../../pages/admin/classes/AdminClassViewPage";
 import { ToastProvider } from "../../components/Toast";
 
 const originalShowModal = HTMLDialogElement.prototype.showModal;

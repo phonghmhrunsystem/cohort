@@ -1,14 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { useAuth } from "../auth/AuthProvider";
-import { AccountForm, accountFormErrors, accountFormPayload, accountFormValue } from "../components/AccountForm";
-import { Alert } from "../components/Alert";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { request } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import type { FieldErrors } from "../types";
+import { useAuth } from "../../auth/AuthProvider";
+import { AccountForm, accountFormErrors, accountFormPayload, accountFormValue } from "../../components/AccountForm";
+import { Alert } from "../../components/Alert";
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { request } from "../../lib/api";
+import { ApiFailure } from "../../lib/errors";
+import type { FieldErrors } from "../../types";
 
 export function ProfileEditPage() {
   const { user, refresh } = useAuth();

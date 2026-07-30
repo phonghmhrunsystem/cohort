@@ -1,21 +1,22 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
-import { AccountActions } from "../components/AccountActions";
-import { Alert } from "../components/Alert";
-import { Badge } from "../components/Badge";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Dialog } from "../components/Dialog";
-import { EmptyState } from "../components/EmptyState";
-import { Field, Select } from "../components/Field";
-import { PasswordField } from "../components/PasswordField";
-import { Spinner } from "../components/Spinner";
-import { Table } from "../components/Table";
-import { useToast } from "../components/Toast";
-import { request, usersPath } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import type { FieldErrors, Page, User, UserFilters } from "../types";
+import { AccountActions } from "../../../components/AccountActions";
+import { Alert } from "../../../components/Alert";
+import { Badge } from "../../../components/Badge";
+import { Button } from "../../../components/Button";
+import { Card } from "../../../components/Card";
+import { Dialog } from "../../../components/Dialog";
+import { EmptyState } from "../../../components/EmptyState";
+import { Field, Select } from "../../../components/Field";
+import { PasswordField } from "../../../components/PasswordField";
+import { Spinner } from "../../../components/Spinner";
+import { Table } from "../../../components/Table";
+import { useToast } from "../../../components/Toast";
+import { request, usersPath } from "../../../lib/api";
+import { ApiFailure } from "../../../lib/errors";
+import { formatDate, roleLabel } from "../../../lib/format";
+import type { FieldErrors, Page, User, UserFilters } from "../../../types";
 
 const token = () => sessionStorage.getItem("access_token") ?? undefined;
 
@@ -149,6 +150,3 @@ export function AdminUsersPage() {
     </Dialog>}
   </section>;
 }
-
-export const formatDate = (value?: string | null) => value ? new Intl.DateTimeFormat("en-GB").format(new Date(value)) : "—";
-export const roleLabel = (role: User["role"]) => role[0] + role.slice(1).toLowerCase();

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
-import { TeacherClassesPage } from "../../pages/TeacherClassesPage";
+import { TeacherClassesPage } from "../../pages/teacher/TeacherClassesPage";
 
 const teacher = { id: 2, full_name: "Ada Teacher", email: "ada@example.test" };
 const row = (overrides = {}) => ({

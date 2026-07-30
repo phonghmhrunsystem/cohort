@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 
-import { Alert } from "../components/Alert";
-import { EmptyState } from "../components/EmptyState";
-import { EyeIcon, IconLinkButton } from "../components/IconButton";
-import { Spinner } from "../components/Spinner";
-import { Table } from "../components/Table";
-import { request } from "../lib/api";
-import type { ClassRow, Page } from "../types";
+import { Alert } from "../../components/Alert";
+import { EmptyState } from "../../components/EmptyState";
+import { EyeIcon, IconLinkButton } from "../../components/IconButton";
+import { Spinner } from "../../components/Spinner";
+import { Table } from "../../components/Table";
+import { request } from "../../lib/api";
+import type { ClassRow, Page } from "../../types";
 
 export function StudentClassesPage() {
   const [data, setData] = useState<ClassRow[]>();

@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 
-import { roleHome, useAuth } from "../auth/AuthProvider";
-import { Card } from "../components/Card";
-import { PasswordField } from "../components/PasswordField";
-import { request } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import { Button } from "../components/Button";
+import { roleHome, useAuth } from "../../auth/AuthProvider";
+import { Card } from "../../components/Card";
+import { PasswordField } from "../../components/PasswordField";
+import { request } from "../../lib/api";
+import { ApiFailure } from "../../lib/errors";
+import { Button } from "../../components/Button";
 
 export function ChangePasswordPage() {
   const { user, refresh } = useAuth();

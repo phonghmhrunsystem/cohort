@@ -1,13 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { Alert } from "../components/Alert";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { ClassForm, classFormErrors, classFormPayload, classFormValue, type ClassFormValue } from "../components/ClassForm";
-import { request, usersPath } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import type { ClassRow, FieldErrors, Page, User } from "../types";
+import { Alert } from "../../../components/Alert";
+import { Button } from "../../../components/Button";
+import { Card } from "../../../components/Card";
+import { ClassForm, classFormErrors, classFormPayload, classFormValue, type ClassFormValue } from "../../../components/ClassForm";
+import { request, usersPath } from "../../../lib/api";
+import { ApiFailure } from "../../../lib/errors";
+import type { ClassRow, FieldErrors, Page, User } from "../../../types";
 
 export function AdminClassCreatePage() {
   const navigate = useNavigate();

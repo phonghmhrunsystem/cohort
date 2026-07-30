@@ -1,12 +1,12 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-import { useAuth, roleHome } from "../auth/AuthProvider";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Field } from "../components/Field";
-import { PasswordField } from "../components/PasswordField";
-import { ApiFailure } from "../lib/errors";
+import { useAuth, roleHome } from "../../auth/AuthProvider";
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { Field } from "../../components/Field";
+import { PasswordField } from "../../components/PasswordField";
+import { ApiFailure } from "../../lib/errors";
 
 export function LoginPage() {
   const { login, refresh } = useAuth();

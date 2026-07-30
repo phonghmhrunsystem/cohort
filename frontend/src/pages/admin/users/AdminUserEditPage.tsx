@@ -1,17 +1,17 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
-import { AccountForm, accountFormErrors, accountFormPayload, accountFormValue, type AccountFormValue } from "../components/AccountForm";
-import { Alert } from "../components/Alert";
-import { Badge } from "../components/Badge";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Spinner } from "../components/Spinner";
-import { request } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import type { FieldErrors, User } from "../types";
-import { Info } from "./AdminUserViewPage";
-import { roleLabel } from "./AdminUsersPage";
+import { AccountForm, accountFormErrors, accountFormPayload, accountFormValue, type AccountFormValue } from "../../../components/AccountForm";
+import { Alert } from "../../../components/Alert";
+import { Badge } from "../../../components/Badge";
+import { Button } from "../../../components/Button";
+import { Card } from "../../../components/Card";
+import { Spinner } from "../../../components/Spinner";
+import { request } from "../../../lib/api";
+import { ApiFailure } from "../../../lib/errors";
+import { Info } from "../../../components/Info";
+import { roleLabel } from "../../../lib/format";
+import type { FieldErrors, User } from "../../../types";
 
 export function AdminUserEditPage() {
   const { userId } = useParams();

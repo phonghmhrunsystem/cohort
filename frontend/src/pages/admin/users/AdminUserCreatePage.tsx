@@ -1,15 +1,15 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
-import { AccountForm, accountFormErrors, accountFormPayload, accountFormValue, type AccountFormValue } from "../components/AccountForm";
-import { Alert } from "../components/Alert";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Field, Select } from "../components/Field";
-import { PasswordField } from "../components/PasswordField";
-import { request } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import type { FieldErrors } from "../types";
+import { AccountForm, accountFormErrors, accountFormPayload, accountFormValue, type AccountFormValue } from "../../../components/AccountForm";
+import { Alert } from "../../../components/Alert";
+import { Button } from "../../../components/Button";
+import { Card } from "../../../components/Card";
+import { Field, Select } from "../../../components/Field";
+import { PasswordField } from "../../../components/PasswordField";
+import { request } from "../../../lib/api";
+import { ApiFailure } from "../../../lib/errors";
+import type { FieldErrors } from "../../../types";
 
 export function AdminUserCreatePage() {
   const navigate = useNavigate();

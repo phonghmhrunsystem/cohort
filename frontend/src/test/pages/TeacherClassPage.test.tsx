@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
-import { TeacherClassPage } from "../../pages/TeacherClassPage";
+import { TeacherClassPage } from "../../pages/teacher/TeacherClassPage";
 
 const teacher = { id: 2, full_name: "Ada Teacher", email: "ada@example.test" };
 const classDetail = {

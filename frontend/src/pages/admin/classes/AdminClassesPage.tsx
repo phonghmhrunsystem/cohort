@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 
-import { Alert } from "../components/Alert";
-import { Badge } from "../components/Badge";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { Dialog } from "../components/Dialog";
-import { EmptyState } from "../components/EmptyState";
-import { Field } from "../components/Field";
-import { EyeIcon, IconButton, IconLinkButton, PowerIcon } from "../components/IconButton";
-import { Spinner } from "../components/Spinner";
-import { Table } from "../components/Table";
-import { useToast } from "../components/Toast";
-import { classesPath, request } from "../lib/api";
-import type { ClassFilters, ClassRow, Page } from "../types";
-import { formatDate } from "./AdminUsersPage";
+import { Alert } from "../../../components/Alert";
+import { Badge } from "../../../components/Badge";
+import { Button } from "../../../components/Button";
+import { Card } from "../../../components/Card";
+import { Dialog } from "../../../components/Dialog";
+import { EmptyState } from "../../../components/EmptyState";
+import { Field } from "../../../components/Field";
+import { EyeIcon, IconButton, IconLinkButton, PowerIcon } from "../../../components/IconButton";
+import { Spinner } from "../../../components/Spinner";
+import { Table } from "../../../components/Table";
+import { useToast } from "../../../components/Toast";
+import { classesPath, request } from "../../../lib/api";
+import { formatDate } from "../../../lib/format";
+import type { ClassFilters, ClassRow, Page } from "../../../types";
 
 const token = () => sessionStorage.getItem("access_token") ?? undefined;
 

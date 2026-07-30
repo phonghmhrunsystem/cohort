@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { Alert } from "../components/Alert";
-import { Button } from "../components/Button";
-import { Card } from "../components/Card";
-import { EmptyState } from "../components/EmptyState";
-import { Field } from "../components/Field";
-import { EyeIcon, IconLinkButton } from "../components/IconButton";
-import { Spinner } from "../components/Spinner";
-import { Table } from "../components/Table";
-import { classStudentsPath, request } from "../lib/api";
-import type { ClassRow, RosterResponse } from "../types";
+import { Alert } from "../../components/Alert";
+import { Button } from "../../components/Button";
+import { Card } from "../../components/Card";
+import { EmptyState } from "../../components/EmptyState";
+import { Field } from "../../components/Field";
+import { EyeIcon, IconLinkButton } from "../../components/IconButton";
+import { Spinner } from "../../components/Spinner";
+import { Table } from "../../components/Table";
+import { classStudentsPath, request } from "../../lib/api";
+import type { ClassRow, RosterResponse } from "../../types";
 
 export function TeacherClassPage() {
   const { classId } = useParams();

@@ -1,10 +1,10 @@
 import { Link } from "react-router-dom";
 
-import { useAuth } from "../auth/AuthProvider";
-import { genderLabel } from "../components/AccountForm";
-import { Card } from "../components/Card";
-import { Info } from "./AdminUserViewPage";
-import { formatDate, roleLabel } from "./AdminUsersPage";
+import { useAuth } from "../../auth/AuthProvider";
+import { genderLabel } from "../../components/AccountForm";
+import { Card } from "../../components/Card";
+import { Info } from "../../components/Info";
+import { formatDate, roleLabel } from "../../lib/format";
 
 export function ProfilePage() {
   const { user } = useAuth();

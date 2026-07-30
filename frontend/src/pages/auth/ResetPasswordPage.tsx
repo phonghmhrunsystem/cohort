@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-import { Card } from "../components/Card";
-import { PasswordField } from "../components/PasswordField";
-import { request } from "../lib/api";
-import { ApiFailure } from "../lib/errors";
-import { Button } from "../components/Button";
+import { Card } from "../../components/Card";
+import { PasswordField } from "../../components/PasswordField";
+import { request } from "../../lib/api";
+import { ApiFailure } from "../../lib/errors";
+import { Button } from "../../components/Button";
 
 export function ResetPasswordPage() {
   const [params] = useSearchParams();

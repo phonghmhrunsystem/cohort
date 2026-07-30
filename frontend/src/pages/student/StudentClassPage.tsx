@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { Alert } from "../components/Alert";
-import { Card } from "../components/Card";
-import { Spinner } from "../components/Spinner";
-import { request } from "../lib/api";
-import type { ClassRow } from "../types";
-import { formatDate } from "./AdminUsersPage";
+import { Alert } from "../../components/Alert";
+import { Card } from "../../components/Card";
+import { Spinner } from "../../components/Spinner";
+import { request } from "../../lib/api";
+import { formatDate } from "../../lib/format";
+import type { ClassRow } from "../../types";
 
 export function StudentClassPage() {
   const { classId } = useParams();
