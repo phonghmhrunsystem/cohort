@@ -364,7 +364,7 @@ def gradebook_data(classroom):
         student_id=OuterRef("student_id"),
     ).order_by("-version").values("id")[:1]
     assignments = list(
-        Assignment.objects.filter(classroom=classroom).select_related("classroom").prefetch_related(
+        Assignment.objects.filter(classroom=classroom).order_by("id").select_related("classroom").prefetch_related(
             Prefetch(
                 "submissions",
                 queryset=Submission.objects.filter(
