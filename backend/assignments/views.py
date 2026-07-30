@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
@@ -10,6 +11,7 @@ from accounts.models import User
 from audit.services import write_audit
 from classes.views import is_open, scoped_classes
 from notifications.services import create_notifications
+from submissions.models import Submission
 
 from .models import Assignment, RubricCriterion
 from .serializers import AssignmentSerializer, RubricSerializer
@@ -55,10 +57,35 @@ class ClassAssignmentsView(APIView):
         classroom = get_object_or_404(scoped_classes(request.user), id=class_id)
         if request.user.role not in (User.Role.TEACHER, User.Role.STUDENT):
             return Response(status=status.HTTP_403_FORBIDDEN)
+        assignments = list(classroom.assignments.all())
         context = {"classroom": classroom}
         if request.user.role == User.Role.STUDENT:
             context["student"] = request.user
-        return Response(AssignmentSerializer(classroom.assignments.all(), many=True, context=context).data)
+        else:
+            from grading.models import Grade
+
+            ids = [assignment.id for assignment in assignments]
+            submitted = {
+                row["assignment"]: row["n"]
+                for row in Submission.objects.filter(assignment__in=ids)
+                .values("assignment")
+                .annotate(n=Count("student", distinct=True))
+            }
+            graded = {
+                row["assignment"]: row["n"]
+                for row in Grade.objects.filter(assignment__in=ids)
+                .values("assignment")
+                .annotate(n=Count("student", distinct=True))
+            }
+            context["counts"] = {
+                assignment_id: {
+                    "submitted": submitted.get(assignment_id, 0),
+                    "graded": graded.get(assignment_id, 0),
+                }
+                for assignment_id in ids
+            }
+            context["enrolled_count"] = classroom.enrollments.count()
+        return Response(AssignmentSerializer(assignments, many=True, context=context).data)
 
     def post(self, request, class_id):
         classroom = assigned_class(request.user, class_id)
