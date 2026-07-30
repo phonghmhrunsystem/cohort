@@ -91,3 +91,60 @@ export interface UserFilters {
   updated_to?: string;
   page?: number;
 }
+
+export interface ClassRow {
+  id: number;
+  name: string;
+  description: string;
+  teacher: { id: number; full_name: string; email: string };
+  starts_at: string;
+  ends_at: string;
+  is_active: boolean;
+  student_count: number;
+  assignment_count: number | null;
+  graded_count: number | null;
+  next_due_at: string | null;
+}
+
+export interface ClassFilters {
+  q?: string;
+  teacher?: string;
+  page?: number;
+}
+
+export interface ClassFormPayload {
+  name: string;
+  description: string;
+  starts_at: string;
+  ends_at: string;
+  teacher_id: number;
+}
+
+export interface RosterStudent {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  hometown: string | null;
+  is_active: boolean;
+  enrolled_at: string;
+  submitted_assignments: number;
+  graded_assignments: number;
+}
+
+export interface RosterResponse {
+  total_assignments: number;
+  enrolled_students: number;
+  submitted_students: number;
+  graded_students: number;
+  students: Page<RosterStudent>;
+}
+
+export interface Candidate {
+  id: number;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  hometown: string | null;
+  is_active: boolean;
+}

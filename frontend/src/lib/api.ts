@@ -1,4 +1,4 @@
-import type { FieldErrors, UserFilters } from "../types";
+import type { ClassFilters, FieldErrors, UserFilters } from "../types";
 import { ApiFailure } from "./errors";
 
 type RequestOptions = Omit<RequestInit, "body" | "headers"> & {
@@ -43,4 +43,22 @@ export function usersPath(filters: UserFilters = {}): string {
       .map(([key, value]) => [key, String(value)]),
   );
   return query.size ? `/users?${query}` : "/users";
+}
+
+export function classesPath(filters: ClassFilters = {}): string {
+  const query = new URLSearchParams(
+    Object.entries(filters)
+      .filter(([, value]) => value !== undefined && value !== "")
+      .map(([key, value]) => [key, String(value)]),
+  );
+  return query.size ? `/classes?${query}` : "/classes";
+}
+
+export function classStudentsPath(classId: number, filters: { q?: string; page?: number } = {}): string {
+  const query = new URLSearchParams(
+    Object.entries(filters)
+      .filter(([, value]) => value !== undefined && value !== "")
+      .map(([key, value]) => [key, String(value)]),
+  );
+  return query.size ? `/classes/${classId}/students?${query}` : `/classes/${classId}/students`;
 }
