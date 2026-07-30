@@ -67,11 +67,14 @@ class ClassSerializer(serializers.ModelSerializer):
         student = self.context.get("student")
         if not student:
             return None
-        now = timezone.now()
-        return [
-            (assignment, assignment_learning_state(assignment, student, now))
-            for assignment in classroom.assignments.all()
-        ]
+        cache = self.__dict__.setdefault("_student_states_cache", {})
+        if classroom.id not in cache:
+            now = timezone.now()
+            cache[classroom.id] = [
+                (assignment, assignment_learning_state(assignment, student, now))
+                for assignment in classroom.assignments.all()
+            ]
+        return cache[classroom.id]
 
     def get_assignment_count(self, classroom):
         states = self._student_states(classroom)
@@ -151,7 +154,7 @@ class StudentProfileSerializer(StudentProgressSerializer):
 
     class Meta(StudentProgressSerializer.Meta):
         fields = StudentProgressSerializer.Meta.fields + (
-            "phone", "date_of_birth", "gender", "address", "shared_classes",
+            "date_of_birth", "gender", "address", "shared_classes",
         )
 
     def get_shared_classes(self, student):

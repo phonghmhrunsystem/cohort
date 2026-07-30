@@ -233,6 +233,7 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.other_student_client.get("/api/classes").data["results"], [])
 
     def test_list_is_paginated_with_student_count_and_teacher_filter(self):
+        baseline = Class.objects.count()
         for index in range(11):
             Class.objects.create(
                 teacher=self.teacher, name=f"Bulk {index}",
@@ -240,8 +241,8 @@ class ClassApiTests(TestCase):
             )
         response = self.admin_client.get("/api/classes")
         self.assertEqual(len(response.data["results"]), 10)
-        # course + other_course + 11 bulk + 2 classes seeded by classes.0001_initial migration.
-        self.assertEqual(response.data["count"], 15)
+        # baseline (self.course, self.other_course, and any migration-seeded classes) + 11 bulk.
+        self.assertEqual(response.data["count"], baseline + 11)
 
         page2 = self.admin_client.get("/api/classes?page=2")
         self.assertEqual(len(page2.data["results"]), 5)

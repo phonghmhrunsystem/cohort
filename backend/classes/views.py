@@ -83,7 +83,7 @@ class ClassDetailView(APIView):
         if request.user.role != User.Role.ADMIN:
             return Response(status=status.HTTP_403_FORBIDDEN)
         class_ = get_scoped_class(request.user, class_id)
-        is_extension = set(request.data.keys()) == {"ends_at"}
+        is_extension = isinstance(request.data, dict) and set(request.data.keys()) == {"ends_at"}
         if is_ended(class_) and not is_extension:
             return closed_response()
         previous_teacher_id = class_.teacher_id
@@ -127,7 +127,7 @@ class ClassStatusView(APIView):
             return closed_response("Class cannot be disabled once it has started.")
         with transaction.atomic():
             class_.is_active = is_active
-            class_.save(update_fields=("is_active",))
+            class_.save(update_fields=("is_active", "updated_at"))
             write_audit(
                 actor=request.user,
                 action="class.status_changed",

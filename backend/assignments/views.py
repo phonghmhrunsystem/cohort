@@ -1,6 +1,5 @@
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from accounts.permissions import IsAuthenticated
@@ -9,7 +8,7 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from audit.services import write_audit
-from classes.views import scoped_classes
+from classes.views import is_open, scoped_classes
 from notifications.services import create_notifications
 
 from .models import Assignment, RubricCriterion
@@ -43,11 +42,6 @@ def assigned_assignment(user, assignment_id):
 def require_assigned_teacher(user, classroom):
     if classroom.teacher_id != user.id:
         raise PermissionDenied
-
-
-def is_open(classroom):
-    now = timezone.now()
-    return classroom.starts_at <= now < classroom.ends_at
 
 
 def closed_response():
