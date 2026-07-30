@@ -3,9 +3,14 @@ import django.utils.timezone
 
 
 class Migration(migrations.Migration):
-    dependencies = [("accounts", "0005_password_reset_request")]
+    dependencies = [("accounts", "0004_backfill_full_name")]
 
     operations = [
+        migrations.AddField(
+            model_name="user",
+            name="must_change_password",
+            field=models.BooleanField(default=False),
+        ),
         migrations.AddField(
             model_name="user",
             name="hometown",

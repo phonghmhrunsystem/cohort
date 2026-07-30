@@ -18,7 +18,6 @@ INSTALLED_APPS = [
     "rest_framework",
     "accounts",
     "audit",
-    "cohorts",
     "classes",
     "assignments",
     "submissions",
