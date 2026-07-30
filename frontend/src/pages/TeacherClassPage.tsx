@@ -30,7 +30,8 @@ export function TeacherClassPage() {
   const loadRoster = useCallback(() => {
     if (!classId) return;
     request<RosterResponse>(classStudentsPath(Number(classId), { q: submitted || undefined, page: pageNumber === 1 ? undefined : pageNumber }), { token: token() })
-      .then((value) => value && setRoster(value));
+      .then((value) => value && setRoster(value))
+      .catch(() => setFailure("Unable to load roster."));
   }, [classId, submitted, pageNumber]);
   useEffect(() => { if (tab === "students") loadRoster(); }, [loadRoster, tab]);
 
