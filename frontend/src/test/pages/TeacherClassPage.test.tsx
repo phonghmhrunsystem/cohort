@@ -1,9 +1,26 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { TeacherClassPage } from "../../pages/teacher/TeacherClassPage";
+import { ToastProvider } from "../../components/Toast";
+
+const originalShowModal = HTMLDialogElement.prototype.showModal;
+const originalClose = HTMLDialogElement.prototype.close;
+
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () {
+    this.removeAttribute("open");
+    this.dispatchEvent(new Event("close"));
+  };
+});
+
+afterAll(() => {
+  HTMLDialogElement.prototype.showModal = originalShowModal;
+  HTMLDialogElement.prototype.close = originalClose;
+});
 
 const teacher = { id: 2, full_name: "Ada Teacher", email: "ada@example.test" };
 const classDetail = {
@@ -42,9 +59,11 @@ function openPage(fetchMock: ReturnType<typeof vi.fn>) {
   vi.stubGlobal("fetch", fetchMock);
   render(
     <MemoryRouter initialEntries={["/teacher/classes/9"]}>
-      <Routes>
-        <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />
-      </Routes>
+      <ToastProvider>
+        <Routes>
+          <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />
+        </Routes>
+      </ToastProvider>
     </MemoryRouter>,
   );
 }
@@ -118,5 +137,45 @@ describe("Teacher class page", () => {
     await events.click(screen.getByRole("tab", { name: "Assignments" }));
 
     await waitFor(() => expect(screen.getByText("No assignments.")).toBeTruthy());
+  });
+
+  it("creates an assignment through the dialog and reloads the table", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(classDetail))
+      .mockResolvedValueOnce(json(roster()))
+      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(json(assignmentRow({ id: 3, title: "New one" }), 201))
+      .mockResolvedValueOnce(json([assignmentRow({ id: 3, title: "New one" })]));
+    openPage(fetchMock);
+    const events = userEvent.setup();
+    await waitFor(() => expect(screen.getByText("Cohort 5")).toBeTruthy());
+    await events.click(screen.getByRole("tab", { name: "Assignments" }));
+    await waitFor(() => expect(screen.getByText("No assignments.")).toBeTruthy());
+
+    await events.click(screen.getByRole("button", { name: "Tạo assignment" }));
+    await events.type(screen.getByLabelText("Title"), "New one");
+    await events.type(screen.getByLabelText("Description"), "A brand new assignment.");
+    await events.type(screen.getByLabelText("Due at"), "2999-01-01T20:00");
+    await events.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(screen.getByText("New one")).toBeTruthy());
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/classes/9/assignments");
+    expect(fetchMock.mock.calls[3][1]?.method).toBe("POST");
+  });
+
+  it("disables saving with a static max score field", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(classDetail))
+      .mockResolvedValueOnce(json(roster()))
+      .mockResolvedValueOnce(json([]));
+    openPage(fetchMock);
+    const events = userEvent.setup();
+    await waitFor(() => expect(screen.getByText("Cohort 5")).toBeTruthy());
+    await events.click(screen.getByRole("tab", { name: "Assignments" }));
+    await waitFor(() => expect(screen.getByText("No assignments.")).toBeTruthy());
+
+    await events.click(screen.getByRole("button", { name: "Tạo assignment" }));
+    expect(screen.queryByLabelText("Max score")).toBeNull();
+    expect(screen.getByText("100")).toBeTruthy();
   });
 });
