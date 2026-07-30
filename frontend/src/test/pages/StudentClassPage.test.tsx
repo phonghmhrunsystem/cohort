@@ -50,13 +50,45 @@ describe("Student class page", () => {
     expect(screen.queryByText(/Hạn/)).toBeNull();
   });
 
-  it("renders a placeholder for the Assignments tab", async () => {
-    openPage(vi.fn().mockResolvedValueOnce(json(classDetail())));
+  it.each([
+    ["OPEN", "Chưa nộp", "Nộp bài"],
+    ["SUBMITTED", "Đã nộp", "Xem lịch sử"],
+    ["GRADED", "Đã chấm", "Xem kết quả"],
+  ] as const)("maps learning_state %s to the correct Trạng thái and action label", async (learningState, label, actionLabel) => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(classDetail()))
+      .mockResolvedValueOnce(json([{
+        id: 1, classroom_id: 9, title: "Homework 1", description: "Build a small app.",
+        due_at: "2026-08-15T20:00:00Z", maximum_score: 100, criteria: [], created_at: "2026-07-20T00:00:00Z",
+        learning_state: learningState, deadline_badge: "Còn 3 ngày", closure_reason: null,
+      }]));
+    openPage(fetchMock);
     const events = userEvent.setup();
-
     await waitFor(() => expect(screen.getByText("Cohort 5")).toBeTruthy());
     await events.click(screen.getByRole("tab", { name: "Assignments" }));
 
-    expect(screen.getByText("Assignments — see 03-assignments-and-rubrics / 04-submissions.")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
+    expect(screen.getByText(label)).toBeTruthy();
+    expect(screen.getByText(actionLabel)).toBeTruthy();
+  });
+
+  it("shows closure_reason as a tooltip and no second action for CLOSED", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(classDetail()))
+      .mockResolvedValueOnce(json([{
+        id: 1, classroom_id: 9, title: "Homework 1", description: "Build a small app.",
+        due_at: "2026-07-01T20:00:00Z", maximum_score: 100, criteria: [], created_at: "2026-06-20T00:00:00Z",
+        learning_state: "CLOSED", deadline_badge: "Đã hết hạn", closure_reason: "Deadline has passed.",
+      }]));
+    openPage(fetchMock);
+    const events = userEvent.setup();
+    await waitFor(() => expect(screen.getByText("Cohort 5")).toBeTruthy());
+    await events.click(screen.getByRole("tab", { name: "Assignments" }));
+
+    await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
+    expect(screen.getByText("Đã đóng").getAttribute("title")).toBe("Deadline has passed.");
+    expect(screen.queryByText("Nộp bài")).toBeNull();
+    expect(screen.queryByText("Xem lịch sử")).toBeNull();
+    expect(screen.queryByText("Xem kết quả")).toBeNull();
   });
 });
