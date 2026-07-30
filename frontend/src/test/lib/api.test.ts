@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiFailure } from "../../lib/errors";
-import { request } from "../../lib/api";
+import { request, classAssignmentsPath } from "../../lib/api";
 
 describe("request", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -55,5 +55,11 @@ describe("request", () => {
       message: "The class is no longer active.",
       status: 422,
     } satisfies Partial<ApiFailure>);
+  });
+});
+
+describe("classAssignmentsPath", () => {
+  it("builds the assignments path for a class", () => {
+    expect(classAssignmentsPath(9)).toBe("/classes/9/assignments");
   });
 });

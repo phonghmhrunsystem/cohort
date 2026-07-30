@@ -62,3 +62,7 @@ export function classStudentsPath(classId: number, filters: { q?: string; page?:
   );
   return query.size ? `/classes/${classId}/students?${query}` : `/classes/${classId}/students`;
 }
+
+export function classAssignmentsPath(classId: number): string {
+  return `/classes/${classId}/assignments`;
+}
