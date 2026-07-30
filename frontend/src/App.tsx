@@ -18,6 +18,15 @@ import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { AdminUserViewPage } from "./pages/AdminUserViewPage";
 import { ProfileEditPage } from "./pages/ProfileEditPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { AdminClassCreatePage } from "./pages/AdminClassCreatePage";
+import { AdminClassEditPage } from "./pages/AdminClassEditPage";
+import { AdminClassesPage } from "./pages/AdminClassesPage";
+import { AdminClassStudentViewPage } from "./pages/AdminClassStudentViewPage";
+import { AdminClassViewPage } from "./pages/AdminClassViewPage";
+import { StudentClassesPage } from "./pages/StudentClassesPage";
+import { StudentClassPage } from "./pages/StudentClassPage";
+import { TeacherClassesPage } from "./pages/TeacherClassesPage";
+import { TeacherClassPage } from "./pages/TeacherClassPage";
 
 function Placeholder({ title }: { title: string }) { return <h1>{title}</h1>; }
 
@@ -43,14 +52,26 @@ export function App() {
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/profile/edit" element={<ProfileEditPage />} />
-      <Route path="/classes/*" element={<Placeholder title="Classes" />} />
       <Route path="/notifications" element={<Placeholder title="Notifications" />} />
+      <Route element={<RequireRole roles={["TEACHER"]} />}>
+        <Route path="/teacher/classes" element={<TeacherClassesPage />} />
+        <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />
+      </Route>
+      <Route element={<RequireRole roles={["STUDENT"]} />}>
+        <Route path="/student/classes" element={<StudentClassesPage />} />
+        <Route path="/student/classes/:classId" element={<StudentClassPage />} />
+      </Route>
       <Route element={<RequireRole roles={["ADMIN"]} />}>
         <Route path="/audit" element={<Placeholder title="Audit" />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="/admin/users/new" element={<AdminUserCreatePage />} />
         <Route path="/admin/users/:userId" element={<AdminUserViewPage />} />
         <Route path="/admin/users/:userId/edit" element={<AdminUserEditPage />} />
+        <Route path="/admin/classes" element={<AdminClassesPage />} />
+        <Route path="/admin/classes/new" element={<AdminClassCreatePage />} />
+        <Route path="/admin/classes/:classId" element={<AdminClassViewPage />} />
+        <Route path="/admin/classes/:classId/edit" element={<AdminClassEditPage />} />
+        <Route path="/admin/classes/:classId/students/:studentId" element={<AdminClassStudentViewPage />} />
       </Route>
     </Route></Route>
     <Route path="/" element={<Navigate replace to="/dashboard" />} />

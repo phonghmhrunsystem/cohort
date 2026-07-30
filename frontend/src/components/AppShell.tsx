@@ -61,10 +61,10 @@ export function AppShell({ children }: { children?: ReactNode }) {
         <Link className="nav-link" to="/dashboard" aria-label="Dashboard" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="home" /><span className="nav-label">Dashboard</span></Link>
         {user?.role === "ADMIN" ? <>
           <Link className="nav-link" to="/admin/users" aria-label="Accounts" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="users" /><span className="nav-label">Accounts</span></Link>
-          <Link className="nav-link" to="/classes" aria-label="Classes" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="bookOpen" /><span className="nav-label">Classes</span></Link>
+          <Link className="nav-link" to="/admin/classes" aria-label="Classes" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="bookOpen" /><span className="nav-label">Classes</span></Link>
           <Link className="nav-link" to="/audit" aria-label="Audit" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="shield" /><span className="nav-label">Audit</span></Link>
         </> : <>
-          <Link className="nav-link" to="/classes" aria-label="My Classes" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="bookOpen" /><span className="nav-label">My Classes</span></Link>
+          <Link className="nav-link" to={user?.role === "TEACHER" ? "/teacher/classes" : "/student/classes"} aria-label="My Classes" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="bookOpen" /><span className="nav-label">My Classes</span></Link>
         </>}
       </nav>
     </aside>

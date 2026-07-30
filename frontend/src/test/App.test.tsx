@@ -108,6 +108,24 @@ describe("App", () => {
     },
   );
 
+  it("routes /admin/classes to the AdminClassesPage instead of the placeholder", async () => {
+    window.history.replaceState({}, "", "/admin/classes");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 1, full_name: "Admin", email: "admin@example.test", role: "ADMIN", phone: null,
+        date_of_birth: null, gender: null, hometown: null, address: null, is_active: true, must_change_password: false,
+      }), { headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ count: 0, next: null, previous: null, results: [] }), {
+        headers: { "Content-Type": "application/json" },
+      })));
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Classes" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Create Class" })).toBeTruthy();
+  });
+
   it("names the password visibility control", async () => {
     window.history.replaceState({}, "", "/login");
     vi.stubGlobal("fetch", vi.fn());
