@@ -26,6 +26,21 @@ class ClassLifecycleModelTests(TestCase):
 
         self.assertTrue(classroom.is_active)
 
+    def test_class_and_enrollment_carry_timestamps(self):
+        classroom = Class.objects.create(
+            teacher=User.objects.create_user("teacher-ts@example.test", "pw", role=User.Role.TEACHER),
+            name="Timestamps",
+            starts_at=timezone.now(),
+            ends_at=timezone.now() + timedelta(days=1),
+        )
+        enrollment = Enrollment.objects.create(
+            classroom=classroom,
+            student=User.objects.create_user("student-ts@example.test", "pw", role=User.Role.STUDENT),
+        )
+        self.assertIsNotNone(classroom.created_at)
+        self.assertIsNotNone(classroom.updated_at)
+        self.assertIsNotNone(enrollment.created_at)
+
 
 class ClassApiTests(TestCase):
     def setUp(self):

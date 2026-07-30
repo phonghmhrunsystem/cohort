@@ -11,6 +11,8 @@ class Class(models.Model):
     starts_at = models.DateTimeField()
     ends_at = models.DateTimeField()
     is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
 class Enrollment(models.Model):
@@ -18,6 +20,7 @@ class Enrollment(models.Model):
     student = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="enrollments"
     )
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=("classroom", "student"), name="unique_class_enrollment")]
