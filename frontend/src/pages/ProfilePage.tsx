@@ -10,7 +10,7 @@ export function ProfilePage() {
   const { user } = useAuth();
   if (!user) return null;
   return <section className="page-stack">
-    <div className="page-header"><h1>Profile</h1><div className="form-actions"><Link to="/change-password">Change password</Link><Link className="button" to="/profile/edit">Edit profile</Link></div></div>
+    <div className="page-header"><h1>Profile</h1><div className="form-actions"><Link className="button button-secondary" to="/change-password">Change password</Link><Link className="button" to="/profile/edit">Edit profile</Link></div></div>
     <Card><h2 className="section-title">Account access</h2><dl className="identity-grid">
       <Info label="Email" value={user.email} />
       <Info label="Role" value={roleLabel(user.role)} />

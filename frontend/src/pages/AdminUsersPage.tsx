@@ -9,8 +9,10 @@ import { Card } from "../components/Card";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
 import { Field, Select } from "../components/Field";
+import { PasswordField } from "../components/PasswordField";
 import { Spinner } from "../components/Spinner";
 import { Table } from "../components/Table";
+import { useToast } from "../components/Toast";
 import { request, usersPath } from "../lib/api";
 import { ApiFailure } from "../lib/errors";
 import type { FieldErrors, Page, User, UserFilters } from "../types";
@@ -32,6 +34,7 @@ export function AdminUsersPage() {
   const [confirmationError, setConfirmationError] = useState("");
   const [busy, setBusy] = useState(false);
   const requestGeneration = useRef(0);
+  const toast = useToast();
 
   const load = useCallback(async () => {
     const generation = ++requestGeneration.current;
@@ -65,9 +68,11 @@ export function AdminUsersPage() {
     setPasswordErrors({}); setBusy(true);
     try {
       await request(`/users/${passwordUser.id}/reset-password`, { method: "POST", token: token(), body: passwords });
+      toast.success(`Password updated for ${passwordUser.email}.`);
       setPasswordUser(undefined); setPasswords({ new_password: "", confirm_new_password: "" }); refresh();
     } catch (error) {
       if (error instanceof ApiFailure && error.fields) setPasswordErrors(error.fields);
+      toast.error(error instanceof Error ? error.message : "Unable to update password.");
     } finally { setBusy(false); }
   }
 
@@ -81,9 +86,14 @@ export function AdminUsersPage() {
         token: token(),
         body: kind === "status" ? { is_active: !account.is_active } : undefined,
       });
+      if (kind === "delete") toast.warning(`Deleted account ${account.email}.`);
+      else if (account.is_active) toast.warning(`Disabled account ${account.email}.`);
+      else toast.success(`Enabled account ${account.email}.`);
       setConfirmation(undefined); refresh();
     } catch (error) {
-      setConfirmationError(error instanceof Error ? error.message : "Unable to update account.");
+      const message = error instanceof Error ? error.message : "Unable to update account.";
+      setConfirmationError(message);
+      toast.error(message);
     } finally { setBusy(false); }
   }
 
@@ -120,15 +130,22 @@ export function AdminUsersPage() {
           <tbody>{data.results.map((account) => <tr key={account.id}><td>{account.email}</td><td>{account.full_name}</td><td>{account.phone || "—"}</td><td>{formatDate(account.created_at)}</td><td>{formatDate(account.updated_at)}</td><td>{roleLabel(account.role)}</td><td><Badge className={account.is_active ? "badge-active" : "badge-disabled"}>{account.is_active ? "Active" : "Disabled"}</Badge></td><td><AccountActions account={account} onPassword={() => openPassword(account)} onStatus={() => openConfirmation("status", account)} onDelete={() => openConfirmation("delete", account)} /></td></tr>)}</tbody>
         </Table><nav className="pagination" aria-label="Accounts pagination"><button disabled={!data.previous} aria-label="Previous page" onClick={() => setPageNumber((value) => value - 1)}>Previous</button><span>Page {pageNumber}</span><button disabled={!data.next} aria-label="Next page" onClick={() => setPageNumber((value) => value + 1)}>Next</button></nav></>}
 
-    {passwordUser &&<Dialog open onClose={() => setPasswordUser(undefined)} title={`Set password for ${passwordUser.email}`}><form noValidate onSubmit={setPassword}>
-      <Field id="admin-new-password" label="New password" type="password" required autoComplete="new-password" hint="At least 8 characters." value={passwords.new_password} onChange={(event) => setPasswords({ ...passwords, new_password: event.target.value })} error={passwordErrors.new_password?.[0]} />
-      <Field id="admin-confirm-password" label="Confirm new password" type="password" required autoComplete="new-password" value={passwords.confirm_new_password} onChange={(event) => setPasswords({ ...passwords, confirm_new_password: event.target.value })} error={passwordErrors.confirm_new_password?.[0]} />
-      <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Set password"}</Button>
+    {passwordUser &&<Dialog open onClose={() => setPasswordUser(undefined)} title="Change password"><form noValidate onSubmit={setPassword}>
+      <p className="muted">Choose a new password for <strong>{passwordUser.email}</strong>. The user will need it to sign in.</p>
+      <PasswordField id="admin-new-password" label="New password" required autoComplete="new-password" hint="At least 8 characters." value={passwords.new_password} onChange={(event) => setPasswords({ ...passwords, new_password: event.target.value })} error={passwordErrors.new_password?.[0]} />
+      <PasswordField id="admin-confirm-password" label="Confirm new password" required autoComplete="new-password" value={passwords.confirm_new_password} onChange={(event) => setPasswords({ ...passwords, confirm_new_password: event.target.value })} error={passwordErrors.confirm_new_password?.[0]} />
+      <div className="dialog-actions">
+        <Button type="button" className="button-secondary" disabled={busy} onClick={() => setPasswordUser(undefined)}>Cancel</Button>
+        <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Set password"}</Button>
+      </div>
     </form></Dialog>}
     {confirmation && <Dialog open onClose={() => setConfirmation(undefined)} title={confirmation.kind === "delete" ? "Delete account" : `${statusAction} account`}>
-      <p>{confirmation.kind === "delete" ? "This permanently hides the account." : `${statusAction} access for ${confirmation.account.email}?`}</p>
+      <p>{confirmation.kind === "delete" ? `This permanently hides ${confirmation.account.email} from the accounts list.` : `${statusAction} access for ${confirmation.account.email}?`}</p>
       {confirmationError && <Alert>{confirmationError}</Alert>}
-      <Button className={confirmation.kind === "delete" || confirmation.account.is_active ? "button-danger" : ""} disabled={busy} onClick={() => void confirmMutation()}>{confirmation.kind === "delete" ? "Delete account" : `${statusAction} account`}</Button>
+      <div className="dialog-actions">
+        <Button className="button-secondary" disabled={busy} onClick={() => setConfirmation(undefined)}>Cancel</Button>
+        <Button className={confirmation.kind === "delete" || confirmation.account.is_active ? "button-danger" : ""} disabled={busy} onClick={() => void confirmMutation()}>{confirmation.kind === "delete" ? "Delete account" : `${statusAction} account`}</Button>
+      </div>
     </Dialog>}
   </section>;
 }

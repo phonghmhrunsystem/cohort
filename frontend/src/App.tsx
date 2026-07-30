@@ -5,6 +5,7 @@ import { RequireAuth } from "./auth/RequireAuth";
 import { RequireRole } from "./auth/RequireRole";
 import { AppShell } from "./components/AppShell";
 import { Spinner } from "./components/Spinner";
+import { ToastProvider } from "./components/Toast";
 import { ChangePasswordPage } from "./pages/ChangePasswordPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
@@ -29,13 +30,15 @@ function RedirectForcedUser() {
 }
 
 export function App() {
-  return <BrowserRouter><AuthProvider><Routes>
+  return <BrowserRouter><ToastProvider><AuthProvider><Routes>
     <Route element={<RedirectForcedUser />}>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
     </Route>
-    <Route element={<RequireAuth allowForced />}><Route path="/change-password" element={<ChangePasswordPage />} /></Route>
+    <Route element={<RequireAuth allowForced />}><Route element={<ProtectedShell />}>
+      <Route path="/change-password" element={<ChangePasswordPage />} />
+    </Route></Route>
     <Route element={<RequireAuth />}><Route element={<ProtectedShell />}>
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/profile" element={<ProfilePage />} />
@@ -52,5 +55,5 @@ export function App() {
     </Route></Route>
     <Route path="/" element={<Navigate replace to="/dashboard" />} />
     <Route path="*" element={<NotFoundPage />} />
-  </Routes></AuthProvider></BrowserRouter>;
+  </Routes></AuthProvider></ToastProvider></BrowserRouter>;
 }

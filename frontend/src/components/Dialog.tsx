@@ -18,5 +18,11 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
     if (dialog.current?.open) dialog.current.close();
     opener.current?.focus();
   }, []);
-  return <dialog ref={dialog} onClose={onClose} aria-labelledby={titleId}><h2 id={titleId}>{title}</h2>{children}<button aria-label="Close dialog" onClick={() => dialog.current?.close()}>×</button></dialog>;
+  return <dialog ref={dialog} onClose={onClose} aria-labelledby={titleId}>
+    <div className="dialog-header">
+      <h2 id={titleId}>{title}</h2>
+      <button type="button" className="dialog-close" aria-label="Close dialog" onClick={() => dialog.current?.close()}>×</button>
+    </div>
+    <div className="dialog-body">{children}</div>
+  </dialog>;
 }

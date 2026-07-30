@@ -6,6 +6,7 @@ import { Alert } from "../components/Alert";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { Field, Select } from "../components/Field";
+import { PasswordField } from "../components/PasswordField";
 import { request } from "../lib/api";
 import { ApiFailure } from "../lib/errors";
 import type { FieldErrors } from "../types";
@@ -60,7 +61,7 @@ export function AdminUserCreatePage() {
           <Select id="create-role" label="Role" required value={role} onChange={(event) => setRole(event.target.value as "TEACHER" | "STUDENT")} error={errors.role?.[0]}>
             <option value="TEACHER">Teacher</option><option value="STUDENT">Student</option>
           </Select>
-          <Field id="create-password" label="Initial password" type="password" required autoComplete="new-password" hint="At least 8 characters." value={password} onChange={(event) => setPassword(event.target.value)} error={errors.password?.[0]} />
+          <PasswordField id="create-password" label="Initial password" required autoComplete="new-password" hint="At least 8 characters." value={password} onChange={(event) => setPassword(event.target.value)} error={errors.password?.[0]} />
         </div>
       </fieldset>
       <AccountForm prefix="create" value={profile} onChange={setProfile} errors={errors} />

@@ -1,6 +1,6 @@
 # Feature: Auth & Accounts
 
-Part of [00-system-overview](00-system-overview.md). Backend app: `accounts/`. Frontend: `LoginPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `ChangePasswordPage`, `AdminUsersPage`, `AdminUserCreatePage`, `AdminUserViewPage`, `AdminUserEditPage`, `ProfilePage`, `ProfileEditPage`. Shared: `AccountForm` (profile fields + client-side rules), `AccountActions` (row action menu), `Field`/`Select`, `Dialog`.
+Part of [00-system-overview](00-system-overview.md). Backend app: `accounts/`. Frontend: `LoginPage`, `ForgotPasswordPage`, `ResetPasswordPage`, `ChangePasswordPage`, `AdminUsersPage`, `AdminUserCreatePage`, `AdminUserViewPage`, `AdminUserEditPage`, `ProfilePage`, `ProfileEditPage`. Shared: `AccountForm` (profile fields + client-side rules), `AccountActions` (row action menu), `Field`/`Select`, `PasswordField` (show/hide toggle, used by every password input in this feature), `Dialog`, `Toast` (admin mutation feedback), `UserMenu` (header account dropdown — see 2.4).
 
 ## 1. Purpose
 
@@ -85,32 +85,35 @@ Usable link
 +--------------------------------------------------+
 ```
 - Missing token → unusable state without any request. Otherwise `GET /api/auth/reset-password/{token}`: `204` renders the form, anything else renders the unusable state with a link to `/forgot-password`.
+- `New password` and `Confirm new password` (and every other password field in this feature — Change password, admin Set password, admin Create User) render via the shared `PasswordField`, so all of them carry the same show/hide toggle as Login, not just the login field.
 - `New password` and `Confirm new password` must match (client + server validation). A `422` on submit stays on the form and shows inline field errors; any other failure flips to the unusable state.
 - On success: token is invalidated, redirect to `/login?reset=success`, which renders the success notice.
 
 ### 2.2 Change password (`/change-password`)
 
 ```
-+--------------------------------------------------+
-|  Change password                                 |
-|  Set a new password to continue.                 |   <- only when must_change_password
-|                                                  |
-|  Current password *                              |
-|  [__________________________________]            |
-|                                                  |
-|  New password *                                  |
-|  [__________________________________]            |
-|  At least 8 characters.                          |
-|                                                  |
-|  Confirm new password *                          |
-|  [__________________________________]            |
-|                                                  |
-|  [ Continue ]                                    |
+Forced (must_change_password)             Voluntary (from Profile / header menu)
++--------------------------------------------------+  +--------------------------------------------------+
+|  Change password                                 |  |  Change password                     [ Back ]    |
+|  Set a new password to continue.                 |  +--------------------------------------------------+
+|                                                  |  |  Current password *                              |
+|  Current password *                              |  |  [__________________________________]            |
+|  [__________________________________]            |  |                                                  |
+|                                                  |  |  New password *                                  |
+|  New password *                                  |  |  [__________________________________]            |
+|  [__________________________________]            |  |  At least 8 characters.                          |
+|  At least 8 characters.                          |  |                                                  |
+|                                                  |  |  Confirm new password *                           |
+|  Confirm new password *                          |  |  [__________________________________]            |
+|  [__________________________________]            |  |                                                  |
+|                                                  |  |  [ Continue ]                                     |
+|  [ Continue ]                                    |  +--------------------------------------------------+
 +--------------------------------------------------+
 ```
-- One screen for both entry points: the forced redirect after login and the `Change password` link on `/profile`. The field is labelled `Current password` in both cases (it is the temporary password in the forced case).
-- `New password` and `Confirm new password` must match.
-- `Continue` → `POST /api/auth/change-password`, clears `must_change_password`, then redirects to `roleHome()`.
+- One screen for both entry points: the forced redirect after login and the `Change password` link on `/profile`/header account menu (2.4). The field is labelled `Current password` in both cases (it is the temporary password in the forced case).
+- The screen renders inside the signed-in app shell (sidebar + header) for both cases — including the forced one, so a mid-forced-flow user still sees normal navigation chrome, not a bare public card. Only the voluntary case shows the `Back` button (`navigate(-1)`); the forced case shows the "Set a new password to continue." notice instead.
+- `New password` and `Confirm new password` must match. All three fields carry the show/hide toggle (`PasswordField`).
+- `Continue` → `POST /api/auth/change-password`, clears `must_change_password`, then redirects to `roleHome()` if this was the forced flow, or back to `/profile` if it was the voluntary one.
 
 ### 2.3 Admin — Accounts (`/admin/users`)
 
@@ -134,26 +137,29 @@ Usable link
 
 Row action menu (the ":" trigger)      Set password dialog
 +---------------------+                +------------------------------------------+
-| View                |                | Set password for a@example.com           |
-| Change password     |                |                                          |
-| Disable  / Enable   |                | New password *                           |
-| Delete              |                | [______________________]                 |
-+---------------------+                | At least 8 characters.                   |
+| View                |                | Change password                          |
+| Change password     |                | Choose a new password for                |
+| Disable  / Enable   |                | a@example.com. The user will need it     |
+| Delete              |                | to sign in.                              |
++---------------------+                |                                          |
+                                       | New password *                           |
+                                       | [______________________] [ 0- ]          |
+                                       | At least 8 characters.                   |
                                        |                                          |
                                        | Confirm new password *                   |
-                                       | [______________________]                 |
+                                       | [______________________] [ 0- ]          |
                                        |                                          |
-                                       | [ Set password ]                         |
+                                       |                [ Cancel ] [ Set password ]|
                                        +------------------------------------------+
 ```
 - Filters are a draft: typing changes nothing. `[ Search ]` (form submit) applies Search + Role + the four date filters at once and resets to page 1. Out-of-order responses are discarded, so a slow earlier request never overwrites a newer list.
 - Table columns: Email, Full name, Phone, Created (`created_at`), Updated (`updated_at`), Role, Status (`Active`/`Disabled` badge), Action. Empty values render `—`; dates render `en-GB` (`dd/mm/yyyy`).
 - Paginated, 10 accounts/page, `Previous` / `Page N` / `Next` (no numbered page links). Empty result → `No accounts found.`; load failure → alert with `Retry`.
-- Actions live in a per-row `:` menu (`role="menu"`, arrow-key navigation, `Escape`/outside click closes):
+- Actions live in a per-row `:` menu (`role="menu"`, arrow-key navigation, `Escape`/outside click closes). The panel renders in a portal positioned against the trigger button, flipping to open upward when there isn't room below (e.g. last rows on a page) — same items and keyboard behavior either way:
   - `View` → `/admin/users/{id}` (read-only). **`Edit` is reached from there**, not from this menu.
-  - `Change password` → dialog above; **admin types the value themselves**, nothing is generated server-side and nothing is emailed (admin is top-level privilege, and the whole point is that they can read it out to the user). Client-side rules: at least 8 characters and both fields equal. Sets `must_change_password = true`, so the value the admin picked survives exactly one login.
-  - `Disable` / `Enable` → confirm dialog (`Disable access for {email}?`), toggles `is_active`. Disabling blocked (`422`) if tied to an active Class; the dialog shows the server message.
-  - `Delete` → confirm dialog (`This permanently hides the account.`), soft-deletes (`is_deleted = true`). Blocked (`422`) if the account owns/is enrolled in an active Class (same check as Disable). One-way — no restore/undelete action.
+  - `Change password` → dialog above (titled "Change password", body names the target email); **admin types the value themselves**, nothing is generated server-side and nothing is emailed (admin is top-level privilege, and the whole point is that they can read it out to the user). Client-side rules: at least 8 characters and both fields equal. Sets `must_change_password = true`, so the value the admin picked survives exactly one login. `Cancel` closes without saving. On success, a toast confirms ("Password updated for {email}."); on failure, both the inline field errors and an error toast show.
+  - `Disable` / `Enable` → confirm dialog (`Disable access for {email}?`) with `Cancel` / confirm buttons, toggles `is_active`. Disabling blocked (`422`) if tied to an active Class; the dialog shows the server message. On success, a toast confirms (warning-styled for Disable, success-styled for Enable).
+  - `Delete` → confirm dialog (`This permanently hides {email} from the accounts list.`) with `Cancel` / confirm buttons, soft-deletes (`is_deleted = true`). Blocked (`422`) if the account owns/is enrolled in an active Class (same check as Disable). One-way — no restore/undelete action. On success, a warning-styled toast confirms the deletion.
 - `Create User` → `/admin/users/new` (own page, see 2.3.a — not a dialog).
 - List/View/Edit scope: active Teacher/Student **and** disabled Teacher/Student (so admin can re-enable them). `is_deleted = true` rows are always excluded — never shown anywhere in this list, regardless of filters/pagination.
 
@@ -186,7 +192,7 @@ Row action menu (the ":" trigger)      Set password dialog
 | [ Create ]   Cancel                                               |
 +-------------------------------------------------------------------+
 ```
-- Three `fieldset`s: Account access (Email, Role, Initial password), Personal information, Location. The last two come from the shared `AccountForm`, so admin create/edit and self-edit cannot drift apart.
+- Three `fieldset`s: Account access (Email, Role, Initial password), Personal information, Location. The last two come from the shared `AccountForm`, so admin create/edit and self-edit cannot drift apart. `Initial password` uses `PasswordField`, same show/hide toggle as every other password input.
 - Client-side rules mirror the serializers: email shape, password ≥ 8 chars, full name 2–100 chars, phone `^\+?\d{9,15}$`, date of birth strictly in the past (`max` = today), hometown ≤ 100, address ≤ 255. Server `422` field errors land on the same fields.
 - Gender options: `Not provided` (null) / `Male` (`NAM`) / `Female` (`NU`) / `Other` (`KHAC`).
 - On success → back to `/admin/users`. `Cancel` is a link to the list. New accounts get `must_change_password = true`.
@@ -260,6 +266,7 @@ Edit (`/profile/edit`):
 - Same `AccountForm` (and same client-side rules) as the admin create/edit screens; email and role are read-only and only shown on the View screen.
 - `Change password` link → `/change-password` (authenticated, requires current password — `POST /api/auth/change-password`). Different trigger than the forced 2.2 flow, same screen and same API.
 - Save → `PATCH /api/auth/me`, refresh the cached user, back to `/profile`.
+- The app header's account menu (`UserMenu`, every authenticated screen) gives a second path to the same two destinations plus sign-out: `Profile` → `/profile`, `Change password` → `/change-password`, `Log out` → same client-side logout as before, now behind a dropdown instead of a bare `Sign out` button.
 
 ## 3. API
 
@@ -347,5 +354,8 @@ Implementation is the source of truth; these are the deliberate deviations from 
 | Rate limiting "via `django-ratelimit`" | Hand-rolled `accounts/throttling.py` over the Django cache; no extra dependency |
 | `IsAdmin` in `accounts/views.py` | `accounts/permissions.py` |
 | Reusing a used/expired token → `422`/`410` | `410` used/expired, `404` unknown token; `422` is only for password rules |
+| Header `Sign out` button | Header `UserMenu` dropdown: `Profile` / `Change password` / `Log out` |
+| Admin "Set password" dialog with no confirm/cancel escape | Retitled `Change password`, adds a `Cancel` button next to `Set password`, and admin mutations (set password, disable/enable, delete) confirm or fail via a toast, not just inline text |
+| One `/change-password` layout for both entry points | Still one screen/API, but now rendered inside the signed-in app shell for both the forced and voluntary case, with only the voluntary case getting a `Back` button; voluntary submit returns to `/profile` instead of `roleHome()` |
 
 Known gap: the account search box is placeholdered `Name, email or phone`, but `GET /api/users?q=` matches `full_name` and `email` only — phone is not searchable yet.

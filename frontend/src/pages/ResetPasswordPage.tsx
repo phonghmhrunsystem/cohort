@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { Card } from "../components/Card";
-import { Field } from "../components/Field";
+import { PasswordField } from "../components/PasswordField";
 import { request } from "../lib/api";
 import { ApiFailure } from "../lib/errors";
 import { Button } from "../components/Button";
@@ -80,10 +80,9 @@ export function ResetPasswordPage() {
       <Card>
         <h1>Reset password</h1>
         <form noValidate onSubmit={submit}>
-          <Field
+          <PasswordField
             id="new-password"
             label="New password"
-            type="password"
             required
             autoComplete="new-password"
             hint="At least 8 characters."
@@ -91,10 +90,9 @@ export function ResetPasswordPage() {
             onChange={(event) => setNewPassword(event.target.value)}
             error={errors.new_password?.[0]}
           />
-          <Field
+          <PasswordField
             id="confirm-new-password"
             label="Confirm new password"
-            type="password"
             required
             autoComplete="new-password"
             value={confirm}

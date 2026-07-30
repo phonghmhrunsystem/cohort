@@ -2,12 +2,15 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Outlet } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
+import { Icon } from "./Icon";
+import { UserMenu } from "./UserMenu";
 
 export function AppShell({ children }: { children?: ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [mobile, setMobile] = useState(() => window.matchMedia?.("(max-width: 1023px)").matches ?? true);
   const drawerTabIndex = mobile && !open ? -1 : undefined;
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const drawer = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const closeDrawer = () => {
@@ -43,14 +46,37 @@ export function AppShell({ children }: { children?: ReactNode }) {
     controls()[0]?.focus();
     return () => { document.body.style.overflow = overflow; document.removeEventListener("keydown", escape); };
   }, [open]);
-  return <div className="app-shell">
+  return <div className={collapsed ? "app-shell sidebar-collapsed" : "app-shell"}>
     <a className="skip-link" href="#main-content" onClick={() => document.getElementById("main-content")?.focus()}>Skip to main content</a>
     {open && <button className="drawer-backdrop" aria-label="Close menu" onClick={closeDrawer} />}
-    <aside ref={drawer} className={open ? "sidebar open" : "sidebar"} aria-label="Main navigation" aria-hidden={mobile && !open} inert={mobile && !open}>
-      <strong>Class Management</strong>
-      <button className="drawer-close" aria-label="Close navigation" tabIndex={drawerTabIndex} onClick={closeDrawer}>&times;</button>
-      <nav><Link to="/dashboard" tabIndex={drawerTabIndex} onClick={closeDrawer}>Dashboard</Link>{user?.role === "ADMIN" ? <><Link to="/admin/users" tabIndex={drawerTabIndex} onClick={closeDrawer}>Accounts</Link><Link to="/classes" tabIndex={drawerTabIndex} onClick={closeDrawer}>Classes</Link><Link to="/audit" tabIndex={drawerTabIndex} onClick={closeDrawer}>Audit</Link></> : <><Link to="/classes" tabIndex={drawerTabIndex} onClick={closeDrawer}>My Classes</Link><Link to="/profile" tabIndex={drawerTabIndex} onClick={closeDrawer}>Profile</Link><Link to="/notifications" tabIndex={drawerTabIndex} onClick={closeDrawer}>Notifications</Link></>}</nav>
+    <aside ref={drawer} className={open ? "sidebar open" : collapsed ? "sidebar collapsed" : "sidebar"} aria-label="Main navigation" aria-hidden={mobile && !open} inert={mobile && !open}>
+      <div className="sidebar-head">
+        <strong className="brand-label">Class Management</strong>
+        <button className="drawer-close" aria-label="Close navigation" tabIndex={drawerTabIndex} onClick={closeDrawer}>&times;</button>
+        <button type="button" className="sidebar-toggle" tabIndex={drawerTabIndex} aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} onClick={() => setCollapsed((value) => !value)}>
+          <span className="sidebar-toggle-icon"><Icon name="panelLeft" /></span>
+        </button>
+      </div>
+      <nav>
+        <Link className="nav-link" to="/dashboard" aria-label="Dashboard" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="home" /><span className="nav-label">Dashboard</span></Link>
+        {user?.role === "ADMIN" ? <>
+          <Link className="nav-link" to="/admin/users" aria-label="Accounts" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="users" /><span className="nav-label">Accounts</span></Link>
+          <Link className="nav-link" to="/classes" aria-label="Classes" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="bookOpen" /><span className="nav-label">Classes</span></Link>
+          <Link className="nav-link" to="/audit" aria-label="Audit" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="shield" /><span className="nav-label">Audit</span></Link>
+        </> : <>
+          <Link className="nav-link" to="/classes" aria-label="My Classes" tabIndex={drawerTabIndex} onClick={closeDrawer}><Icon name="bookOpen" /><span className="nav-label">My Classes</span></Link>
+        </>}
+      </nav>
     </aside>
-    <main id="main-content" className="canvas" tabIndex={-1}><header><button ref={menuButton} className="menu-button" aria-label="Open menu" onClick={() => setOpen(true)}>&#9776;</button><span>{user?.full_name}</span><button aria-label="Sign out" onClick={() => void logout()}>Sign out</button></header>{children ?? <Outlet />}</main>
+    <main id="main-content" className="canvas" tabIndex={-1}>
+      <header>
+        <button ref={menuButton} className="menu-button" aria-label="Open menu" onClick={() => setOpen(true)}>&#9776;</button>
+        <div className="header-actions">
+          <Link className="notification-link" to="/notifications" aria-label="Notifications"><Icon name="bell" /></Link>
+          <UserMenu />
+        </div>
+      </header>
+      {children ?? <Outlet />}
+    </main>
   </div>;
 }
