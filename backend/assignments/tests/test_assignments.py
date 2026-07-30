@@ -334,6 +334,20 @@ class AssignmentApiTests(TestCase):
         self.assertIsNone(student_response.data[0]["graded_count"])
         self.assertIsNone(student_response.data[0]["enrolled_count"])
 
+    def test_teacher_assignment_list_excludes_soft_deleted_students_from_enrolled_count(self):
+        assignment = self.teacher_client.post(
+            f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json"
+        ).data
+
+        # Create a soft-deleted student and enroll them
+        deleted_student = User.objects.create_user("deleted@example.test", "pw", role="STUDENT", is_deleted=True)
+        Enrollment.objects.create(classroom=self.classroom, student=deleted_student)
+
+        # Verify enrolled_count excludes the soft-deleted student
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/assignments")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["enrolled_count"], 1)  # Only self.student, not deleted_student
+
     def assignment_operation_statuses(self, client, assignment_id):
         return [
             client.get(

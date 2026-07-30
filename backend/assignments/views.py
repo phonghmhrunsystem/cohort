@@ -84,7 +84,7 @@ class ClassAssignmentsView(APIView):
                 }
                 for assignment_id in ids
             }
-            context["enrolled_count"] = classroom.enrollments.count()
+            context["enrolled_count"] = classroom.enrollments.filter(student__is_deleted=False).count()
         return Response(AssignmentSerializer(assignments, many=True, context=context).data)
 
     def post(self, request, class_id):
