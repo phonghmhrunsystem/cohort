@@ -6,6 +6,7 @@ import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 import { EmptyState } from "../components/EmptyState";
 import { Field } from "../components/Field";
+import { EyeIcon, IconLinkButton } from "../components/IconButton";
 import { Spinner } from "../components/Spinner";
 import { Table } from "../components/Table";
 import { classStudentsPath, request } from "../lib/api";
@@ -40,17 +41,17 @@ export function TeacherClassPage() {
   if (failure) return <Alert>{failure}</Alert>;
   if (!class_) return <Spinner label="Loading class" />;
   return <section className="page-stack">
-    <Link to="/teacher/classes">‹ Back</Link>
+    <Link className="back-link" to="/teacher/classes">‹ Back</Link>
     <h1>{class_.name}</h1>
     <div className="tabs" role="tablist">
-      <button role="tab" aria-selected={tab === "students"} onClick={() => setSearchParams({ tab: "students" })}>Students</button>
-      <button role="tab" aria-selected={tab === "assignments"} onClick={() => setSearchParams({ tab: "assignments" })}>Assignments</button>
+      <button type="button" className="tab" role="tab" aria-selected={tab === "students"} onClick={() => setSearchParams({ tab: "students" })}>Students</button>
+      <button type="button" className="tab" role="tab" aria-selected={tab === "assignments"} onClick={() => setSearchParams({ tab: "assignments" })}>Assignments</button>
     </div>
     {tab === "students" && roster && <Card>
       <p>Đã ghi danh {roster.enrolled_students} · Đã nộp {roster.submitted_students} · Đã chấm {roster.graded_students}</p>
-      <form className="filters" noValidate onSubmit={search}><Field id="teacher-roster-search" label="Search Student" value={query} onChange={(event) => setQuery(event.target.value)} /><Button type="submit">Search</Button></form>
+      <form className="filters" noValidate onSubmit={search}><div className="filters-row filters-search"><Field id="teacher-roster-search" label="Search Student" value={query} onChange={(event) => setQuery(event.target.value)} /><Button type="submit">Search</Button></div></form>
       {roster.students.results.length === 0 ? <EmptyState>No students.</EmptyState> : <><Table><thead><tr><th>Name</th><th>Phone</th><th>Action</th></tr></thead>
-        <tbody>{roster.students.results.map((s) => <tr key={s.id}><td>{s.full_name}</td><td>{s.phone || "—"}</td><td><Link to={`/teacher/classes/${classId}/students/${s.id}`}>View</Link></td></tr>)}</tbody>
+        <tbody>{roster.students.results.map((s) => <tr key={s.id}><td>{s.full_name}</td><td>{s.phone || "—"}</td><td><div className="row-actions"><IconLinkButton to={`/teacher/classes/${classId}/students/${s.id}`} icon={<EyeIcon />} label="View" /></div></td></tr>)}</tbody>
       </Table><nav className="pagination" aria-label="Students pagination"><button disabled={!roster.students.previous} onClick={() => setPageNumber((v) => v - 1)}>Previous</button><span>Page {pageNumber}</span><button disabled={!roster.students.next} onClick={() => setPageNumber((v) => v + 1)}>Next</button></nav></>}
     </Card>}
     {tab === "assignments" && <Card><p className="muted">Assignments — see 03-assignments-and-rubrics.</p></Card>}

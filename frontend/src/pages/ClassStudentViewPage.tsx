@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 
 import { Alert } from "../components/Alert";
 import { Card } from "../components/Card";
@@ -12,8 +12,10 @@ interface StudentDetail {
   submitted_assignments: number; graded_assignments: number; total_assignments: number;
 }
 
-export function AdminClassStudentViewPage() {
+export function ClassStudentViewPage() {
   const { classId, studentId } = useParams();
+  const { pathname } = useLocation();
+  const classPath = pathname.replace(/\/students\/[^/]+$/, "");
   const [student, setStudent] = useState<StudentDetail>();
   const [failure, setFailure] = useState("");
   useEffect(() => {
@@ -31,6 +33,6 @@ export function AdminClassStudentViewPage() {
       <Info label="Quê quán" value={student.hometown} />
       <Info label="Progress" value={`${student.graded_assignments}/${student.total_assignments} graded, ${student.submitted_assignments} submitted`} />
     </dl></Card>
-    <Link to={`/admin/classes/${classId}`}>Back to class</Link>
+    <Link className="back-link" to={classPath}>‹ Back to class</Link>
   </section>;
 }

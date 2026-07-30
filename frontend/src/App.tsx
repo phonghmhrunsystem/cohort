@@ -21,8 +21,8 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { AdminClassCreatePage } from "./pages/AdminClassCreatePage";
 import { AdminClassEditPage } from "./pages/AdminClassEditPage";
 import { AdminClassesPage } from "./pages/AdminClassesPage";
-import { AdminClassStudentViewPage } from "./pages/AdminClassStudentViewPage";
 import { AdminClassViewPage } from "./pages/AdminClassViewPage";
+import { ClassStudentViewPage } from "./pages/ClassStudentViewPage";
 import { StudentClassesPage } from "./pages/StudentClassesPage";
 import { StudentClassPage } from "./pages/StudentClassPage";
 import { TeacherClassesPage } from "./pages/TeacherClassesPage";
@@ -56,6 +56,7 @@ export function App() {
       <Route element={<RequireRole roles={["TEACHER"]} />}>
         <Route path="/teacher/classes" element={<TeacherClassesPage />} />
         <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />
+        <Route path="/teacher/classes/:classId/students/:studentId" element={<ClassStudentViewPage />} />
       </Route>
       <Route element={<RequireRole roles={["STUDENT"]} />}>
         <Route path="/student/classes" element={<StudentClassesPage />} />
@@ -71,7 +72,7 @@ export function App() {
         <Route path="/admin/classes/new" element={<AdminClassCreatePage />} />
         <Route path="/admin/classes/:classId" element={<AdminClassViewPage />} />
         <Route path="/admin/classes/:classId/edit" element={<AdminClassEditPage />} />
-        <Route path="/admin/classes/:classId/students/:studentId" element={<AdminClassStudentViewPage />} />
+        <Route path="/admin/classes/:classId/students/:studentId" element={<ClassStudentViewPage />} />
       </Route>
     </Route></Route>
     <Route path="/" element={<Navigate replace to="/dashboard" />} />

@@ -117,7 +117,8 @@ describe("Admin class view", () => {
     await waitFor(() => expect(screen.getByText("Bao Nguyen")).toBeTruthy());
     await events.click(screen.getByRole("button", { name: "Edit roster" }));
 
-    await waitFor(() => expect(screen.getByText("Dan Pham (dan@example.test)")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Dan Pham")).toBeTruthy());
+    expect(screen.getByText("dan@example.test")).toBeTruthy();
     await events.click(screen.getByRole("button", { name: "Save roster" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(5));

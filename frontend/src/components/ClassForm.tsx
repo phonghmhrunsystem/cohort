@@ -47,17 +47,24 @@ export function ClassForm({
   teachers: { id: number; full_name: string }[];
 }) {
   const set = <K extends keyof ClassFormValue>(field: K, next: ClassFormValue[K]) => onChange({ ...value, [field]: next });
-  return <fieldset className="form-section">
-    <legend className="section-title">Class details</legend>
-    <div className="form-grid">
-      <Field id={`${prefix}-name`} label="Name" required wide maxLength={100} value={value.name} onChange={(event) => set("name", event.target.value)} error={errors.name?.[0]} />
-      <Field id={`${prefix}-description`} label="Description" wide value={value.description} onChange={(event) => set("description", event.target.value)} error={errors.description?.[0]} />
-      <Field id={`${prefix}-starts-at`} label="Starts" type="date" required value={value.starts_at} onChange={(event) => set("starts_at", event.target.value)} error={errors.starts_at?.[0]} />
-      <Field id={`${prefix}-ends-at`} label="Ends" type="date" required value={value.ends_at} onChange={(event) => set("ends_at", event.target.value)} error={errors.ends_at?.[0]} />
-      <Select id={`${prefix}-teacher`} label="Teacher" required wide value={value.teacher_id} onChange={(event) => set("teacher_id", event.target.value)} error={errors.teacher_id?.[0]}>
-        <option value="">Select a teacher</option>
-        {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.full_name}</option>)}
-      </Select>
-    </div>
-  </fieldset>;
+  return <>
+    <fieldset className="form-section">
+      <legend className="section-title">Basic info</legend>
+      <div className="form-grid">
+        <Field id={`${prefix}-name`} label="Name" required wide maxLength={100} value={value.name} onChange={(event) => set("name", event.target.value)} error={errors.name?.[0]} />
+        <Field id={`${prefix}-description`} label="Description" wide value={value.description} onChange={(event) => set("description", event.target.value)} error={errors.description?.[0]} />
+      </div>
+    </fieldset>
+    <fieldset className="form-section">
+      <legend className="section-title">Schedule &amp; teacher</legend>
+      <div className="form-grid">
+        <Field id={`${prefix}-starts-at`} label="Starts" type="date" required value={value.starts_at} onChange={(event) => set("starts_at", event.target.value)} error={errors.starts_at?.[0]} />
+        <Field id={`${prefix}-ends-at`} label="Ends" type="date" required value={value.ends_at} onChange={(event) => set("ends_at", event.target.value)} error={errors.ends_at?.[0]} />
+        <Select id={`${prefix}-teacher`} label="Teacher" required wide value={value.teacher_id} onChange={(event) => set("teacher_id", event.target.value)} error={errors.teacher_id?.[0]}>
+          <option value="">Select a teacher</option>
+          {teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.full_name}</option>)}
+        </Select>
+      </div>
+    </fieldset>
+  </>;
 }

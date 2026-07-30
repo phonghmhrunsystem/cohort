@@ -8,6 +8,7 @@ import { Card } from "../components/Card";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
 import { Field } from "../components/Field";
+import { EyeIcon, IconButton, IconLinkButton, TrashIcon } from "../components/IconButton";
 import { Spinner } from "../components/Spinner";
 import { Table } from "../components/Table";
 import { useToast } from "../components/Toast";
@@ -102,7 +103,7 @@ export function AdminClassViewPage() {
 
   return <section className="page-stack">
     <div className="page-header">
-      <h1>Class Detail</h1>
+      <div className="class-title"><h1>{class_.name}</h1><Badge className={class_.is_active ? "badge-active" : "badge-disabled"}>{class_.is_active ? "Active" : "Disabled"}</Badge></div>
       {ended
         ? <div className="field-adorned">
             <Field id="extend-ends-at" label="Extend end date" type="date" value={extendDate || class_.ends_at.slice(0, 10)} onChange={(event) => setExtendDate(event.target.value)} />
@@ -111,38 +112,51 @@ export function AdminClassViewPage() {
         : <Link className="button" to={`/admin/classes/${id}/edit`}>Edit Class</Link>}
     </div>
     <Card><h2 className="section-title">Class details</h2><dl className="identity-grid">
-      <Info label="Name" value={class_.name} />
-      <Info label="Description" value={class_.description} wide />
       <Info label="Teacher" value={class_.teacher.full_name} />
       <Info label="Starts" value={formatDate(class_.starts_at)} />
       <Info label="Ends" value={formatDate(class_.ends_at)} />
-      <Info label="Status" value={<Badge className={class_.is_active ? "badge-active" : "badge-disabled"}>{class_.is_active ? "Active" : "Disabled"}</Badge>} />
-    </dl></Card>
+    </dl>
+    {class_.description && <p className="class-description">{class_.description}</p>}
+    </Card>
 
     {roster && <Card>
       <div className="page-header"><h2 className="section-title">Students ({roster.enrolled_students})</h2>{!ended && <Button onClick={() => void openEditRoster()}>Edit roster</Button>}</div>
-      <form className="filters" noValidate onSubmit={search}><Field id="roster-search" label="Search Students" value={rosterQuery} onChange={(event) => setRosterQuery(event.target.value)} /><Button type="submit">Search</Button></form>
+      <form className="filters" noValidate onSubmit={search}><div className="filters-row filters-search"><Field id="roster-search" label="Search Students" value={rosterQuery} onChange={(event) => setRosterQuery(event.target.value)} /><Button type="submit">Search</Button></div></form>
       {roster.students.results.length === 0 ? <EmptyState>No students enrolled.</EmptyState> : <><Table><thead><tr><th>Name</th><th>Quê quán</th><th>Phone</th><th>Enrolled</th><th>Action</th></tr></thead>
         <tbody>{roster.students.results.map((student) => <tr key={student.id}>
           <td>{student.full_name}</td><td>{student.hometown || "—"}</td><td>{student.phone || "—"}</td><td>{formatDate(student.enrolled_at)}</td>
-          <td><Link to={`/admin/classes/${id}/students/${student.id}`}>View</Link>{" "}
-            {!ended && student.submitted_assignments === 0 && <button onClick={() => void removeStudent(student.id)}>Remove</button>}
-          </td>
+          <td><div className="row-actions">
+            <IconLinkButton to={`/admin/classes/${id}/students/${student.id}`} icon={<EyeIcon />} label="View" />
+            {!ended && student.submitted_assignments === 0 && <IconButton icon={<TrashIcon />} label="Remove" variant="danger" onClick={() => void removeStudent(student.id)} />}
+          </div></td>
         </tr>)}</tbody>
       </Table><nav className="pagination" aria-label="Students pagination"><button disabled={!roster.students.previous} onClick={() => setRosterPage((v) => v - 1)}>Previous</button><span>Page {rosterPage}</span><button disabled={!roster.students.next} onClick={() => setRosterPage((v) => v + 1)}>Next</button></nav></>}
     </Card>}
 
     <Link to="/admin/classes">Back to classes</Link>
 
-    {editOpen && <Dialog open onClose={() => setEditOpen(false)} title="Edit roster">
-      <Field id="candidate-search" label="Search Students" value={candidateQuery} onChange={(event) => setCandidateQuery(event.target.value)} />
-      <ul className="checkbox-list">{visibleCandidates.map((c) => <li key={c.id}>
-        <label><input type="checkbox" checked={selected.has(c.id)} onChange={(event) => {
-          const next = new Set(selected);
-          if (event.target.checked) next.add(c.id); else next.delete(c.id);
-          setSelected(next);
-        }} /> {c.full_name} ({c.email})</label>
-      </li>)}</ul>
+    {editOpen && <Dialog open onClose={() => setEditOpen(false)} title="Edit roster" className="dialog-fixed">
+      <div className="roster-picker">
+        <div className="roster-picker-search"><Field id="candidate-search" label="Search Students" value={candidateQuery} onChange={(event) => setCandidateQuery(event.target.value)} /></div>
+        <div className="roster-picker-scroll">
+          <table className="roster-picker-table">
+            <thead><tr><th aria-hidden="true"></th><th>Name</th><th>Email</th></tr></thead>
+            <tbody>
+              {visibleCandidates.length === 0
+                ? <tr className="roster-picker-empty"><td colSpan={3}><EmptyState>No students match your search.</EmptyState></td></tr>
+                : visibleCandidates.map((c) => <tr key={c.id}>
+                    <td><input className="roster-checkbox" type="checkbox" aria-label={`Select ${c.full_name}`} checked={selected.has(c.id)} onChange={(event) => {
+                      const next = new Set(selected);
+                      if (event.target.checked) next.add(c.id); else next.delete(c.id);
+                      setSelected(next);
+                    }} /></td>
+                    <td>{c.full_name}</td>
+                    <td>{c.email}</td>
+                  </tr>)}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <div className="dialog-actions">
         <Button className="button-secondary" disabled={busy} onClick={() => setEditOpen(false)}>Cancel</Button>
         <Button disabled={busy} onClick={() => void saveRoster()}>{busy ? "Saving…" : "Save roster"}</Button>

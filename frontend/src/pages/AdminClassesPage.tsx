@@ -8,6 +8,7 @@ import { Card } from "../components/Card";
 import { Dialog } from "../components/Dialog";
 import { EmptyState } from "../components/EmptyState";
 import { Field } from "../components/Field";
+import { EyeIcon, IconButton, IconLinkButton, PowerIcon } from "../components/IconButton";
 import { Spinner } from "../components/Spinner";
 import { Table } from "../components/Table";
 import { useToast } from "../components/Toast";
@@ -81,12 +82,17 @@ export function AdminClassesPage() {
           <tbody>{data.results.map((row) => <tr key={row.id}>
             <td>{row.name}</td><td>{row.teacher.full_name}</td><td>{formatDate(row.starts_at)}</td><td>{formatDate(row.ends_at)}</td><td>{row.student_count}</td>
             <td><Badge className={row.is_active ? "badge-active" : "badge-disabled"}>{row.is_active ? "Active" : "Disabled"}</Badge></td>
-            <td>
-              <Link to={`/admin/classes/${row.id}`}>View</Link>{" "}
-              <button disabled={row.is_active && !canDisable(row)} title={row.is_active && !canDisable(row) ? "Class has already started." : undefined} onClick={() => setConfirmation(row)}>
-                {row.is_active ? "Disable" : "Enable"}
-              </button>
-            </td>
+            <td><div className="row-actions">
+              <IconLinkButton to={`/admin/classes/${row.id}`} icon={<EyeIcon />} label="View" />
+              <IconButton
+                icon={<PowerIcon />}
+                label={row.is_active ? "Disable" : "Enable"}
+                variant={row.is_active ? "danger" : "active"}
+                disabled={row.is_active && !canDisable(row)}
+                title={row.is_active && !canDisable(row) ? "Class has already started." : undefined}
+                onClick={() => setConfirmation(row)}
+              />
+            </div></td>
           </tr>)}</tbody>
         </Table><nav className="pagination" aria-label="Classes pagination"><button disabled={!data.previous} aria-label="Previous page" onClick={() => setPageNumber((value) => value - 1)}>Previous</button><span>Page {pageNumber}</span><button disabled={!data.next} aria-label="Next page" onClick={() => setPageNumber((value) => value + 1)}>Next</button></nav></>}
     {confirmation && <Dialog open onClose={() => setConfirmation(undefined)} title={confirmation.is_active ? "Disable class" : "Enable class"}>

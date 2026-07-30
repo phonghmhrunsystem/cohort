@@ -25,13 +25,13 @@ export function StudentClassPage() {
     ? `Tiến độ: ${class_.graded_count}/${class_.assignment_count} đã chấm${class_.next_due_at ? ` · Hạn ${formatDate(class_.next_due_at)}` : ""}`
     : null;
   return <section className="page-stack">
-    <Link to="/student/classes">‹ Back</Link>
+    <Link className="back-link" to="/student/classes">‹ Back</Link>
     <h1>{class_.name}</h1>
     {progress && <p>{progress}</p>}
     <p>Giáo viên: {class_.teacher.full_name}</p>
     <div className="tabs" role="tablist">
-      <button role="tab" aria-selected={tab === "resources"} onClick={() => setSearchParams({ tab: "resources" })}>Class resources</button>
-      <button role="tab" aria-selected={tab === "assignments"} onClick={() => setSearchParams({ tab: "assignments" })}>Assignments</button>
+      <button type="button" className="tab" role="tab" aria-selected={tab === "resources"} onClick={() => setSearchParams({ tab: "resources" })}>Class resources</button>
+      <button type="button" className="tab" role="tab" aria-selected={tab === "assignments"} onClick={() => setSearchParams({ tab: "assignments" })}>Assignments</button>
     </div>
     {tab === "resources" && <Card><p className="muted">Class resources — see 07-notifications-and-resources.</p></Card>}
     {tab === "assignments" && <Card><p className="muted">Assignments — see 03-assignments-and-rubrics / 04-submissions.</p></Card>}

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 
 import { Alert } from "../components/Alert";
 import { EmptyState } from "../components/EmptyState";
+import { EyeIcon, IconLinkButton } from "../components/IconButton";
 import { Spinner } from "../components/Spinner";
 import { Table } from "../components/Table";
 import { request } from "../lib/api";
@@ -21,7 +21,7 @@ export function StudentClassesPage() {
   return <section className="page-stack">
     <div className="page-header"><h1>My Classes</h1></div>
     {data.length === 0 ? <EmptyState>No classes enrolled.</EmptyState> : <Table><thead><tr><th>Name</th><th>Teacher</th><th>Action</th></tr></thead>
-      <tbody>{data.map((row) => <tr key={row.id}><td>{row.name}</td><td>{row.teacher.full_name}</td><td><Link to={`/student/classes/${row.id}`}>View</Link></td></tr>)}</tbody>
+      <tbody>{data.map((row) => <tr key={row.id}><td>{row.name}</td><td>{row.teacher.full_name}</td><td><div className="row-actions"><IconLinkButton to={`/student/classes/${row.id}`} icon={<EyeIcon />} label="View" /></div></td></tr>)}</tbody>
     </Table>}
   </section>;
 }
