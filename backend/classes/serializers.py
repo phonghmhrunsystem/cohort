@@ -25,7 +25,8 @@ class ClassSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Class
-        fields = ("id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at", "progress")
+        fields = ("id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at", "progress", "is_active")
+        read_only_fields = ("is_active",)
 
     def validate_name(self, value):
         value = value.strip()

@@ -83,6 +83,28 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.delete(f"/api/classes/{self.course.id}/enrollments/{self.student.id}").status_code, 403)
         self.assertEqual(self.teacher_client.put(f"/api/classes/{self.course.id}/enrollments", {"student_ids": []}, format="json").status_code, 403)
 
+    def test_status_toggle_admin_only_and_blocks_disable_after_start(self):
+        self.assertEqual(
+            self.teacher_client.patch(f"/api/classes/{self.course.id}/status", {"is_active": False}, format="json").status_code,
+            403,
+        )
+        # self.course already started (starts_at = now - 1 day) -> disabling is blocked.
+        response = self.admin_client.patch(f"/api/classes/{self.course.id}/status", {"is_active": False}, format="json")
+        self.assertEqual(response.status_code, 422)
+
+        future_course = Class.objects.create(
+            teacher=self.teacher, name="Future", starts_at=timezone.now() + timedelta(days=1),
+            ends_at=timezone.now() + timedelta(days=2),
+        )
+        disable = self.admin_client.patch(f"/api/classes/{future_course.id}/status", {"is_active": False}, format="json")
+        self.assertEqual(disable.status_code, 200)
+        self.assertFalse(disable.data["is_active"])
+        self.assertEqual(AuditLog.objects.filter(target_type="classes.class", target_id=future_course.id, action="class.status_changed").count(), 1)
+
+        enable = self.admin_client.patch(f"/api/classes/{future_course.id}/status", {"is_active": True}, format="json")
+        self.assertEqual(enable.status_code, 200)
+        self.assertTrue(enable.data["is_active"])
+
     def test_successful_class_and_enrollment_mutations_are_audited(self):
         response = self.admin_client.post("/api/classes", self.class_payload(), format="json")
         self.assertEqual(response.status_code, 201)

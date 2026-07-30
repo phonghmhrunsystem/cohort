@@ -93,6 +93,30 @@ class ClassDetailView(APIView):
         return Response(ClassSerializer(class_).data)
 
 
+class ClassStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, class_id):
+        if request.user.role != User.Role.ADMIN:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        class_ = get_scoped_class(request.user, class_id)
+        is_active = request.data.get("is_active")
+        if not isinstance(is_active, bool):
+            return Response({"is_active": ["This field is required."]}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        if is_active is False and timezone.now() >= class_.starts_at:
+            return closed_response("Class cannot be disabled once it has started.")
+        with transaction.atomic():
+            class_.is_active = is_active
+            class_.save(update_fields=("is_active",))
+            write_audit(
+                actor=request.user,
+                action="class.status_changed",
+                target=class_,
+                metadata={"is_active": is_active},
+            )
+        return Response(ClassSerializer(class_).data)
+
+
 class GradebookView(APIView):
     permission_classes = [IsAuthenticated]
 
