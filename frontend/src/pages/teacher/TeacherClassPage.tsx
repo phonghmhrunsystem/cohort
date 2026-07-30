@@ -2,15 +2,29 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { Alert } from "../../components/Alert";
+import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { Field } from "../../components/Field";
-import { EyeIcon, IconLinkButton } from "../../components/IconButton";
+import { EditIcon, EyeIcon, IconButton, IconLinkButton } from "../../components/IconButton";
 import { Spinner } from "../../components/Spinner";
 import { Table } from "../../components/Table";
-import { classStudentsPath, request } from "../../lib/api";
-import type { ClassRow, RosterResponse } from "../../types";
+import { classAssignmentsPath, classStudentsPath, request } from "../../lib/api";
+import { deadlineBadge, formatDate, formatDateTime } from "../../lib/format";
+import type { Assignment, ClassRow, RosterResponse } from "../../types";
+
+function assignmentStatus(class_: ClassRow, assignment: Assignment, now: Date): "Đang mở" | "Hết hạn" | "Đã đóng" {
+  const classOpen = class_.is_active && new Date(class_.starts_at) <= now && now < new Date(class_.ends_at);
+  if (!classOpen) return "Đã đóng";
+  return now < new Date(assignment.due_at) ? "Đang mở" : "Hết hạn";
+}
+
+function statusBadgeClass(status: string): string {
+  if (status === "Đang mở") return "badge-active";
+  if (status === "Hết hạn") return "badge-warning";
+  return "badge-disabled";
+}
 
 export function TeacherClassPage() {
   const { classId } = useParams();
@@ -36,6 +50,17 @@ export function TeacherClassPage() {
   }, [classId, submitted, pageNumber]);
   useEffect(() => { if (tab === "students") loadRoster(); }, [loadRoster, tab]);
 
+  const [assignments, setAssignments] = useState<Assignment[]>();
+  const [assignmentsFailure, setAssignmentsFailure] = useState("");
+
+  const loadAssignments = useCallback(() => {
+    if (!classId) return;
+    request<Assignment[]>(classAssignmentsPath(Number(classId)), { token: token() })
+      .then((value) => value && setAssignments(value))
+      .catch(() => setAssignmentsFailure("Unable to load assignments."));
+  }, [classId]);
+  useEffect(() => { if (tab === "assignments") loadAssignments(); }, [loadAssignments, tab]);
+
   const search = (event: FormEvent) => { event.preventDefault(); setPageNumber(1); setSubmitted(query); };
 
   if (failure) return <Alert>{failure}</Alert>;
@@ -54,6 +79,29 @@ export function TeacherClassPage() {
         <tbody>{roster.students.results.map((s) => <tr key={s.id}><td>{s.full_name}</td><td>{s.phone || "—"}</td><td><div className="row-actions"><IconLinkButton to={`/teacher/classes/${classId}/students/${s.id}`} icon={<EyeIcon />} label="View" /></div></td></tr>)}</tbody>
       </Table><nav className="pagination" aria-label="Students pagination"><button disabled={!roster.students.previous} onClick={() => setPageNumber((v) => v - 1)}>Previous</button><span>Page {pageNumber}</span><button disabled={!roster.students.next} onClick={() => setPageNumber((v) => v + 1)}>Next</button></nav></>}
     </Card>}
-    {tab === "assignments" && <Card><p className="muted">Assignments — see 03-assignments-and-rubrics.</p></Card>}
+    {tab === "assignments" && <Card>
+      <div className="page-header"><h2>Assignments</h2></div>
+      {assignmentsFailure && <Alert>{assignmentsFailure}</Alert>}
+      {!assignments ? <Spinner label="Loading assignments" /> :
+        assignments.length === 0 ? <EmptyState>No assignments.</EmptyState> :
+          <Table><thead><tr><th>Tên</th><th>Ngày tạo</th><th>Hạn nộp</th><th>Trạng thái</th><th>Đã nộp</th><th>Action</th></tr></thead>
+            <tbody>{assignments.map((assignment) => {
+              const now = new Date();
+              const status = assignmentStatus(class_, assignment, now);
+              const editDisabled = new Date(assignment.due_at) <= now;
+              return <tr key={assignment.id}>
+                <td>{assignment.title}</td>
+                <td>{formatDate(assignment.created_at)}</td>
+                <td>{formatDateTime(assignment.due_at)}<br /><span className="muted">{deadlineBadge(assignment.due_at, now)}</span></td>
+                <td><Badge className={statusBadgeClass(status)}>{status}</Badge></td>
+                <td>{assignment.submitted_count ?? 0}/{assignment.enrolled_count ?? 0}{!!assignment.graded_count && <> <Badge className="badge-active">{assignment.graded_count} đã chấm</Badge></>}</td>
+                <td><div className="row-actions">
+                  <IconLinkButton to={`/teacher/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />
+                  <IconButton icon={<EditIcon />} label="Sửa" disabled={editDisabled} title={editDisabled ? "Assignment đã hết hạn, không thể chỉnh sửa." : undefined} onClick={() => {}} />
+                </div></td>
+              </tr>;
+            })}</tbody>
+          </Table>}
+    </Card>}
   </section>;
 }

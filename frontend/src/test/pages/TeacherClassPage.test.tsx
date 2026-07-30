@@ -29,6 +29,13 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
   status,
   headers: { "Content-Type": "application/json" },
 });
+const assignmentRow = (overrides: Partial<import("../../types").Assignment> = {}) => ({
+  id: 1, classroom_id: 9, title: "Homework 1", description: "Build a small app.",
+  due_at: "2026-08-15T20:00:00Z", maximum_score: 100, criteria: [], created_at: "2026-07-20T00:00:00Z",
+  learning_state: null, deadline_badge: null, closure_reason: null,
+  submitted_count: 12, graded_count: 0, enrolled_count: 24,
+  ...overrides,
+});
 
 function openPage(fetchMock: ReturnType<typeof vi.fn>) {
   sessionStorage.setItem("access_token", "token");
@@ -77,16 +84,39 @@ describe("Teacher class page", () => {
     expect(screen.getByText("Đã ghi danh 2 · Đã nộp 1 · Đã chấm 1")).toBeTruthy();
   });
 
-  it("renders a placeholder for the Assignments tab", async () => {
+  it("renders the Assignments tab table with counts, status and edit-disabled past due date", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(classDetail))
-      .mockResolvedValueOnce(json(roster()));
+      .mockResolvedValueOnce(json(roster()))
+      .mockResolvedValueOnce(json([
+        assignmentRow({ id: 1, title: "Homework 1", due_at: "2999-01-01T20:00:00Z", submitted_count: 12, graded_count: 0, enrolled_count: 24 }),
+        assignmentRow({ id: 2, title: "Homework 2", due_at: "2000-01-01T20:00:00Z", submitted_count: 22, graded_count: 22, enrolled_count: 24 }),
+      ]));
     openPage(fetchMock);
     const events = userEvent.setup();
-
     await waitFor(() => expect(screen.getByText("Cohort 5")).toBeTruthy());
     await events.click(screen.getByRole("tab", { name: "Assignments" }));
 
-    expect(screen.getByText("Assignments — see 03-assignments-and-rubrics.")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
+    expect(screen.getByText("12/24")).toBeTruthy();
+    expect(screen.getByText("22/24")).toBeTruthy();
+    expect(screen.getByText("22 đã chấm")).toBeTruthy();
+    const editButtons = screen.getAllByRole("button", { name: "Sửa" });
+    expect(editButtons[0].hasAttribute("disabled")).toBe(false);
+    expect(editButtons[1].hasAttribute("disabled")).toBe(true);
+    expect(editButtons[1].getAttribute("title")).toBe("Assignment đã hết hạn, không thể chỉnh sửa.");
+  });
+
+  it("shows an empty state when there are no assignments", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(classDetail))
+      .mockResolvedValueOnce(json(roster()))
+      .mockResolvedValueOnce(json([]));
+    openPage(fetchMock);
+    const events = userEvent.setup();
+    await waitFor(() => expect(screen.getByText("Cohort 5")).toBeTruthy());
+    await events.click(screen.getByRole("tab", { name: "Assignments" }));
+
+    await waitFor(() => expect(screen.getByText("No assignments.")).toBeTruthy());
   });
 });
