@@ -1,4 +1,4 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
+import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 type Labelled = { label: string; error?: ReactNode; hint?: ReactNode; wide?: boolean };
 
@@ -25,5 +25,11 @@ export function Field({ id, label, error, hint, wide, adornment, ...props }: Inp
 export function Select({ id, label, error, hint, wide, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & Labelled) {
   return <Wrapper id={id} label={label} hint={hint} error={error} required={props.required} wide={wide}>
     <select id={id} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, hint, error)} {...props}>{children}</select>
+  </Wrapper>;
+}
+
+export function Textarea({ id, label, error, hint, wide, rows = 4, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement> & Labelled & { rows?: number }) {
+  return <Wrapper id={id} label={label} hint={hint} error={error} required={props.required} wide={wide}>
+    <textarea id={id} rows={rows} aria-invalid={error ? true : undefined} aria-describedby={describedBy(id, hint, error)} {...props} />
   </Wrapper>;
 }
