@@ -114,16 +114,34 @@ class ClassApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(AuditLog.objects.get(target_type="classes.enrollment", target_id=response.data["id"]).action, "enrollment.created")
 
-    def test_create_requires_an_active_teacher_and_teacher_cannot_change(self):
+    def test_create_requires_an_active_teacher(self):
         self.teacher.is_active = False
         self.teacher.save(update_fields=("is_active",))
         response = self.admin_client.post("/api/classes", self.class_payload(teacher_id=self.teacher.id), format="json")
         self.assertEqual(response.status_code, 422)
 
-        response = self.admin_client.patch(f"/api/classes/{self.course.id}", {"teacher_id": self.other_teacher.id}, format="json")
-        self.assertEqual(response.status_code, 422)
+    def test_teacher_reassignment_is_allowed_until_class_ends_and_notifies_both_teachers(self):
+        response = self.admin_client.patch(
+            f"/api/classes/{self.course.id}", {"teacher_id": self.other_teacher.id}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
         self.course.refresh_from_db()
-        self.assertEqual(self.course.teacher_id, self.teacher.id)
+        self.assertEqual(self.course.teacher_id, self.other_teacher.id)
+
+        audit = AuditLog.objects.get(target_type="classes.class", target_id=self.course.id, action="class.teacher_changed")
+        self.assertEqual(audit.metadata["from_teacher_id"], self.teacher.id)
+        self.assertEqual(audit.metadata["to_teacher_id"], self.other_teacher.id)
+
+        from notifications.models import Notification
+        self.assertTrue(Notification.objects.filter(recipient=self.teacher, type="CLASS_UNASSIGNED").exists())
+        self.assertTrue(Notification.objects.filter(recipient=self.other_teacher, type="CLASS_ASSIGNED").exists())
+
+        ended = Class.objects.create(
+            teacher=self.teacher, name="Ended", starts_at=timezone.now() - timedelta(days=10),
+            ends_at=timezone.now() - timedelta(days=1),
+        )
+        blocked = self.admin_client.patch(f"/api/classes/{ended.id}", {"teacher_id": self.other_teacher.id}, format="json")
+        self.assertEqual(blocked.status_code, 422)
 
     def test_deleted_accounts_cannot_be_selected_or_appear_in_rosters(self):
         deleted_teacher = User.objects.create_user(

@@ -15,7 +15,7 @@ from rest_framework.views import APIView
 from accounts.models import User
 from assignments.models import Assignment
 from audit.services import write_audit
-from notifications.services import create_notifications
+from notifications.services import create_notifications, notify_user
 from submissions.models import Submission
 
 from .models import Class, ClassResource, Enrollment
@@ -85,6 +85,7 @@ class ClassDetailView(APIView):
         class_ = get_scoped_class(request.user, class_id)
         if is_ended(class_):
             return closed_response()
+        previous_teacher_id = class_.teacher_id
         serializer = ClassSerializer(class_, data=request.data, partial=True)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
@@ -96,6 +97,15 @@ class ClassDetailView(APIView):
                 target=class_,
                 metadata=class_metadata(class_),
             )
+            if class_.teacher_id != previous_teacher_id:
+                write_audit(
+                    actor=request.user,
+                    action="class.teacher_changed",
+                    target=class_,
+                    metadata={"from_teacher_id": previous_teacher_id, "to_teacher_id": class_.teacher_id},
+                )
+                notify_user(User.objects.get(id=previous_teacher_id), "CLASS_UNASSIGNED", f"Unassigned from {class_.name}", "/teacher/classes")
+                notify_user(class_.teacher, "CLASS_ASSIGNED", f"Assigned to {class_.name}", f"/teacher/classes/{class_.id}")
         return Response(ClassSerializer(class_).data)
 
 

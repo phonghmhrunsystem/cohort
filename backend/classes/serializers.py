@@ -49,8 +49,6 @@ class ClassSerializer(serializers.ModelSerializer):
         return teacher
 
     def validate(self, attrs):
-        if self.instance and "teacher" in attrs:
-            raise serializers.ValidationError({"teacher_id": ["Teacher assignment cannot be changed."]})
         starts_at = attrs.get("starts_at", getattr(self.instance, "starts_at", None))
         ends_at = attrs.get("ends_at", getattr(self.instance, "ends_at", None))
         if starts_at and ends_at and starts_at >= ends_at:
