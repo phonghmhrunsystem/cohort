@@ -22,10 +22,11 @@ class ClassSerializer(serializers.ModelSerializer):
     )
     teacher = TeacherDisplaySerializer(read_only=True)
     progress = serializers.SerializerMethodField()
+    student_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Class
-        fields = ("id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at", "progress", "is_active")
+        fields = ("id", "teacher_id", "teacher", "name", "description", "starts_at", "ends_at", "progress", "is_active", "student_count")
         read_only_fields = ("is_active",)
 
     def validate_name(self, value):

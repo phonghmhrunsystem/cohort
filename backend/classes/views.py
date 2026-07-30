@@ -8,6 +8,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers, status
 from accounts.permissions import IsAuthenticated
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -43,11 +44,16 @@ class ClassesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        classes = scoped_classes(request.user)
+        classes = scoped_classes(request.user).annotate(student_count=Count("enrollments", distinct=True))
         if query := request.query_params.get("q", "").strip():
             classes = classes.filter(name__icontains=query)
+        if request.user.role == User.Role.ADMIN and (teacher := request.query_params.get("teacher", "").strip()):
+            classes = classes.filter(Q(teacher__full_name__icontains=teacher) | Q(teacher_id=teacher if teacher.isdigit() else None))
         context = {"student": request.user} if request.user.role == User.Role.STUDENT else {}
-        return Response(ClassSerializer(classes.order_by("id").distinct(), many=True, context=context).data)
+        paginator = PageNumberPagination()
+        paginator.page_size = 10
+        page = paginator.paginate_queryset(classes.order_by("id").distinct(), request)
+        return Response(paginator.get_paginated_response(ClassSerializer(page, many=True, context=context).data).data)
 
     def post(self, request):
         if request.user.role != User.Role.ADMIN:

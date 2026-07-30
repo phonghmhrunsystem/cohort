@@ -196,12 +196,32 @@ class ClassApiTests(TestCase):
 
     def test_list_search_is_scoped_by_role(self):
         response = self.admin_client.get("/api/classes", {"q": "redorange"})
-        self.assertEqual([item["id"] for item in response.data], [self.course.id])
+        self.assertEqual([item["id"] for item in response.data["results"]], [self.course.id])
         response = self.teacher_client.get("/api/classes", {"q": "redorange"})
-        self.assertEqual([item["id"] for item in response.data], [self.course.id])
+        self.assertEqual([item["id"] for item in response.data["results"]], [self.course.id])
         response = self.student_client.get("/api/classes", {"q": "redorange"})
-        self.assertEqual([item["id"] for item in response.data], [self.course.id])
-        self.assertEqual(self.other_student_client.get("/api/classes").data, [])
+        self.assertEqual([item["id"] for item in response.data["results"]], [self.course.id])
+        self.assertEqual(self.other_student_client.get("/api/classes").data["results"], [])
+
+    def test_list_is_paginated_with_student_count_and_teacher_filter(self):
+        for index in range(11):
+            Class.objects.create(
+                teacher=self.teacher, name=f"Bulk {index}",
+                starts_at=timezone.now(), ends_at=timezone.now() + timedelta(days=1),
+            )
+        response = self.admin_client.get("/api/classes")
+        self.assertEqual(len(response.data["results"]), 10)
+        # course + other_course + 11 bulk + 2 classes seeded by classes.0001_initial migration.
+        self.assertEqual(response.data["count"], 15)
+
+        page2 = self.admin_client.get("/api/classes?page=2")
+        self.assertEqual(len(page2.data["results"]), 5)
+
+        row = next(r for r in response.data["results"] if r["id"] == self.course.id)
+        self.assertEqual(row["student_count"], 1)
+
+        by_teacher = self.admin_client.get(f"/api/classes?teacher={self.teacher.id}")
+        self.assertTrue(all(r["teacher"]["id"] == self.teacher.id for r in by_teacher.data["results"]))
 
     def test_enrolled_student_sees_safe_teacher_details_but_not_another_class(self):
         self.teacher.full_name = "Teacher Example"
@@ -386,11 +406,11 @@ class ClassApiTests(TestCase):
         self.course.save(update_fields=("is_active",))
 
         list_response = self.teacher_client.get("/api/classes")
-        self.assertNotIn(self.course.id, [row["id"] for row in list_response.data])
+        self.assertNotIn(self.course.id, [row["id"] for row in list_response.data["results"]])
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}").status_code, 404)
 
         student_list = self.student_client.get("/api/classes")
-        self.assertNotIn(self.course.id, [row["id"] for row in student_list.data])
+        self.assertNotIn(self.course.id, [row["id"] for row in student_list.data["results"]])
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}").status_code, 404)
 
         # Admin is unaffected.
