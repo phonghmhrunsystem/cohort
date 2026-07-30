@@ -319,18 +319,8 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}/students?candidates=1").status_code, 403)
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students?candidates=1").status_code, 403)
 
-    def test_enrollment_read_returns_current_roster_to_admin_and_assigned_teacher(self):
-        expected = [{
-            "id": self.student.id, "full_name": None, "email": "student@example.test",
-            "phone": None, "hometown": None, "is_active": True,
-        }]
-
-        for client in (self.admin_client, self.teacher_client):
-            response = client.get(f"/api/classes/{self.course.id}/enrollments")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.data, expected)
-        self.assertEqual(self.other_teacher_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 404)
-        self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 403)
+    def test_enrollment_get_route_is_removed(self):
+        self.assertEqual(self.admin_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 405)
 
     def test_ended_class_is_read_only_for_admin(self):
         self.course.ends_at = timezone.now() - timedelta(seconds=1)

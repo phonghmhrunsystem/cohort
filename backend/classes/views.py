@@ -226,17 +226,6 @@ class StudentDetailView(APIView):
 class EnrollmentView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request, class_id):
-        if request.user.role not in (User.Role.ADMIN, User.Role.TEACHER):
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        class_ = get_scoped_class(request.user, class_id)
-        students = User.objects.filter(
-            enrollments__classroom=class_, role=User.Role.STUDENT, is_deleted=False
-        )
-        if query := request.query_params.get("q", "").strip():
-            students = students.filter(Q(full_name__icontains=query) | Q(email__icontains=query))
-        return Response(StudentSerializer(students.order_by("id"), many=True).data)
-
     def post(self, request, class_id):
         if request.user.role != User.Role.ADMIN:
             return Response(status=status.HTTP_403_FORBIDDEN)
