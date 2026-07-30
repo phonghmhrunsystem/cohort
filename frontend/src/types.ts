@@ -148,3 +148,26 @@ export interface Candidate {
   hometown: string | null;
   is_active: boolean;
 }
+
+export interface RubricCriterion {
+  id: number;
+  title: string;
+  maximum_score: number;
+}
+
+export interface Assignment {
+  id: number;
+  classroom_id: number;
+  title: string;
+  description: string;
+  due_at: string;
+  maximum_score: number;
+  criteria: RubricCriterion[];
+  created_at: string;
+  learning_state: "OPEN" | "SUBMITTED" | "GRADED" | "CLOSED" | null;
+  deadline_badge: string | null;
+  closure_reason: string | null;
+  submitted_count?: number | null;
+  graded_count?: number | null;
+  enrolled_count?: number | null;
+}
