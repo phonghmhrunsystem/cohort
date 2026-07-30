@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -125,5 +125,30 @@ describe("Admin class view", () => {
     expect(path).toBe("/api/classes/9/enrollments");
     expect(options.method).toBe("PUT");
     expect(JSON.parse(options.body)).toEqual({ student_ids: [1, 2] });
+  });
+
+  it("shows an extend-end-date control for an ended class and PATCHes only ends_at", async () => {
+    const endedClass = { ...classDetail, ends_at: "2026-01-01T00:00:00Z" };
+    const endedRoster = { ...roster, students: { ...roster.students, results: roster.students.results.map((s) => ({ ...s, submitted_assignments: 0 })) } };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(endedClass))
+      .mockResolvedValueOnce(json(endedRoster))
+      .mockResolvedValueOnce(json({}))
+      .mockResolvedValueOnce(json(endedClass));
+    openPage(fetchMock);
+    const events = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByText("Cohort 5")).toBeTruthy());
+    expect(screen.queryByRole("link", { name: "Edit Class" })).toBeNull();
+
+    const dateInput = screen.getByLabelText("Extend end date");
+    fireEvent.change(dateInput, { target: { value: "2027-01-01" } });
+    await events.click(screen.getByRole("button", { name: "Extend end date" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    const [path, options] = fetchMock.mock.calls[2];
+    expect(path).toBe("/api/classes/9");
+    expect(options.method).toBe("PATCH");
+    expect(JSON.parse(options.body)).toEqual({ ends_at: "2027-01-01" });
   });
 });

@@ -33,6 +33,7 @@ export function AdminClassViewPage() {
   const [candidateQuery, setCandidateQuery] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [extendDate, setExtendDate] = useState("");
   const toast = useToast();
 
   const loadClass = useCallback(() => {
@@ -43,7 +44,8 @@ export function AdminClassViewPage() {
 
   const loadRoster = useCallback(() => {
     request<RosterResponse>(classStudentsPath(id, { q: rosterSubmitted || undefined, page: rosterPage === 1 ? undefined : rosterPage }), { token: token() })
-      .then((value) => value && setRoster(value));
+      .then((value) => value && setRoster(value))
+      .catch(() => setFailure("Unable to load roster."));
   }, [id, rosterSubmitted, rosterPage]);
 
   useEffect(() => { loadClass(); }, [loadClass]);
@@ -64,8 +66,22 @@ export function AdminClassViewPage() {
   async function openEditRoster() {
     setEditOpen(true);
     setSelected(new Set((roster?.students.results ?? []).map((s) => s.id)));
-    const all = await request<{ results?: Candidate[] } | Candidate[]>(`/classes/${id}/students?candidates=1`, { token: token() });
-    setCandidates(Array.isArray(all) ? all : all?.results ?? []);
+    try {
+      const all = await request<{ results?: Candidate[] } | Candidate[]>(`/classes/${id}/students?candidates=1`, { token: token() });
+      setCandidates(Array.isArray(all) ? all : all?.results ?? []);
+    } catch {
+      toast.error("Unable to load candidates.");
+    }
+  }
+
+  async function extendEndDate() {
+    try {
+      await request(`/classes/${id}`, { method: "PATCH", token: token(), body: { ends_at: extendDate } });
+      toast.success("Class end date extended.");
+      loadClass();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to extend end date.");
+    }
   }
 
   async function saveRoster() {
@@ -85,7 +101,15 @@ export function AdminClassViewPage() {
   const visibleCandidates = candidates.filter((c) => c.full_name.toLowerCase().includes(candidateQuery.toLowerCase()) || c.email.toLowerCase().includes(candidateQuery.toLowerCase()));
 
   return <section className="page-stack">
-    <div className="page-header"><h1>Class Detail</h1><Link className="button" to={`/admin/classes/${id}/edit`}>Edit Class</Link></div>
+    <div className="page-header">
+      <h1>Class Detail</h1>
+      {ended
+        ? <div className="field-adorned">
+            <Field id="extend-ends-at" label="Extend end date" type="date" value={extendDate || class_.ends_at.slice(0, 10)} onChange={(event) => setExtendDate(event.target.value)} />
+            <Button onClick={() => void extendEndDate()}>Extend end date</Button>
+          </div>
+        : <Link className="button" to={`/admin/classes/${id}/edit`}>Edit Class</Link>}
+    </div>
     <Card><h2 className="section-title">Class details</h2><dl className="identity-grid">
       <Info label="Name" value={class_.name} />
       <Info label="Description" value={class_.description} wide />
