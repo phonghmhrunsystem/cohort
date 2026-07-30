@@ -146,13 +146,13 @@ export function TeacherClassPage() {
             })}</tbody>
           </Table>}
     </Card>}
-    {dialogAssignment && <Dialog open onClose={() => setDialogAssignment(undefined)} title={dialogAssignment === "new" ? "Tạo assignment" : "Sửa assignment"}>
-      <form noValidate onSubmit={saveAssignment}>
-        <Field id="assignment-title" label="Title" required value={assignmentDraft.title} onChange={(event) => setAssignmentDraft({ ...assignmentDraft, title: event.target.value })} error={assignmentErrors.title?.[0]} />
-        <Textarea id="assignment-description" label="Description" required rows={4} value={assignmentDraft.description} onChange={(event) => setAssignmentDraft({ ...assignmentDraft, description: event.target.value })} error={assignmentErrors.description?.[0]} />
+    {dialogAssignment && <Dialog open onClose={() => setDialogAssignment(undefined)} title={dialogAssignment === "new" ? "Tạo assignment" : "Sửa assignment"} className="dialog-md">
+      <form noValidate onSubmit={saveAssignment} className="form-grid">
+        <Field id="assignment-title" label="Title" required wide disabled={dialogAssignment !== "new"} value={assignmentDraft.title} onChange={(event) => setAssignmentDraft({ ...assignmentDraft, title: event.target.value })} error={assignmentErrors.title?.[0]} />
+        <Textarea id="assignment-description" label="Description" required wide rows={4} value={assignmentDraft.description} onChange={(event) => setAssignmentDraft({ ...assignmentDraft, description: event.target.value })} error={assignmentErrors.description?.[0]} />
         <Field id="assignment-due-at" label="Due at" type="datetime-local" required value={assignmentDraft.due_at} onChange={(event) => setAssignmentDraft({ ...assignmentDraft, due_at: event.target.value })} error={assignmentErrors.due_at?.[0]} />
-        <div className="field"><label>Max score</label><p>100</p></div>
-        <div className="dialog-actions">
+        <div className="field"><label>Max score</label><p className="field-static">100</p></div>
+        <div className="dialog-actions field-full">
           <Button type="button" className="button-secondary" disabled={assignmentBusy} onClick={() => setDialogAssignment(undefined)}>Cancel</Button>
           <Button type="submit" disabled={assignmentBusy}>{assignmentBusy ? "Saving…" : "Save"}</Button>
         </div>

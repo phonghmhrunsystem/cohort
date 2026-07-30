@@ -4,7 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Alert } from "../../components/Alert";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
-import { EyeIcon, IconLinkButton } from "../../components/IconButton";
+import { EyeIcon, IconLinkButton, UploadIcon } from "../../components/IconButton";
 import { Spinner } from "../../components/Spinner";
 import { Table } from "../../components/Table";
 import { classAssignmentsPath, request } from "../../lib/api";
@@ -68,7 +68,8 @@ export function StudentClassPage() {
                 <td>—</td>
                 <td><div className="row-actions">
                   <IconLinkButton to={`/student/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />
-                  {state.action && <Link className="button button-secondary" to={`/student/assignments/${assignment.id}`}>{state.action}</Link>}
+                  {assignment.learning_state === "OPEN" && <IconLinkButton to={`/student/assignments/${assignment.id}`} icon={<UploadIcon />} label="Nộp bài" />}
+                  {assignment.learning_state !== "OPEN" && state.action && <Link className="button button-secondary" to={`/student/assignments/${assignment.id}`}>{state.action}</Link>}
                 </div></td>
               </tr>;
             })}</tbody>
