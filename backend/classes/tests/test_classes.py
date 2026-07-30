@@ -338,6 +338,22 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.admin_client.patch(f"/api/classes/{self.course.id}", {"name": "Changed"}, format="json").status_code, 422)
         self.assertEqual(self.admin_client.post(f"/api/classes/{self.course.id}/enrollments", {"student_id": self.other_student.id}, format="json").status_code, 422)
 
+    def test_ends_at_only_extension_reopens_an_ended_class(self):
+        ended = Class.objects.create(
+            teacher=self.teacher, name="Ended", starts_at=timezone.now() - timedelta(days=10),
+            ends_at=timezone.now() - timedelta(days=1),
+        )
+        new_end = timezone.now() + timedelta(days=5)
+
+        mixed = self.admin_client.patch(f"/api/classes/{ended.id}", {"ends_at": new_end.isoformat(), "name": "Renamed"}, format="json")
+        self.assertEqual(mixed.status_code, 422)
+
+        extend = self.admin_client.patch(f"/api/classes/{ended.id}", {"ends_at": new_end.isoformat()}, format="json")
+        self.assertEqual(extend.status_code, 200)
+        ended.refresh_from_db()
+        self.assertAlmostEqual(ended.ends_at.timestamp(), new_end.timestamp(), delta=1)
+        self.assertTrue(AuditLog.objects.filter(target_type="classes.class", target_id=ended.id, action="class.reopened").exists())
+
     def test_enrollment_rejects_duplicate_and_inactive_student(self):
         self.assertEqual(self.admin_client.post(f"/api/classes/{self.course.id}/enrollments", {"student_id": self.student.id}, format="json").status_code, 422)
         self.other_student.is_active = False

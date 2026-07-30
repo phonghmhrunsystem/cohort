@@ -83,17 +83,21 @@ class ClassDetailView(APIView):
         if request.user.role != User.Role.ADMIN:
             return Response(status=status.HTTP_403_FORBIDDEN)
         class_ = get_scoped_class(request.user, class_id)
-        if is_ended(class_):
+        is_extension = set(request.data.keys()) == {"ends_at"}
+        if is_ended(class_) and not is_extension:
             return closed_response()
         previous_teacher_id = class_.teacher_id
         serializer = ClassSerializer(class_, data=request.data, partial=True)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        was_ended = is_ended(class_)
+        if is_extension and was_ended and serializer.validated_data["ends_at"] <= timezone.now():
+            return closed_response("Extension must move ends_at into the future.")
         with transaction.atomic():
             class_ = serializer.save()
             write_audit(
                 actor=request.user,
-                action="class.updated",
+                action="class.reopened" if (is_extension and was_ended) else "class.updated",
                 target=class_,
                 metadata=class_metadata(class_),
             )
