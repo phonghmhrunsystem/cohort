@@ -74,6 +74,30 @@ describe("SubmissionHistory", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("reports pending-file false when a valid pick is followed by an invalid one", async () => {
+    const onPendingFileChange = vi.fn();
+    render(
+      <SubmissionHistory
+        assignmentId={5}
+        submissions={[]}
+        canSubmit
+        closureReason={null}
+        onSubmitted={() => {}}
+        onPendingFileChange={onPendingFileChange}
+      />,
+    );
+    const events = userEvent.setup();
+
+    await events.upload(screen.getByLabelText(/choose file/i), pdfFile());
+    expect(onPendingFileChange).toHaveBeenLastCalledWith(true);
+
+    const badFile = new File(["hi"], "notes.txt", { type: "text/plain" });
+    await events.upload(screen.getByLabelText(/choose file/i), badFile);
+
+    expect(screen.getByText("Chỉ nhận file PDF hoặc DOCX.")).toBeTruthy();
+    expect(onPendingFileChange).toHaveBeenLastCalledWith(false);
+  });
+
   it("clears the chosen file with the (x) button", async () => {
     render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
     const events = userEvent.setup();

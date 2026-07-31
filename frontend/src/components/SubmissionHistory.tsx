@@ -30,9 +30,10 @@ export interface SubmissionHistoryProps {
   canSubmit: boolean;
   closureReason: string | null;
   onSubmitted: (submission: Submission) => void;
+  onPendingFileChange?: (hasPendingFile: boolean) => void;
 }
 
-export function SubmissionHistory({ assignmentId, submissions, canSubmit, closureReason, onSubmitted }: SubmissionHistoryProps) {
+export function SubmissionHistory({ assignmentId, submissions, canSubmit, closureReason, onSubmitted, onPendingFileChange }: SubmissionHistoryProps) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -46,17 +47,20 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
     if (problem) {
       setError(problem);
       setFile(null);
+      onPendingFileChange?.(false);
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
     setError("");
     setFile(picked);
+    onPendingFileChange?.(true);
   }
 
   function clearFile() {
     setFile(null);
     setError("");
     if (inputRef.current) inputRef.current.value = "";
+    onPendingFileChange?.(false);
   }
 
   async function submit() {
@@ -74,6 +78,7 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
       if (created) {
         onSubmitted(created);
         setFile(null);
+        onPendingFileChange?.(false);
         if (inputRef.current) inputRef.current.value = "";
         setConfirmedAt(
           new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()),
