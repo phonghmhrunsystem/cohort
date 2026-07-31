@@ -51,7 +51,11 @@ describe("Student assignment page", () => {
   it("hides the submit form and shows the closure reason once graded", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(assignment({ learning_state: "GRADED", closure_reason: "Đã chấm, không thể nộp lại" })))
-      .mockResolvedValueOnce(json([]));
+      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(json({
+        id: 1, assignment_id: 5, student_id: 1, submission_id: 1,
+        total_score: 90, feedback: "Good job", scores: [], created_at: "2026-07-25T00:00:00Z",
+      }));
     openPage(fetchMock);
 
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
