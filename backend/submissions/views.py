@@ -69,7 +69,6 @@ class AssignmentSubmissionsView(APIView):
                 assignment=assignment,
                 student=request.user,
                 upload=serializer.validated_data["file"],
-                note=serializer.validated_data.get("note", ""),
             )
         except SubmissionRejected as exc:
             return Response(

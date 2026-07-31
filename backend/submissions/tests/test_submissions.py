@@ -286,6 +286,10 @@ class SubmissionApiTests(TestCase):
         self.assertEqual(self.other_student_client.get(download_url).status_code, 404)
         self.assertEqual(self.unenrolled_student_client.get(download_url).status_code, 404)
 
+    def test_submission_response_has_no_note_field(self):
+        response = self.submit("one.pdf")
+        self.assertNotIn("note", response.json())
+
     def test_teacher_detail_and_download_are_limited_to_latest_version(self):
         first = self.submit("one.pdf").json()
         latest = self.submit("two.pdf").json()
@@ -354,7 +358,6 @@ class SubmissionConcurrencyTests(TransactionTestCase):
                     assignment=self.assignment,
                     student=self.student,
                     upload=SimpleUploadedFile(filename, b"content", "application/pdf"),
-                    note="",
                 ).version
             except Exception as exc:
                 return type(exc).__name__

@@ -26,7 +26,7 @@ def can_submit(assignment):
     return is_open(assignment.classroom) and timezone.now() < assignment.due_at
 
 
-def create_submission(*, assignment, student, upload, note):
+def create_submission(*, assignment, student, upload):
     for attempt in range(3):
         storage_name = None
         try:
@@ -71,7 +71,6 @@ def create_submission(*, assignment, student, upload, note):
                     original_filename=upload.name,
                     content_type=upload.content_type,
                     size=upload.size,
-                    note=note,
                 )
                 write_audit(
                     actor=student,

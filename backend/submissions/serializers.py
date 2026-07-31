@@ -8,7 +8,6 @@ from .models import Submission
 
 class SubmissionUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
-    note = serializers.CharField(required=False, allow_blank=True, max_length=1000)
 
     def validate_file(self, upload):
         allowed_types = {
@@ -37,7 +36,6 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "original_filename",
             "content_type",
             "size",
-            "note",
             "created_at",
             "graded",
         )
