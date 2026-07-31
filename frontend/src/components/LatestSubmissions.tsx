@@ -1,9 +1,13 @@
-import { Link } from "react-router-dom";
+import { useState } from "react";
 
+import { DownloadIcon, GradeIcon, IconButton, IconLinkButton } from "./IconButton";
+import { Pagination } from "./Pagination";
 import { DataTable, type Column } from "./Table";
 import { downloadSubmission } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import type { TeacherSubmissionRow } from "../types";
+
+const PAGE_SIZE = 6;
 
 export interface LatestSubmissionsProps {
   assignmentId: number;
@@ -11,7 +15,9 @@ export interface LatestSubmissionsProps {
 }
 
 export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps) {
+  const [page, setPage] = useState(1);
   const submittedCount = rows.filter((row) => row.submission).length;
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const columns: Column<TeacherSubmissionRow>[] = [
     {
@@ -35,19 +41,22 @@ export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps
       render: (row) => {
         if (!row.submission) return null;
         return (
-          <>
-            <button
-              type="button"
+          <div className="row-actions">
+            <IconButton
+              icon={<DownloadIcon />}
+              label="Tải"
               onClick={() => downloadSubmission(row.submission!.id, row.submission!.original_filename)}
-            >
-              Tải
-            </button>{" "}
+            />
             {row.graded ? (
               <span>{row.score}</span>
             ) : (
-              <Link to={`/teacher/assignments/${assignmentId}/grade/${row.submission.id}`}>Chấm</Link>
+              <IconLinkButton
+                icon={<GradeIcon />}
+                label="Chấm"
+                to={`/teacher/assignments/${assignmentId}/grade/${row.submission.id}`}
+              />
             )}
-          </>
+          </div>
         );
       },
     },
@@ -56,7 +65,8 @@ export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps
   return (
     <>
       <p className="section-title">Bài nộp {submittedCount}/{rows.length}</p>
-      <DataTable columns={columns} data={rows} rowKey={(row) => row.student_id} />
+      <DataTable columns={columns} data={pageRows} rowKey={(row) => row.student_id} />
+      <Pagination page={page} count={rows.length} pageSize={PAGE_SIZE} onChange={setPage} label="Danh sách bài nộp" />
     </>
   );
 }

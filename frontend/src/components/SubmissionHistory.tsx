@@ -3,10 +3,15 @@ import { useRef, useState } from "react";
 import { Alert } from "./Alert";
 import { Button } from "./Button";
 import { Card } from "./Card";
-import { assignmentSubmissionsPath, downloadSubmission, request } from "../lib/api";
+import {
+  assignmentSubmissionsPath,
+  downloadSubmission,
+  request,
+} from "../lib/api";
 import { ApiFailure } from "../lib/errors";
 import { formatDateTime } from "../lib/format";
 import type { Submission } from "../types";
+import { Table } from "./Table";
 
 const MAX_BYTES = 25 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
@@ -14,7 +19,7 @@ const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
 const token = () => sessionStorage.getItem("access_token") ?? undefined;
 
 function formatSize(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.round(bytes / 1024)} KB`;
 }
 
 function validate(file: File): string | null {
@@ -34,7 +39,15 @@ export interface SubmissionHistoryProps {
   onClosed?: () => void;
 }
 
-export function SubmissionHistory({ assignmentId, submissions, canSubmit, closureReason, onSubmitted, onPendingFileChange, onClosed }: SubmissionHistoryProps) {
+export function SubmissionHistory({
+  assignmentId,
+  submissions,
+  canSubmit,
+  closureReason,
+  onSubmitted,
+  onPendingFileChange,
+  onClosed,
+}: SubmissionHistoryProps) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -71,18 +84,25 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
     try {
       const form = new FormData();
       form.append("file", file);
-      const created = await request<Submission>(assignmentSubmissionsPath(assignmentId), {
-        method: "POST",
-        token: token(),
-        body: form,
-      });
+      const created = await request<Submission>(
+        assignmentSubmissionsPath(assignmentId),
+        {
+          method: "POST",
+          token: token(),
+          body: form,
+        },
+      );
       if (created) {
         onSubmitted(created);
         setFile(null);
         onPendingFileChange?.(false);
         if (inputRef.current) inputRef.current.value = "";
         setConfirmedAt(
-          new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()),
+          new Intl.DateTimeFormat("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }).format(new Date()),
         );
       }
     } catch (err) {
@@ -105,26 +125,61 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
           {error && <Alert>{error}</Alert>}
           {confirmedAt && <p className="muted">Đã nộp bài lúc {confirmedAt}</p>}
           <div className="submission-picker">
-            <label htmlFor="submission-file">PDF or DOCX, choose file...</label>
             <input
               ref={inputRef}
               id="submission-file"
+              className="submission-file-input"
               type="file"
+              accept=".pdf,.docx"
               onChange={pickFile}
             />
-            {file && (
-              <span className="submission-picked-file">
-                {file.name}
-                <button type="button" aria-label="x" onClick={clearFile}>x</button>
-              </span>
+            {file ? (
+              <div className="submission-dropzone submission-dropzone-filled">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                </svg>
+                <div className="submission-dropzone-info">
+                  <span className="submission-dropzone-filename">{file.name}</span>
+                  <span className="muted submission-dropzone-size">{formatSize(file.size)}</span>
+                </div>
+                <label htmlFor="submission-file" className="button button-secondary submission-dropzone-replace">
+                  Đổi file
+                </label>
+                <button type="button" aria-label="Xóa file" title="Xóa file" className="icon-button" onClick={clearFile}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                    <path d="M10 11v6" />
+                    <path d="M14 11v6" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <label htmlFor="submission-file" className="submission-dropzone submission-dropzone-empty">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 16V4" />
+                  <path d="M7 9l5-5 5 5" />
+                  <path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+                </svg>
+                <span className="submission-dropzone-text">Click để chọn file</span>
+                <span className="muted submission-dropzone-hint">PDF hoặc DOCX, tối đa 25 MB</span>
+              </label>
             )}
           </div>
-          <Button disabled={!file || busy} onClick={submit}>
-            {busy ? "Đang nộp…" : "Nộp bài"}
-          </Button>
+          <div className="form-actions submission-actions">
+            <Button disabled={!file || busy} onClick={submit}>
+              {busy ? "Đang nộp…" : "Nộp bài"}
+            </Button>
+          </div>
         </Card>
       ) : (
-        closureReason && <Card><p className="muted">{closureReason}</p></Card>
+        closureReason && (
+          <Card>
+            <p className="muted">{closureReason}</p>
+          </Card>
+        )
       )}
 
       <Card>
@@ -132,7 +187,7 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
         {submissions.length === 0 ? (
           <p className="muted">Bạn chưa nộp bài nào.</p>
         ) : (
-          <table>
+          <Table>
             <thead>
               <tr>
                 <th>Version</th>
@@ -150,14 +205,24 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
                   <td>{item.original_filename}</td>
                   <td>{formatSize(item.size)}</td>
                   <td>
-                    <button type="button" onClick={() => downloadSubmission(item.id, item.original_filename)}>
-                      Download
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Download"
+                      title="Download"
+                      onClick={() => downloadSubmission(item.id, item.original_filename)}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 3v12" />
+                        <path d="M7 10l5 5 5-5" />
+                        <path d="M5 21h14" />
+                      </svg>
                     </button>
                   </td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </Table>
         )}
       </Card>
     </>

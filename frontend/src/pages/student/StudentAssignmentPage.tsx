@@ -69,7 +69,7 @@ export function StudentAssignmentPage() {
 
   return (
     <section className="page-stack">
-      <Link className="back-link" to={`/student/classes/${assignment.classroom_id}`} onClick={handleBackClick}>
+      <Link className="back-link" to={`/student/classes/${assignment.classroom_id}?tab=assignments`} onClick={handleBackClick}>
         ‹ Back to Class
       </Link>
       <div className="page-header">

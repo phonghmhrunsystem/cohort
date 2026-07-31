@@ -4,18 +4,18 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Alert } from "../../components/Alert";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
-import { EyeIcon, IconLinkButton, UploadIcon } from "../../components/IconButton";
+import { EyeIcon, IconLinkButton } from "../../components/IconButton";
 import { Spinner } from "../../components/Spinner";
 import { DataTable, TruncatedText, type Column } from "../../components/Table";
 import { classAssignmentsPath, request } from "../../lib/api";
 import { formatDate, formatDateTime } from "../../lib/format";
 import type { Assignment, ClassRow } from "../../types";
 
-const LEARNING_STATE_LABEL: Record<string, { label: string; action: string | null }> = {
-  OPEN: { label: "Chưa nộp", action: "Nộp bài" },
-  SUBMITTED: { label: "Đã nộp", action: "Xem lịch sử" },
-  GRADED: { label: "Đã chấm", action: "Xem kết quả" },
-  CLOSED: { label: "Đã đóng", action: null },
+const LEARNING_STATE_LABEL: Record<string, { label: string }> = {
+  OPEN: { label: "Chưa nộp" },
+  SUBMITTED: { label: "Đã nộp" },
+  GRADED: { label: "Đã chấm" },
+  CLOSED: { label: "Đã đóng" },
 };
 
 export function StudentClassPage() {
@@ -66,14 +66,11 @@ export function StudentClassPage() {
               return <span title={assignment.learning_state === "CLOSED" ? assignment.closure_reason ?? undefined : undefined}>{state.label}</span>;
             } },
             { key: "score", header: "Điểm", width: "5rem", render: () => "—" },
-            { key: "action", header: "Action", width: "9rem", render: (assignment) => {
-              const state = LEARNING_STATE_LABEL[assignment.learning_state ?? "CLOSED"];
-              return <div className="row-actions">
+            { key: "action", header: "Action", width: "9rem", render: (assignment) => (
+              <div className="row-actions">
                 <IconLinkButton to={`/student/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />
-                {assignment.learning_state === "OPEN" && <IconLinkButton to={`/student/assignments/${assignment.id}`} icon={<UploadIcon />} label="Nộp bài" />}
-                {assignment.learning_state !== "OPEN" && state.action && <Link className="button button-secondary" to={`/student/assignments/${assignment.id}`}>{state.action}</Link>}
-              </div>;
-            } },
+              </div>
+            ) },
           ]} />}
     </Card>}
   </section>;
