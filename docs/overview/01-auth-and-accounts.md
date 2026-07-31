@@ -132,7 +132,7 @@ Forced (must_change_password)             Voluntary (from Profile / header menu)
 | a@example.com | Nguyen Van A | 0912345678 | 05/01/2026 | 01/06/2026 | Teacher | (Active) |   :    |
 | b@example.com | Tran Thi B   | --         | 10/02/2026 | 10/02/2026 | Student |(Disabled)|   :    |
 +-------------------------------------------------------------------------------------------------+
-|                            [ Previous ]    Page 1    [ Next ]                                   |
+|                                  (<)  1  [2]  3  ...  9  (>)                                     |
 +-------------------------------------------------------------------------------------------------+
 
 Row action menu (the ":" trigger)      Set password dialog
@@ -154,7 +154,7 @@ Row action menu (the ":" trigger)      Set password dialog
 ```
 - Filters are a draft: typing changes nothing. `[ Search ]` (form submit) applies Search + Role + the four date filters at once and resets to page 1. Out-of-order responses are discarded, so a slow earlier request never overwrites a newer list.
 - Table columns: Email, Full name, Phone, Created (`created_at`), Updated (`updated_at`), Role, Status (`Active`/`Disabled` badge), Action. Empty values render `—`; dates render `en-GB` (`dd/mm/yyyy`).
-- Paginated, 10 accounts/page, `Previous` / `Page N` / `Next` (no numbered page links). Empty result → `No accounts found.`; load failure → alert with `Retry`.
+- Paginated, 10 accounts/page, numbered `Pagination` component (prev/next icon buttons + page numbers, `...` ellipsis beyond a 3-page window, current page `aria-current="page"`) — shared with every other paginated table in the app ([02 §2](02-classes-and-enrollment.md#2-screens-ascii)). Empty result → `No accounts found.`; load failure → alert with `Retry`.
 - Actions live in a per-row `:` menu (`role="menu"`, arrow-key navigation, `Escape`/outside click closes). The panel renders in a portal positioned against the trigger button, flipping to open upward when there isn't room below (e.g. last rows on a page) — same items and keyboard behavior either way:
   - `View` → `/admin/users/{id}` (read-only). **`Edit` is reached from there**, not from this menu.
   - `Change password` → dialog above (titled "Change password", body names the target email); **admin types the value themselves**, nothing is generated server-side and nothing is emailed (admin is top-level privilege, and the whole point is that they can read it out to the user). Client-side rules: at least 8 characters and both fields equal. Sets `must_change_password = true`, so the value the admin picked survives exactly one login. `Cancel` closes without saving. On success, a toast confirms ("Password updated for {email}."); on failure, both the inline field errors and an error toast show.
@@ -343,7 +343,6 @@ Implementation is the source of truth; these are the deliberate deviations from 
 |---|---|
 | Row actions `View Edit Delete Đổi MK Bật/Tắt` as inline buttons | A per-row `:` menu with `View`, `Change password`, `Disable`/`Enable`, `Delete`. **No `Edit`** — Edit is reached from the User Detail screen |
 | Create account in a dialog | Own page `/admin/users/new` (`Create User`), same shared form as Edit |
-| Numbered pagination `< 1 2 3 ... >` | `Previous` / `Page N` / `Next` |
 | No Status column | `Status` column with an `Active`/`Disabled` badge (the design carried status only in the action label) |
 | Vietnamese column/field labels (`Ngày tạo`, `Ngày update`, `Quê quán`, `Hồ sơ cá nhân`) | English UI labels (`Created`, `Updated`, `Hometown`, `Profile`); dates render `dd/mm/yyyy` |
 | Change-password field labelled `Temporary password` in the forced flow | `Current password` in both flows — one screen, one API |

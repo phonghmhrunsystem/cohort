@@ -25,7 +25,7 @@ Teacher-authored coursework items within a Class, with an optional rubric. Drive
 
 `(👁)` / `(✎)` = icon-only buttons (eye = Xem, pencil = Sửa), `aria-label`/`title` carry the Vietnamese name — the table has no visible button text.
 
-- Same table shape as the Student view (§2.2) — one row per assignment, no cards.
+- Same table shape as the Student view (§2.2) — one row per assignment, no cards. Both tables use the shared `DataTable` component ([`Table.tsx`](../../frontend/src/components/Table.tsx)), the same one behind the paginated lists in [01](01-auth-and-accounts.md)/[02](02-classes-and-enrollment.md) — but neither assignments table is paginated (no `Pagination` component here): per-Class assignment counts are small, so the full list renders in one page.
 - **Ngày tạo** = `created_at`, date only. Default sort is `-created_at` (newest first) so a freshly created assignment lands at the top.
 - **Trạng thái** is teacher-side, not `learning_state`: `Đang mở` (Class open and `now < due_at`), `Hết hạn` (`due_at` passed), `Đã đóng` (Class window closed).
 - **Đã nộp** = `submitted_count/enrolled_count`; a `graded_count` badge appears next to it once grading starts. Both come from the list endpoint (§3), not from N extra calls.

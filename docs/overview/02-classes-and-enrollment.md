@@ -23,7 +23,7 @@ A Class is never deleted. The only lifecycle levers are the `starts_at`/`ends_at
 | AI Engineering Cohort 5  | Nguyen Giao Vien | 01/07/2026 | 30/09/2026 | 24       | (Active)  | (o)(x)  |
 | AI Engineering Cohort 6  | Tran Giao Vien   | 01/10/2026 | 31/12/2026 | 0        | (Disabled)| (o)(x)  |
 +-------------------------------------------------------------------------------------------------+
-                            [ Previous ]    Page 1    [ Next ]                       (10 classes/page)
+                                  (<)  1  [2]  3  ...  9  (>)                        (10 classes/page)
 
 Row actions are icon buttons, not a "..." menu: (o) View, (x) Disable/Enable (power icon).
 Clicking the power icon opens a confirm dialog before the PATCH fires:
@@ -36,7 +36,7 @@ Clicking the power icon opens a confirm dialog before the PATCH fires:
 ```
 - Class name + Teacher are filters; nothing searches on change. Search only fires when `[ Search ]` is clicked (not real-time). Both are server-side (`?q=`, `?teacher=`), never client-side filtering of a loaded page.
 - Table columns: Name, Teacher, Starts (`starts_at`), Ends (`ends_at`), Students (`student_count`), Status (`Active`/`Disabled` badge), Action. Dates render `en-GB` (`dd/mm/yyyy`), matching [01](01-auth-and-accounts.md).
-- Paginated, 10 classes/page, `Previous` / `Page N` / `Next` — same pagination component as the Admin Accounts list ([01 §2.3](01-auth-and-accounts.md#23-admin--accounts-adminusers)).
+- Paginated, 10 classes/page, the shared numbered `Pagination` component (prev/next icon buttons + page numbers, `...` beyond a 3-page window) — same component as the Admin Accounts list ([01 §2.3](01-auth-and-accounts.md#23-admin--accounts-adminusers)).
 - Rows with `is_active = false` show a `Disabled` status badge — admin is the only role that sees them at all.
 - Actions are per-row icon buttons (`IconLinkButton`/`IconButton`, tooltip-only labels, no dropdown) — **not** the `:` `role="menu"` pattern used by Accounts ([01 §2.3](01-auth-and-accounts.md#23-admin--accounts-adminusers)): an eye icon for `View`, a power icon for `Disable`/`Enable`. **No `Edit`** — Edit is reached from the Class Detail screen.
   - `View` → `/admin/classes/{id}`.
@@ -92,7 +92,7 @@ Class Detail                                       Edit Class
 | Nguyen Van A | Ha Noi    | 09xxxxxxxx | 02/07/2026 | (o)(trash)
 | Tran Thi B   | Da Nang   | 09xxxxxxxx | 02/07/2026 | (o)
 +---------------------------------------------+
-                [ Previous ]  Page 1  [ Next ]  (10 students/page)
+                      (<)  1  [2]  3  ...  9  (>)  (10 students/page)
 | Back to classes                              |
 +---------------------------------------------+
 
@@ -110,7 +110,7 @@ other search box on this page, which is server-side.
 - Edit `Cancel` → `/admin/classes/{id}`; a successful save → `/admin/classes/{id}`. Edit is disabled once the Class has ended, except for extending `ends_at` — on an ended Class the Detail screen swaps the `Edit Class` link for an inline date field + `Extend end date` button that `PATCH`es `ends_at` directly, rather than routing through the Edit screen (see [5](#5-key-functions--rules)).
 - The roster ("Students" section, search, table, `Edit roster`) only appears on the **Detail** screen, not on Edit — the same split as the account Detail/Edit pair, which also confines list-scoped actions to Detail.
 - Table columns: Name (`full_name`), Quê quán (`hometown` — kept in Vietnamese, same exception as [01 §4](01-auth-and-accounts.md#4-db)), Phone (`phone`), Enrolled (`enrollments.created_at`, `dd/mm/yyyy`), Action.
-- Paginated, 10 students/page, `Previous` / `Page N` / `Next`. Search is server-side (`?q=` over `full_name` + `email`).
+- Paginated, 10 students/page, the shared numbered `Pagination` component (see [2.1](#21-admin--classes-list-adminclasses)). Search is server-side (`?q=` over `full_name` + `email`).
 - Action buttons per row: icon buttons, not text links — an eye icon (`View`) and a trash icon (`Remove`), each with a tooltip label.
   - `View` → `/admin/classes/{id}/students/{student_id}` (read-only profile + per-Class progress).
   - `Remove` (trash icon) → removes that student from the roster. **Hidden**, not just rejected, when the student already has a submission in this Class or the Class has ended (row 2 above) — the server still enforces it with a `422` (see [6](#6-edge-cases)).
@@ -127,7 +127,7 @@ other search box on this page, which is server-side.
 | Name                    | Students    | Action              |
 | AI Engineering Cohort 5 | 24          | (o)                 |
 +------------------------------------------------------------+
-             [ Previous ]    Page 1    [ Next ]   (10 classes/page)
+                   (<)  1  [2]  3  ...  9  (>)   (10 classes/page)
 ```
 - Table columns: Name, Students (`student_count`), Action.
 - Action: an eye icon button (`View`, tooltip label) → opens `/teacher/classes/{id}`.
@@ -148,7 +148,7 @@ other search box on this page, which is server-side.
 | Name         | Phone      | Action  |
 | Nguyen Van A | 09xxxxxxxx | (o)     |
 +------------------------------------------------------------+
-             [ Previous ]    Page 1    [ Next ]   (10 students/page)
+                   (<)  1  [2]  3  ...  9  (>)   (10 students/page)
 ```
 - Table columns: Name (`full_name`), Phone (`phone`), Action.
 - Action: an eye icon button (`View`) → student profile with per-Class progress (Nộp bài / Chấm điểm). Teachers get no `Remove`/`Edit roster` action anywhere — roster membership is admin-only, matching [2.1.b](#21b-admin--class-detail-adminclassesid-and-edit-adminclassesidedit).
