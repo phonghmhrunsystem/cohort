@@ -76,6 +76,18 @@ export function submissionDownloadUrl(submissionId: number): string {
   return `/api/submissions/${submissionId}/download`;
 }
 
+export function submissionPath(submissionId: number): string {
+  return `/submissions/${submissionId}`;
+}
+
+export function submissionGradePath(submissionId: number): string {
+  return `/submissions/${submissionId}/grade`;
+}
+
+export function assignmentMyResultPath(assignmentId: number): string {
+  return `/assignments/${assignmentId}/my-result`;
+}
+
 export async function downloadSubmission(submissionId: number, suggestedFilename?: string): Promise<void> {
   const response = await fetch(submissionDownloadUrl(submissionId), {
     headers: { Authorization: `Bearer ${sessionStorage.getItem("access_token") ?? ""}` },

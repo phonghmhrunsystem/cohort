@@ -199,3 +199,31 @@ export interface TeacherSubmissionRow {
   graded: boolean;
   score: number | null;
 }
+
+export interface CriterionScoreResult {
+  criterion_id: number;
+  score: number;
+}
+
+export interface Grade {
+  id: number;
+  assignment_id: number;
+  student_id: number;
+  submission_id: number;
+  total_score: number;
+  feedback: string;
+  scores: CriterionScoreResult[];
+  created_at: string;
+}
+
+export interface GradeSubmissionInfo {
+  id: number;
+  assignment_id: number;
+  student_id: number;
+  student_name: string | null;
+  original_filename: string;
+  content_type: string;
+  size: number;
+  created_at: string;
+  graded: boolean;
+}
