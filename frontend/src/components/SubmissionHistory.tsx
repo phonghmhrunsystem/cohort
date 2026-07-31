@@ -75,7 +75,9 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
         onSubmitted(created);
         setFile(null);
         if (inputRef.current) inputRef.current.value = "";
-        setConfirmedAt(formatDateTime(new Date().toISOString()));
+        setConfirmedAt(
+          new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()),
+        );
       }
     } catch (err) {
       if (err instanceof ApiFailure && err.status === 422) {
