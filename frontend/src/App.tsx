@@ -29,6 +29,7 @@ import { StudentAssignmentPage } from "./pages/student/StudentAssignmentPage";
 import { TeacherClassesPage } from "./pages/teacher/TeacherClassesPage";
 import { TeacherClassPage } from "./pages/teacher/TeacherClassPage";
 import { TeacherAssignmentPage } from "./pages/teacher/TeacherAssignmentPage";
+import { TeacherGradePage } from "./pages/teacher/TeacherGradePage";
 
 function Placeholder({ title }: { title: string }) { return <h1>{title}</h1>; }
 
@@ -60,6 +61,7 @@ export function App() {
         <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />
         <Route path="/teacher/classes/:classId/students/:studentId" element={<ClassStudentViewPage />} />
         <Route path="/teacher/assignments/:assignmentId" element={<TeacherAssignmentPage />} />
+        <Route path="/teacher/assignments/:assignmentId/grade/:submissionId" element={<TeacherGradePage />} />
       </Route>
       <Route element={<RequireRole roles={["STUDENT"]} />}>
         <Route path="/student/classes" element={<StudentClassesPage />} />
