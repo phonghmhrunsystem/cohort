@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from time import sleep
 from uuid import uuid4
@@ -20,6 +21,18 @@ GRADED_MESSAGE = "This Assignment has already been graded."
 
 class SubmissionRejected(Exception):
     pass
+
+
+_UNSAFE_FILENAME_CHARS = re.compile(r"[\\/\x00-\x1f]")
+
+
+def teacher_download_filename(submission):
+    name = submission.student.full_name or f"Student {submission.student_id}"
+    name = _UNSAFE_FILENAME_CHARS.sub("", name).strip()
+    if not name:
+        name = f"Student {submission.student_id}"
+    name = name[:150]
+    return f"{name}_{submission.original_filename}"
 
 
 def can_submit(assignment):

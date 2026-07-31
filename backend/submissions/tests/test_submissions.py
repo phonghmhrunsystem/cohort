@@ -292,6 +292,30 @@ class SubmissionApiTests(TestCase):
         self.assertEqual(self.other_student_client.get(download_url).status_code, 404)
         self.assertEqual(self.unenrolled_student_client.get(download_url).status_code, 404)
 
+    def test_teacher_download_filename_is_prefixed_with_student_name(self):
+        self.student.full_name = "Nguyen Van A"
+        self.student.save(update_fields=("full_name",))
+        submission_id = self.submit("homework.pdf").json()["id"]
+
+        response = self.teacher_client.get(f"/api/submissions/{submission_id}/download")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Nguyen Van A_homework.pdf", response["Content-Disposition"])
+        response.close()
+
+        student_response = self.student_client.get(f"/api/submissions/{submission_id}/download")
+        self.assertIn("homework.pdf", student_response["Content-Disposition"])
+        self.assertNotIn("Nguyen Van A_", student_response["Content-Disposition"])
+        student_response.close()
+
+    def test_teacher_download_filename_falls_back_to_student_id_when_name_is_blank(self):
+        self.student.full_name = ""
+        self.student.save(update_fields=("full_name",))
+        submission_id = self.submit("homework.pdf").json()["id"]
+
+        response = self.teacher_client.get(f"/api/submissions/{submission_id}/download")
+        self.assertIn(f"Student {self.student.id}_homework.pdf", response["Content-Disposition"])
+        response.close()
+
     def test_submission_response_has_no_note_field(self):
         response = self.submit("one.pdf")
         self.assertNotIn("note", response.json())

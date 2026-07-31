@@ -19,6 +19,7 @@ from .services import (
     SubmissionRejected,
     can_submit,
     create_submission,
+    teacher_download_filename,
 )
 
 
@@ -103,8 +104,13 @@ class SubmissionDetailView(APIView):
 class SubmissionDownloadView(SubmissionDetailView):
     def get(self, request, submission_id):
         submission = self.get_submission(request, submission_id)
+        filename = (
+            teacher_download_filename(submission)
+            if request.user.role == User.Role.TEACHER
+            else submission.original_filename
+        )
         return FileResponse(
             default_storage.open(submission.file_path, "rb"),
             as_attachment=True,
-            filename=submission.original_filename,
+            filename=filename,
         )
