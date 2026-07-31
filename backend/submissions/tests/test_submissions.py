@@ -96,7 +96,8 @@ class SubmissionApiTests(TestCase):
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "Upload a PDF or DOCX file."})
         self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
         from submissions.models import Submission
         self.assertEqual(Submission.objects.count(), 0)
@@ -181,7 +182,7 @@ class SubmissionApiTests(TestCase):
         detail_response = self.teacher_client.get(f"/api/submissions/{submission_id}")
         self.assertEqual(detail_response.json()["student_name"], "Nguyen Van A")
 
-        # A student without a full_name should serialize as null, not error.
+        # A student without a full_name should fall back to "Student {id}", not blank/null.
         self.other_student_client.post(
             self.submit_url,
             {"file": SimpleUploadedFile("other.pdf", self.FILE_BYTES["pdf"], "application/pdf")},
@@ -189,7 +190,7 @@ class SubmissionApiTests(TestCase):
         )
         teacher_response = self.teacher_client.get(self.teacher_list_url)
         rows = {row["student_id"]: row["student_name"] for row in teacher_response.json()}
-        self.assertIsNone(rows[self.other_student.id])
+        self.assertEqual(rows[self.other_student.id], f"Student {self.other_student.id}")
 
     def test_teacher_submission_detail_omits_version(self):
         submission_id = self.submit("one.pdf").json()["id"]
@@ -331,7 +332,8 @@ class SubmissionApiTests(TestCase):
         response = self.student_client.post(
             self.submit_url, {"file": oversized}, format="multipart"
         )
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "File exceeds the upload size limit."})
         self.assertEqual(Submission.objects.count(), 0)
 
     def test_download_is_limited_to_submitter_or_assigned_teacher(self):
@@ -378,7 +380,8 @@ class SubmissionApiTests(TestCase):
     def test_file_renamed_to_pdf_but_not_actually_a_pdf_is_rejected(self):
         fake = SimpleUploadedFile("homework.pdf", b"this is just plain text, not a pdf", "application/pdf")
         response = self.student_client.post(self.submit_url, {"file": fake}, format="multipart")
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "Upload a PDF or DOCX file."})
         self.assertEqual(Submission.objects.count(), 0)
 
     def test_teacher_detail_and_download_are_limited_to_latest_version(self):

@@ -75,3 +75,19 @@ export function assignmentSubmissionsPath(assignmentId: number): string {
 export function submissionDownloadUrl(submissionId: number): string {
   return `/api/submissions/${submissionId}/download`;
 }
+
+export async function downloadSubmission(submissionId: number, suggestedFilename?: string): Promise<void> {
+  const response = await fetch(submissionDownloadUrl(submissionId), {
+    headers: { Authorization: `Bearer ${sessionStorage.getItem("access_token") ?? ""}` },
+  });
+  if (!response.ok) throw new Error("Download failed.");
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = suggestedFilename ?? "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}

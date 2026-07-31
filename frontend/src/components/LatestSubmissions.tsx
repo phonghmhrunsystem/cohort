@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 import { DataTable, type Column } from "./Table";
-import { submissionDownloadUrl } from "../lib/api";
+import { downloadSubmission } from "../lib/api";
 import { formatDateTime } from "../lib/format";
 import type { TeacherSubmissionRow } from "../types";
 
@@ -36,7 +36,12 @@ export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps
         if (!row.submission) return null;
         return (
           <>
-            <Link to={submissionDownloadUrl(row.submission.id)}>Tải</Link>{" "}
+            <button
+              type="button"
+              onClick={() => downloadSubmission(row.submission!.id, row.submission!.original_filename)}
+            >
+              Tải
+            </button>{" "}
             {row.graded ? (
               <span>{row.score}</span>
             ) : (

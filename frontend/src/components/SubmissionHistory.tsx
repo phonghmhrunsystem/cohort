@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { Alert } from "./Alert";
 import { Button } from "./Button";
 import { Card } from "./Card";
-import { assignmentSubmissionsPath, request, submissionDownloadUrl } from "../lib/api";
+import { assignmentSubmissionsPath, downloadSubmission, request } from "../lib/api";
 import { ApiFailure } from "../lib/errors";
 import { formatDateTime } from "../lib/format";
 import type { Submission } from "../types";
@@ -31,9 +31,10 @@ export interface SubmissionHistoryProps {
   closureReason: string | null;
   onSubmitted: (submission: Submission) => void;
   onPendingFileChange?: (hasPendingFile: boolean) => void;
+  onClosed?: () => void;
 }
 
-export function SubmissionHistory({ assignmentId, submissions, canSubmit, closureReason, onSubmitted, onPendingFileChange }: SubmissionHistoryProps) {
+export function SubmissionHistory({ assignmentId, submissions, canSubmit, closureReason, onSubmitted, onPendingFileChange, onClosed }: SubmissionHistoryProps) {
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -86,9 +87,8 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
       }
     } catch (err) {
       if (err instanceof ApiFailure && err.status === 422) {
-        // Parent flips canSubmit/closureReason via its own assignment reload;
-        // nothing else to do here — the form re-render (canSubmit=false) removes this block.
         setError(err.message);
+        onClosed?.();
       } else {
         setError(err instanceof Error ? err.message : "Nộp bài thất bại.");
       }
@@ -149,7 +149,11 @@ export function SubmissionHistory({ assignmentId, submissions, canSubmit, closur
                   <td>{formatDateTime(item.created_at)}</td>
                   <td>{item.original_filename}</td>
                   <td>{formatSize(item.size)}</td>
-                  <td><a href={submissionDownloadUrl(item.id)}>Download</a></td>
+                  <td>
+                    <button type="button" onClick={() => downloadSubmission(item.id, item.original_filename)}>
+                      Download
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -94,6 +94,7 @@ export function StudentAssignmentPage() {
         closureReason={assignment.closure_reason}
         onSubmitted={handleSubmitted}
         onPendingFileChange={setHasUnsavedFile}
+        onClosed={load}
       />
     </section>
   );

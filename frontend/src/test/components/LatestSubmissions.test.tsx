@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
 import { LatestSubmissions } from "../../components/LatestSubmissions";
@@ -17,6 +18,11 @@ function renderRows(rows: TeacherSubmissionRow[]) {
 }
 
 describe("LatestSubmissions", () => {
+  afterEach(() => {
+    sessionStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
   it("shows chưa nộp for a student with no submission", () => {
     renderRows([row({ submission: null })]);
     expect(screen.getByText("chưa nộp")).toBeTruthy();
@@ -37,7 +43,7 @@ describe("LatestSubmissions", () => {
   it("tags a disabled account with đã tắt but still shows Tải/Chấm", () => {
     renderRows([row({ is_active: false })]);
     expect(screen.getByText("đã tắt")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Tải" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tải" })).toBeTruthy();
   });
 
   it("renders the full roster, sorted order as given, even with zero submitters", () => {
@@ -45,9 +51,19 @@ describe("LatestSubmissions", () => {
     expect(screen.getAllByText("chưa nộp")).toHaveLength(2);
   });
 
-  it("Tải links to the download endpoint for the latest submission", () => {
+  it("Tải triggers an authenticated download of the latest submission", async () => {
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:mock"), revokeObjectURL: vi.fn() });
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(new Blob(["file bytes"]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
     renderRows([row()]);
-    const link = screen.getByRole("link", { name: "Tải" }) as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toBe("/api/submissions/10/download");
+    const events = userEvent.setup();
+
+    await events.click(screen.getByRole("button", { name: "Tải" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/submissions/10/download",
+      expect.objectContaining({ headers: { Authorization: "Bearer token" } }),
+    ));
   });
 });

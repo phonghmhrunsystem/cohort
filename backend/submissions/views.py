@@ -57,7 +57,7 @@ def teacher_roster_rows(assignment):
     return [
         {
             "student_id": student.id,
-            "student_name": student.full_name,
+            "student_name": student.full_name or f"Student {student.id}",
             "is_active": student.is_active,
             "submission": submissions_by_student.get(student.id),
         }
@@ -96,7 +96,9 @@ class AssignmentSubmissionsView(APIView):
             )
         serializer = SubmissionUploadSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+            return Response(
+                {"detail": serializer.errors["file"][0]}, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
             submission = create_submission(
                 assignment=assignment,

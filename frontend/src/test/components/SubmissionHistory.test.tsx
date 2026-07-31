@@ -31,7 +31,7 @@ describe("SubmissionHistory", () => {
     expect(screen.getByText("Bạn chưa nộp bài nào.")).toBeTruthy();
   });
 
-  it("lists versions newest first with size and a download link", () => {
+  it("lists versions newest first with size and a download control", () => {
     render(
       <SubmissionHistory
         assignmentId={5}
@@ -45,6 +45,26 @@ describe("SubmissionHistory", () => {
     expect(rows[1].textContent).toContain("v2");
     expect(rows[1].textContent).toContain("homework_v2.pdf");
     expect(rows[2].textContent).toContain("v1");
+  });
+
+  it("downloads a submission with an authenticated fetch when Download is clicked", async () => {
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:mock"), revokeObjectURL: vi.fn() });
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(new Blob(["file bytes"]), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <SubmissionHistory assignmentId={5} submissions={[submission()]} canSubmit closureReason={null} onSubmitted={() => {}} />,
+    );
+    const events = userEvent.setup();
+
+    await events.click(screen.getByRole("button", { name: "Download" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/submissions/1/download",
+      expect.objectContaining({ headers: { Authorization: "Bearer token" } }),
+    ));
   });
 
   it("rejects a non-pdf/docx file inline without calling the API", async () => {
@@ -147,6 +167,32 @@ describe("SubmissionHistory", () => {
     await waitFor(() => expect(screen.getByText("Chỉ nhận file PDF hoặc DOCX.")).toBeTruthy());
     expect(screen.getByText("homework.pdf")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Nộp bài" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("calls onClosed on a 422 (window closed) response", async () => {
+    sessionStorage.setItem("access_token", "token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "This Assignment has already been graded." }), {
+        status: 422, headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onClosed = vi.fn();
+    render(
+      <SubmissionHistory
+        assignmentId={5}
+        submissions={[]}
+        canSubmit
+        closureReason={null}
+        onSubmitted={() => {}}
+        onClosed={onClosed}
+      />,
+    );
+    const events = userEvent.setup();
+    await events.upload(screen.getByLabelText(/choose file/i), pdfFile());
+    await events.click(screen.getByRole("button", { name: "Nộp bài" }));
+
+    await waitFor(() => expect(onClosed).toHaveBeenCalled());
   });
 
   it("hides the submit form when canSubmit is false and shows the closure reason", () => {
