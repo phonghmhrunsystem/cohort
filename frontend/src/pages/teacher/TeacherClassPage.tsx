@@ -11,7 +11,7 @@ import { Field, Textarea } from "../../components/Field";
 import { EditIcon, EyeIcon, IconButton, IconLinkButton } from "../../components/IconButton";
 import { Pagination } from "../../components/Pagination";
 import { Spinner } from "../../components/Spinner";
-import { DataTable, type Column } from "../../components/Table";
+import { DataTable, TruncatedText, type Column } from "../../components/Table";
 import { useToast } from "../../components/Toast";
 import { classAssignmentsPath, classStudentsPath, request } from "../../lib/api";
 import { ApiFailure } from "../../lib/errors";
@@ -108,9 +108,9 @@ export function TeacherClassPage() {
   const search = (event: FormEvent) => { event.preventDefault(); setPageNumber(1); setSubmitted(query); };
 
   const rosterColumns: Column<RosterStudent>[] = [
-    { key: "name", header: "Name", render: (s) => s.full_name },
-    { key: "phone", header: "Phone", render: (s) => s.phone || "—" },
-    { key: "action", header: "Action", render: (s) => <div className="row-actions"><IconLinkButton to={`/teacher/classes/${classId}/students/${s.id}`} icon={<EyeIcon />} label="View" /></div> },
+    { key: "name", header: "Name", width: "14rem", render: (s) => <TruncatedText>{s.full_name}</TruncatedText> },
+    { key: "phone", header: "Phone", width: "9rem", render: (s) => s.phone || "—" },
+    { key: "action", header: "Action", width: "6rem", render: (s) => <div className="row-actions"><IconLinkButton to={`/teacher/classes/${classId}/students/${s.id}`} icon={<EyeIcon />} label="View" /></div> },
   ];
 
   if (failure) return <Alert>{failure}</Alert>;
@@ -134,12 +134,12 @@ export function TeacherClassPage() {
       {!assignments ? <Spinner label="Loading assignments" /> :
         assignments.length === 0 ? <EmptyState>No assignments.</EmptyState> :
           <DataTable rowKey={(assignment) => assignment.id} data={assignments} columns={[
-            { key: "title", header: "Tên", render: (assignment) => assignment.title },
-            { key: "created", header: "Ngày tạo", render: (assignment) => formatDate(assignment.created_at) },
-            { key: "due", header: "Hạn nộp", render: (assignment) => <>{formatDateTime(assignment.due_at)}<br /><span className="muted">{deadlineBadge(assignment.due_at, new Date())}</span></> },
-            { key: "status", header: "Trạng thái", render: (assignment) => <Badge className={statusBadgeClass(assignmentStatus(class_, assignment, new Date()))}>{assignmentStatus(class_, assignment, new Date())}</Badge> },
-            { key: "submitted", header: "Đã nộp", render: (assignment) => <>{assignment.submitted_count ?? 0}/{assignment.enrolled_count ?? 0}{!!assignment.graded_count && <> <Badge className="badge-active">{assignment.graded_count} đã chấm</Badge></>}</> },
-            { key: "action", header: "Action", render: (assignment) => {
+            { key: "title", header: "Tên", width: "14rem", render: (assignment) => <TruncatedText>{assignment.title}</TruncatedText> },
+            { key: "created", header: "Ngày tạo", width: "7rem", render: (assignment) => formatDate(assignment.created_at) },
+            { key: "due", header: "Hạn nộp", width: "10rem", render: (assignment) => <>{formatDateTime(assignment.due_at)}<br /><span className="muted">{deadlineBadge(assignment.due_at, new Date())}</span></> },
+            { key: "status", header: "Trạng thái", width: "7rem", render: (assignment) => <Badge className={statusBadgeClass(assignmentStatus(class_, assignment, new Date()))}>{assignmentStatus(class_, assignment, new Date())}</Badge> },
+            { key: "submitted", header: "Đã nộp", width: "9rem", render: (assignment) => <>{assignment.submitted_count ?? 0}/{assignment.enrolled_count ?? 0}{!!assignment.graded_count && <> <Badge className="badge-active">{assignment.graded_count} đã chấm</Badge></>}</> },
+            { key: "action", header: "Action", width: "6rem", render: (assignment) => {
               const editDisabled = new Date(assignment.due_at) <= new Date();
               return <div className="row-actions">
                 <IconLinkButton to={`/teacher/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />

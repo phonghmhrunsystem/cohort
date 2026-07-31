@@ -12,7 +12,7 @@ import { Field, Select } from "../../../components/Field";
 import { PasswordField } from "../../../components/PasswordField";
 import { Pagination } from "../../../components/Pagination";
 import { Spinner } from "../../../components/Spinner";
-import { DataTable, type Column } from "../../../components/Table";
+import { DataTable, TruncatedText, type Column } from "../../../components/Table";
 import { useToast } from "../../../components/Toast";
 import { request, usersPath } from "../../../lib/api";
 import { ApiFailure } from "../../../lib/errors";
@@ -108,14 +108,14 @@ export function AdminUsersPage() {
   const statusAction = confirmation?.account.is_active ? "Disable" : "Enable";
 
   const columns: Column<User>[] = [
-    { key: "email", header: "Email", render: (account) => account.email },
-    { key: "full_name", header: "Full name", render: (account) => account.full_name },
-    { key: "phone", header: "Phone", render: (account) => account.phone || "—" },
-    { key: "created", header: "Created", render: (account) => formatDate(account.created_at) },
-    { key: "updated", header: "Updated", render: (account) => formatDate(account.updated_at) },
-    { key: "role", header: "Role", render: (account) => roleLabel(account.role) },
-    { key: "status", header: "Status", render: (account) => <Badge className={account.is_active ? "badge-active" : "badge-disabled"}>{account.is_active ? "Active" : "Disabled"}</Badge> },
-    { key: "action", header: "Action", render: (account) => <AccountActions account={account} onPassword={() => openPassword(account)} onStatus={() => openConfirmation("status", account)} onDelete={() => openConfirmation("delete", account)} /> },
+    { key: "email", header: "Email", width: "12rem", render: (account) => <TruncatedText>{account.email}</TruncatedText> },
+    { key: "full_name", header: "Full name", width: "10rem", render: (account) => <TruncatedText>{account.full_name}</TruncatedText> },
+    { key: "phone", header: "Phone", width: "7rem", render: (account) => account.phone || "—" },
+    { key: "created", header: "Created", width: "6rem", render: (account) => formatDate(account.created_at) },
+    { key: "updated", header: "Updated", width: "6rem", render: (account) => formatDate(account.updated_at) },
+    { key: "role", header: "Role", width: "5rem", render: (account) => roleLabel(account.role) },
+    { key: "status", header: "Status", width: "6rem", render: (account) => <Badge className={account.is_active ? "badge-active" : "badge-disabled"}>{account.is_active ? "Active" : "Disabled"}</Badge> },
+    { key: "action", header: "Action", width: "4rem", render: (account) => <AccountActions account={account} onPassword={() => openPassword(account)} onStatus={() => openConfirmation("status", account)} onDelete={() => openConfirmation("delete", account)} /> },
   ];
 
   return <section className="page-stack">

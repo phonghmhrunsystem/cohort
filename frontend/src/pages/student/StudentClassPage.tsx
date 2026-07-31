@@ -6,7 +6,7 @@ import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
 import { EyeIcon, IconLinkButton, UploadIcon } from "../../components/IconButton";
 import { Spinner } from "../../components/Spinner";
-import { DataTable, type Column } from "../../components/Table";
+import { DataTable, TruncatedText, type Column } from "../../components/Table";
 import { classAssignmentsPath, request } from "../../lib/api";
 import { formatDate, formatDateTime } from "../../lib/format";
 import type { Assignment, ClassRow } from "../../types";
@@ -59,14 +59,14 @@ export function StudentClassPage() {
       {!assignments ? <Spinner label="Loading assignments" /> :
         assignments.length === 0 ? <EmptyState>No assignments.</EmptyState> :
           <DataTable rowKey={(assignment) => assignment.id} data={assignments} columns={[
-            { key: "title", header: "Tên", render: (assignment) => assignment.title },
-            { key: "due", header: "Hạn nộp", render: (assignment) => <>{formatDateTime(assignment.due_at)}{assignment.deadline_badge && <><br /><span className="muted">{assignment.deadline_badge}</span></>}</> },
-            { key: "state", header: "Trạng thái", render: (assignment) => {
+            { key: "title", header: "Tên", width: "14rem", render: (assignment) => <TruncatedText>{assignment.title}</TruncatedText> },
+            { key: "due", header: "Hạn nộp", width: "10rem", render: (assignment) => <>{formatDateTime(assignment.due_at)}{assignment.deadline_badge && <><br /><span className="muted">{assignment.deadline_badge}</span></>}</> },
+            { key: "state", header: "Trạng thái", width: "7rem", render: (assignment) => {
               const state = LEARNING_STATE_LABEL[assignment.learning_state ?? "CLOSED"];
               return <span title={assignment.learning_state === "CLOSED" ? assignment.closure_reason ?? undefined : undefined}>{state.label}</span>;
             } },
-            { key: "score", header: "Điểm", render: () => "—" },
-            { key: "action", header: "Action", render: (assignment) => {
+            { key: "score", header: "Điểm", width: "5rem", render: () => "—" },
+            { key: "action", header: "Action", width: "9rem", render: (assignment) => {
               const state = LEARNING_STATE_LABEL[assignment.learning_state ?? "CLOSED"];
               return <div className="row-actions">
                 <IconLinkButton to={`/student/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />

@@ -11,7 +11,7 @@ import { Field } from "../../../components/Field";
 import { EyeIcon, IconButton, IconLinkButton, PowerIcon } from "../../../components/IconButton";
 import { Pagination } from "../../../components/Pagination";
 import { Spinner } from "../../../components/Spinner";
-import { DataTable, type Column } from "../../../components/Table";
+import { DataTable, TruncatedText, type Column } from "../../../components/Table";
 import { useToast } from "../../../components/Toast";
 import { classesPath, request } from "../../../lib/api";
 import { formatDate } from "../../../lib/format";
@@ -53,13 +53,13 @@ export function AdminClassesPage() {
   const canDisable = (row: ClassRow) => new Date(row.starts_at) > new Date();
 
   const columns: Column<ClassRow>[] = [
-    { key: "name", header: "Name", render: (row) => row.name },
-    { key: "teacher", header: "Teacher", render: (row) => row.teacher.full_name },
-    { key: "starts", header: "Starts", render: (row) => formatDate(row.starts_at) },
-    { key: "ends", header: "Ends", render: (row) => formatDate(row.ends_at) },
-    { key: "students", header: "Students", render: (row) => row.student_count },
-    { key: "status", header: "Status", render: (row) => <Badge className={row.is_active ? "badge-active" : "badge-disabled"}>{row.is_active ? "Active" : "Disabled"}</Badge> },
-    { key: "action", header: "Action", render: (row) => <div className="row-actions">
+    { key: "name", header: "Name", width: "13rem", render: (row) => <TruncatedText>{row.name}</TruncatedText> },
+    { key: "teacher", header: "Teacher", width: "10rem", render: (row) => <TruncatedText>{row.teacher.full_name}</TruncatedText> },
+    { key: "starts", header: "Starts", width: "6rem", render: (row) => formatDate(row.starts_at) },
+    { key: "ends", header: "Ends", width: "6rem", render: (row) => formatDate(row.ends_at) },
+    { key: "students", header: "Students", width: "5rem", render: (row) => row.student_count },
+    { key: "status", header: "Status", width: "6rem", render: (row) => <Badge className={row.is_active ? "badge-active" : "badge-disabled"}>{row.is_active ? "Active" : "Disabled"}</Badge> },
+    { key: "action", header: "Action", width: "6rem", render: (row) => <div className="row-actions">
       <IconLinkButton to={`/admin/classes/${row.id}`} icon={<EyeIcon />} label="View" />
       <IconButton
         icon={<PowerIcon />}

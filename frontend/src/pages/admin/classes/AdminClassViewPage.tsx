@@ -11,7 +11,7 @@ import { Field } from "../../../components/Field";
 import { EyeIcon, IconButton, IconLinkButton, TrashIcon } from "../../../components/IconButton";
 import { Pagination } from "../../../components/Pagination";
 import { Spinner } from "../../../components/Spinner";
-import { DataTable, type Column } from "../../../components/Table";
+import { DataTable, TruncatedText, type Column } from "../../../components/Table";
 import { useToast } from "../../../components/Toast";
 import { classStudentsPath, request } from "../../../lib/api";
 import { ApiFailure } from "../../../lib/errors";
@@ -103,11 +103,11 @@ export function AdminClassViewPage() {
   const visibleCandidates = candidates.filter((c) => c.full_name.toLowerCase().includes(candidateQuery.toLowerCase()) || c.email.toLowerCase().includes(candidateQuery.toLowerCase()));
 
   const rosterColumns: Column<RosterStudent>[] = [
-    { key: "name", header: "Name", render: (student) => student.full_name },
-    { key: "hometown", header: "Quê quán", render: (student) => student.hometown || "—" },
-    { key: "phone", header: "Phone", render: (student) => student.phone || "—" },
-    { key: "enrolled", header: "Enrolled", render: (student) => formatDate(student.enrolled_at) },
-    { key: "action", header: "Action", render: (student) => <div className="row-actions">
+    { key: "name", header: "Name", width: "11rem", render: (student) => <TruncatedText>{student.full_name}</TruncatedText> },
+    { key: "hometown", header: "Quê quán", width: "9rem", render: (student) => student.hometown ? <TruncatedText>{student.hometown}</TruncatedText> : "—" },
+    { key: "phone", header: "Phone", width: "7rem", render: (student) => student.phone || "—" },
+    { key: "enrolled", header: "Enrolled", width: "6rem", render: (student) => formatDate(student.enrolled_at) },
+    { key: "action", header: "Action", width: "6rem", render: (student) => <div className="row-actions">
       <IconLinkButton to={`/admin/classes/${id}/students/${student.id}`} icon={<EyeIcon />} label="View" />
       {!ended && student.submitted_assignments === 0 && <IconButton icon={<TrashIcon />} label="Remove" variant="danger" onClick={() => void removeStudent(student.id)} />}
     </div> },

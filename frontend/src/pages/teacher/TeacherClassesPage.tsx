@@ -8,14 +8,14 @@ import { Button } from "../../components/Button";
 import { EyeIcon, IconLinkButton } from "../../components/IconButton";
 import { Pagination } from "../../components/Pagination";
 import { Spinner } from "../../components/Spinner";
-import { DataTable, type Column } from "../../components/Table";
+import { DataTable, TruncatedText, type Column } from "../../components/Table";
 import { classesPath, request } from "../../lib/api";
 import type { ClassRow, Page } from "../../types";
 
 const columns: Column<ClassRow>[] = [
-  { key: "name", header: "Name", render: (row) => row.name },
-  { key: "students", header: "Students", render: (row) => row.student_count },
-  { key: "action", header: "Action", render: (row) => <div className="row-actions"><IconLinkButton to={`/teacher/classes/${row.id}`} icon={<EyeIcon />} label="View" /></div> },
+  { key: "name", header: "Name", width: "18rem", render: (row) => <TruncatedText>{row.name}</TruncatedText> },
+  { key: "students", header: "Students", width: "7rem", render: (row) => row.student_count },
+  { key: "action", header: "Action", width: "6rem", render: (row) => <div className="row-actions"><IconLinkButton to={`/teacher/classes/${row.id}`} icon={<EyeIcon />} label="View" /></div> },
 ];
 
 export function TeacherClassesPage() {
