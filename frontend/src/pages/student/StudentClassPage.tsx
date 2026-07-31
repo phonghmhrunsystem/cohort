@@ -65,7 +65,7 @@ export function StudentClassPage() {
               const state = LEARNING_STATE_LABEL[assignment.learning_state ?? "CLOSED"];
               return <span title={assignment.learning_state === "CLOSED" ? assignment.closure_reason ?? undefined : undefined}>{state.label}</span>;
             } },
-            { key: "score", header: "Điểm", width: "5rem", render: () => "—" },
+            { key: "score", header: "Điểm", width: "5rem", render: (assignment) => assignment.score ?? "—" },
             { key: "action", header: "Action", width: "9rem", render: (assignment) => (
               <div className="row-actions">
                 <IconLinkButton to={`/student/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />

@@ -68,10 +68,8 @@ Full mock in [02 §2.5](02-classes-and-enrollment.md#25-student--my-classes--cla
 |---|---|---|---|
 | `OPEN` | Chưa nộp | `Nộp bài` | `—` |
 | `SUBMITTED` | Đã nộp | `Xem lịch sử` | `—` |
-| `GRADED` | Đã chấm | `Xem kết quả` | `—`* |
+| `GRADED` | Đã chấm | `Xem kết quả` | denormalized `assignment_grades.score` |
 | `CLOSED` | Đã đóng | none — `closure_reason` as a tooltip ("Class has ended." / "Deadline has passed.") | `—` |
-
-*`Điểm` currently renders `—` unconditionally for every row, `GRADED` included — the column isn't wired to the grade yet, so this table never actually shows a score. Flagging as a gap, not intended behavior; the score only surfaces today on the student assignment detail page ([04](04-submissions.md)).
 
 Every action lands on the same page, `/student/assignments/{id}` ([04](04-submissions.md)) — currently a stub there, full detail lives in [04](04-submissions.md); the second button only anchors to the relevant section. `deadline_badge` renders next to `due_at` in the Hạn nộp cell. `Xem` is an icon button like the teacher table; `Nộp bài` is also icon (upload); `Xem lịch sử`/`Xem kết quả` render as text buttons, not icons. Same loading/error/empty-state pattern as §2.1 (spinner → alert on failure, no stuck spinner; empty state when the list is empty).
 

@@ -13,7 +13,7 @@ from classes.views import is_open, scoped_classes
 from notifications.services import create_notifications
 from submissions.models import Submission
 
-from .models import Assignment, RubricCriterion
+from .models import Assignment, AssignmentGrade, RubricCriterion
 from .serializers import AssignmentSerializer, RubricSerializer
 
 
@@ -61,6 +61,12 @@ class ClassAssignmentsView(APIView):
         context = {"classroom": classroom}
         if request.user.role == User.Role.STUDENT:
             context["student"] = request.user
+            context["scores"] = {
+                row["assignment"]: row["score"]
+                for row in AssignmentGrade.objects.filter(
+                    assignment__in=assignments, student=request.user
+                ).values("assignment", "score")
+            }
         else:
             from grading.models import Grade
 

@@ -170,6 +170,7 @@ export interface Assignment {
   submitted_count?: number | null;
   graded_count?: number | null;
   enrolled_count?: number | null;
+  score?: number | null;
 }
 
 export interface Submission {
