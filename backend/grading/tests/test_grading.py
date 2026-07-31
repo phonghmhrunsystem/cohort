@@ -71,7 +71,6 @@ class GradingApiTests(TestCase):
             original_filename="submission.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
 
     def client_for(self, user):

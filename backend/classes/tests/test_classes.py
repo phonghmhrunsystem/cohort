@@ -288,7 +288,6 @@ class ClassApiTests(TestCase):
             original_filename="graded.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
         Grade.objects.create(
             assignment=graded_assignment,
@@ -519,7 +518,6 @@ class TeacherRosterProgressTests(TestCase):
             original_filename="submission.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
 
     def client_for(self, user):
@@ -669,7 +667,6 @@ class GradebookApiTests(TestCase):
             original_filename="submission.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
 
     def test_assigned_teacher_gets_empty_gradebook_only(self):

@@ -160,7 +160,6 @@ class AssignmentApiTests(TestCase):
             original_filename="submission.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
         criterion_ids = [c["id"] for c in criteria_before]
         graded = self.teacher_client.put(
@@ -219,7 +218,6 @@ class AssignmentApiTests(TestCase):
             original_filename="submitted.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
         graded_submission = Submission.objects.create(
             assignment=graded_assignment,
@@ -229,7 +227,6 @@ class AssignmentApiTests(TestCase):
             original_filename="graded.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
         Grade.objects.create(
             assignment=graded_assignment,
@@ -303,12 +300,12 @@ class AssignmentApiTests(TestCase):
         Submission.objects.create(
             assignment_id=first["id"], student=self.student, version=1,
             file_path="submissions/a.pdf", original_filename="a.pdf",
-            content_type="application/pdf", size=10, note="",
+            content_type="application/pdf", size=10,
         )
         submission_two = Submission.objects.create(
             assignment_id=first["id"], student=other_student, version=1,
             file_path="submissions/b.pdf", original_filename="b.pdf",
-            content_type="application/pdf", size=10, note="",
+            content_type="application/pdf", size=10,
         )
         Grade.objects.create(
             assignment_id=first["id"], student=other_student, teacher=self.teacher,
