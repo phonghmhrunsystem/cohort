@@ -60,10 +60,22 @@ class SubmissionApiTests(TestCase):
         client.force_authenticate(user)
         return client
 
+    FILE_BYTES = {
+        "pdf": b"%PDF-1.4\n%fake pdf body for tests\n",
+        "docx": b"PK\x03\x04\x14\x00\x00\x00\x08\x00fake docx body",
+    }
+
+    def content_type(self, filename):
+        return {
+            "pdf": "application/pdf",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }[filename.rsplit(".", 1)[1]]
+
     def submit(self, filename, *, client=None):
+        ext = filename.rsplit(".", 1)[1]
         return (client or self.student_client).post(
             self.submit_url,
-            {"file": SimpleUploadedFile(filename, b"content", self.content_type(filename))},
+            {"file": SimpleUploadedFile(filename, self.FILE_BYTES[ext], self.content_type(filename))},
             format="multipart",
         )
 
@@ -74,12 +86,6 @@ class SubmissionApiTests(TestCase):
 
         with patch("submissions.views.create_submission", side_effect=change_then_create):
             return self.submit("race.pdf")
-
-    def content_type(self, filename):
-        return {
-            "pdf": "application/pdf",
-            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        }[filename.rsplit(".", 1)[1]]
 
     def test_invalid_upload_writes_no_file_or_row(self):
         before = list(Path(settings.MEDIA_ROOT).rglob("*"))
@@ -135,7 +141,7 @@ class SubmissionApiTests(TestCase):
         # A student without a full_name should serialize as null, not error.
         self.other_student_client.post(
             self.submit_url,
-            {"file": SimpleUploadedFile("other.pdf", b"content", "application/pdf")},
+            {"file": SimpleUploadedFile("other.pdf", self.FILE_BYTES["pdf"], "application/pdf")},
             format="multipart",
         )
         teacher_response = self.teacher_client.get(self.teacher_list_url)
@@ -290,6 +296,12 @@ class SubmissionApiTests(TestCase):
         response = self.submit("one.pdf")
         self.assertNotIn("note", response.json())
 
+    def test_file_renamed_to_pdf_but_not_actually_a_pdf_is_rejected(self):
+        fake = SimpleUploadedFile("homework.pdf", b"this is just plain text, not a pdf", "application/pdf")
+        response = self.student_client.post(self.submit_url, {"file": fake}, format="multipart")
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(Submission.objects.count(), 0)
+
     def test_teacher_detail_and_download_are_limited_to_latest_version(self):
         first = self.submit("one.pdf").json()
         latest = self.submit("two.pdf").json()
@@ -357,7 +369,7 @@ class SubmissionConcurrencyTests(TransactionTestCase):
                 return create_submission(
                     assignment=self.assignment,
                     student=self.student,
-                    upload=SimpleUploadedFile(filename, b"content", "application/pdf"),
+                    upload=SimpleUploadedFile(filename, b"%PDF-1.4\nconcurrent\n", "application/pdf"),
                 ).version
             except Exception as exc:
                 return type(exc).__name__
