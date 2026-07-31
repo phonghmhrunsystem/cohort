@@ -91,6 +91,7 @@ export function TeacherGradePage() {
     }
   }
 
+  if (failure && (!submission || !assignment)) return <Alert>{failure}</Alert>;
   if (!submission || !assignment) return <Spinner label="Loading submission" />;
 
   return (

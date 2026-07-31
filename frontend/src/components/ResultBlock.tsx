@@ -17,9 +17,11 @@ export function ResultBlock({ assignmentId, criteria, submissions }: ResultBlock
   const [grade, setGrade] = useState<Grade>();
 
   useEffect(() => {
-    request<Grade>(assignmentMyResultPath(assignmentId), { token: token() }).then((loaded) => {
-      if (loaded) setGrade(loaded);
-    });
+    request<Grade>(assignmentMyResultPath(assignmentId), { token: token() })
+      .then((loaded) => {
+        if (loaded) setGrade(loaded);
+      })
+      .catch(() => {});
   }, [assignmentId]);
 
   if (!grade) return null;
