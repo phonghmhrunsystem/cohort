@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiFailure } from "../../lib/errors";
-import { request, classAssignmentsPath } from "../../lib/api";
+import { assignmentSubmissionsPath, request, classAssignmentsPath, submissionDownloadUrl } from "../../lib/api";
 
 describe("request", () => {
   afterEach(() => vi.unstubAllGlobals());
@@ -61,5 +61,35 @@ describe("request", () => {
 describe("classAssignmentsPath", () => {
   it("builds the assignments path for a class", () => {
     expect(classAssignmentsPath(9)).toBe("/classes/9/assignments");
+  });
+});
+
+describe("request with FormData", () => {
+  it("sends FormData as-is without a JSON Content-Type header", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const form = new FormData();
+    form.append("file", new Blob(["x"]), "a.pdf");
+    await request("/assignments/1/submissions", { method: "POST", body: form, token: "t" });
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBe(form);
+    expect(init.headers.Authorization).toBe("Bearer t");
+    expect(init.headers["Content-Type"]).toBeUndefined();
+
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("path helpers", () => {
+  it("builds the assignment submissions path", () => {
+    expect(assignmentSubmissionsPath(5)).toBe("/assignments/5/submissions");
+  });
+
+  it("builds the submission download url", () => {
+    expect(submissionDownloadUrl(9)).toBe("/api/submissions/9/download");
   });
 });

@@ -11,11 +11,12 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const { body, headers: providedHeaders, token, ...init } = options;
   const headers = Object.fromEntries(new Headers(providedHeaders));
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const isFormData = body instanceof FormData;
+  if (body !== undefined && !isFormData) headers["Content-Type"] = "application/json";
 
   const response = await fetch(`/api${path}`, {
     ...init,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
     headers,
   });
   const data = response.status !== 204 && response.headers.get("content-type")?.includes("application/json")
@@ -65,4 +66,12 @@ export function classStudentsPath(classId: number, filters: { q?: string; page?:
 
 export function classAssignmentsPath(classId: number): string {
   return `/classes/${classId}/assignments`;
+}
+
+export function assignmentSubmissionsPath(assignmentId: number): string {
+  return `/assignments/${assignmentId}/submissions`;
+}
+
+export function submissionDownloadUrl(submissionId: number): string {
+  return `/api/submissions/${submissionId}/download`;
 }
