@@ -111,18 +111,60 @@ class SubmissionApiTests(TestCase):
         self.assertEqual([item["version"] for item in response.json()], [2, 1])
         self.assertNotIn("file_path", response.json()[0])
 
-    def test_teacher_sees_only_greatest_version_per_student(self):
+    def test_teacher_list_is_roster_shaped(self):
         self.submit("one.pdf")
         self.submit("two.pdf")
         self.submit("other.docx", client=self.other_student_client)
 
         response = self.teacher_client.get(self.teacher_list_url)
-
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            {(item["student_id"], item["version"]) for item in response.json()},
-            {(self.student.id, 2), (self.other_student.id, 1)},
-        )
+        rows = {row["student_id"]: row for row in response.json()}
+
+        self.assertEqual(set(rows), {self.student.id, self.other_student.id})
+        self.assertNotIn(self.unenrolled_student.id, rows)
+        self.assertIsNotNone(rows[self.student.id]["submission"])
+        self.assertNotIn("version", rows[self.student.id]["submission"])
+        self.assertEqual(rows[self.student.id]["submission"]["original_filename"], "two.pdf")
+        self.assertIsNotNone(rows[self.other_student.id]["submission"])
+
+    def test_teacher_list_includes_non_submitters(self):
+        self.submit("one.pdf")  # only self.student submits
+
+        response = self.teacher_client.get(self.teacher_list_url)
+        rows = {row["student_id"]: row for row in response.json()}
+
+        self.assertIsNotNone(rows[self.student.id]["submission"])
+        self.assertIsNone(rows[self.other_student.id]["submission"])
+        self.assertFalse(rows[self.other_student.id]["graded"])
+        self.assertIsNone(rows[self.other_student.id]["score"])
+
+    def test_teacher_list_is_sorted_by_student_name(self):
+        self.student.full_name = "Zed Student"
+        self.student.save(update_fields=("full_name",))
+        self.other_student.full_name = "Anh Student"
+        self.other_student.save(update_fields=("full_name",))
+
+        response = self.teacher_client.get(self.teacher_list_url)
+        names = [row["student_name"] for row in response.json()]
+        self.assertEqual(names, sorted(names))
+
+    def test_teacher_list_excludes_unenrolled_and_removed_students(self):
+        self.submit("one.pdf")
+        Enrollment.objects.filter(classroom=self.classroom, student=self.student).delete()
+
+        response = self.teacher_client.get(self.teacher_list_url)
+        ids = {row["student_id"] for row in response.json()}
+        self.assertNotIn(self.student.id, ids)
+
+    def test_teacher_list_tags_disabled_accounts_but_keeps_them_gradeable(self):
+        self.submit("one.pdf")
+        self.student.is_active = False
+        self.student.save(update_fields=("is_active",))
+
+        response = self.teacher_client.get(self.teacher_list_url)
+        rows = {row["student_id"]: row for row in response.json()}
+        self.assertFalse(rows[self.student.id]["is_active"])
+        self.assertIsNotNone(rows[self.student.id]["submission"])
 
     def test_submission_serializer_exposes_student_name(self):
         self.student.full_name = "Nguyen Van A"
@@ -133,7 +175,8 @@ class SubmissionApiTests(TestCase):
         self.assertEqual(student_response.json()[0]["student_name"], "Nguyen Van A")
 
         teacher_response = self.teacher_client.get(self.teacher_list_url)
-        self.assertEqual(teacher_response.json()[0]["student_name"], "Nguyen Van A")
+        rows = {row["student_id"]: row["student_name"] for row in teacher_response.json()}
+        self.assertEqual(rows[self.student.id], "Nguyen Van A")
 
         detail_response = self.teacher_client.get(f"/api/submissions/{submission_id}")
         self.assertEqual(detail_response.json()["student_name"], "Nguyen Van A")
@@ -261,11 +304,12 @@ class SubmissionApiTests(TestCase):
         self.assertEqual(Submission.objects.count(), 0)
         self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
 
-    def test_graded_flag_flips_after_teacher_grades_submission(self):
+    def test_graded_flag_and_score_appear_after_teacher_grades_submission(self):
         submission_id = self.submit("one.pdf").json()["id"]
 
-        before = self.teacher_client.get(self.teacher_list_url).json()
-        self.assertEqual(before[0]["graded"], False)
+        before = {row["student_id"]: row for row in self.teacher_client.get(self.teacher_list_url).json()}
+        self.assertFalse(before[self.student.id]["graded"])
+        self.assertIsNone(before[self.student.id]["score"])
 
         Grade.objects.create(
             assignment=self.assignment,
@@ -276,8 +320,9 @@ class SubmissionApiTests(TestCase):
             feedback="Nice work.",
         )
 
-        after = self.teacher_client.get(self.teacher_list_url).json()
-        self.assertEqual(after[0]["graded"], True)
+        after = {row["student_id"]: row for row in self.teacher_client.get(self.teacher_list_url).json()}
+        self.assertTrue(after[self.student.id]["graded"])
+        self.assertEqual(after[self.student.id]["score"], 90)
 
     def test_file_over_25mb_is_rejected(self):
         oversized = SimpleUploadedFile(

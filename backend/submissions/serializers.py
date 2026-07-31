@@ -59,3 +59,37 @@ class SubmissionSerializer(serializers.ModelSerializer):
         if self.context.get("omit_version"):
             data.pop("version", None)
         return data
+
+
+class TeacherSubmissionRowSerializer(serializers.Serializer):
+    """One row per currently-enrolled student — spec 04-submissions.md §3.1.
+    `submission` is None for a student who hasn't submitted; the row never
+    carries `version`, matching the teacher's "one file, no history" view."""
+
+    student_id = serializers.IntegerField()
+    student_name = serializers.CharField(allow_null=True)
+    is_active = serializers.BooleanField()
+    submission = serializers.SerializerMethodField()
+    graded = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
+
+    def get_submission(self, row):
+        submission = row["submission"]
+        if submission is None:
+            return None
+        return {
+            "id": submission.id,
+            "original_filename": submission.original_filename,
+            "content_type": submission.content_type,
+            "size": submission.size,
+            "created_at": submission.created_at,
+        }
+
+    def get_graded(self, row):
+        return row["submission"] is not None and hasattr(row["submission"], "grade")
+
+    def get_score(self, row):
+        submission = row["submission"]
+        if submission is not None and hasattr(submission, "grade"):
+            return submission.grade.total_score
+        return None

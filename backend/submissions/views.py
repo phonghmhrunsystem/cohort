@@ -12,7 +12,11 @@ from assignments.models import Assignment, AssignmentGrade
 from classes.views import scoped_classes
 
 from .models import Submission
-from .serializers import SubmissionSerializer, SubmissionUploadSerializer
+from .serializers import (
+    SubmissionSerializer,
+    SubmissionUploadSerializer,
+    TeacherSubmissionRowSerializer,
+)
 from .services import (
     CLOSED_MESSAGE,
     GRADED_MESSAGE,
@@ -32,21 +36,49 @@ def scoped_assignment(user, assignment_id):
     )
 
 
+def teacher_roster_rows(assignment):
+    students = (
+        User.objects.filter(
+            enrollments__classroom=assignment.classroom_id,
+            role=User.Role.STUDENT,
+            is_deleted=False,
+        )
+        .order_by("full_name", "id")
+    )
+    latest = Submission.objects.filter(
+        assignment=assignment, student_id=OuterRef("student_id")
+    ).order_by("-version").values("id")[:1]
+    submissions_by_student = {
+        submission.student_id: submission
+        for submission in Submission.objects.filter(
+            assignment=assignment, id=Subquery(latest)
+        ).select_related("grade")
+    }
+    return [
+        {
+            "student_id": student.id,
+            "student_name": student.full_name,
+            "is_active": student.is_active,
+            "submission": submissions_by_student.get(student.id),
+        }
+        for student in students
+    ]
+
+
 class AssignmentSubmissionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, assignment_id):
         assignment = scoped_assignment(request.user, assignment_id)
         if request.user.role == User.Role.TEACHER:
-            latest = Submission.objects.filter(
-                assignment_id=OuterRef("assignment_id"), student_id=OuterRef("student_id")
-            ).order_by("-version").values("id")[:1]
-            submissions = Submission.objects.filter(assignment=assignment, id=Subquery(latest)).select_related("grade", "student").order_by("student_id")
+            rows = teacher_roster_rows(assignment)
+            return Response(TeacherSubmissionRowSerializer(rows, many=True).data)
         elif request.user.role == User.Role.STUDENT:
-            submissions = Submission.objects.filter(assignment=assignment, student=request.user).select_related("grade", "student")
-        else:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        return Response(SubmissionSerializer(submissions, many=True).data)
+            submissions = Submission.objects.filter(
+                assignment=assignment, student=request.user
+            ).select_related("grade", "student")
+            return Response(SubmissionSerializer(submissions, many=True).data)
+        return Response(status=status.HTTP_403_FORBIDDEN)
 
     def post(self, request, assignment_id):
         assignment = scoped_assignment(request.user, assignment_id)
