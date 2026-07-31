@@ -51,16 +51,23 @@ describe("Teacher assignment page", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the assignment header and a submissions stub", async () => {
-    openPage(vi.fn().mockResolvedValueOnce(json(assignment())));
+  it("renders the assignment header and the submissions roster", async () => {
+    openPage(
+      vi.fn()
+        .mockResolvedValueOnce(json(assignment()))
+        .mockResolvedValueOnce(json([
+          { student_id: 1, student_name: "Nguyen Van A", is_active: true, submission: null, graded: false, score: null },
+        ])),
+    );
 
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     expect(screen.getByText("Build a small app.")).toBeTruthy();
-    expect(screen.getByText("Submissions — see 04-submissions.")).toBeTruthy();
+    expect(screen.getByText("chưa nộp")).toBeTruthy();
+    expect(screen.getByText("Bài nộp 0/1")).toBeTruthy();
   });
 
   it("opens the rubric dialog pre-filled with existing criteria and enables Save once total is 100", async () => {
-    openPage(vi.fn().mockResolvedValueOnce(json(assignment())));
+    openPage(vi.fn().mockResolvedValueOnce(json(assignment())).mockResolvedValueOnce(json([])));
     const events = userEvent.setup();
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
 
@@ -75,7 +82,7 @@ describe("Teacher assignment page", () => {
   });
 
   it("Chia đều splits 100 evenly with the remainder on the first criterion", async () => {
-    openPage(vi.fn().mockResolvedValueOnce(json(assignment({ criteria: [{ id: 1, title: "A", maximum_score: 10 }, { id: 2, title: "B", maximum_score: 10 }, { id: 3, title: "C", maximum_score: 10 }] }))));
+    openPage(vi.fn().mockResolvedValueOnce(json(assignment({ criteria: [{ id: 1, title: "A", maximum_score: 10 }, { id: 2, title: "B", maximum_score: 10 }, { id: 3, title: "C", maximum_score: 10 }] }))).mockResolvedValueOnce(json([])));
     const events = userEvent.setup();
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     await events.click(screen.getByRole("button", { name: "Sửa rubric" }));
@@ -87,7 +94,7 @@ describe("Teacher assignment page", () => {
   });
 
   it("Dùng mẫu mặc định fills the three default criteria", async () => {
-    openPage(vi.fn().mockResolvedValueOnce(json(assignment({ criteria: [{ id: 1, title: "Custom A", maximum_score: 50 }, { id: 2, title: "Custom B", maximum_score: 50 }] }))));
+    openPage(vi.fn().mockResolvedValueOnce(json(assignment({ criteria: [{ id: 1, title: "Custom A", maximum_score: 50 }, { id: 2, title: "Custom B", maximum_score: 50 }] }))).mockResolvedValueOnce(json([])));
     const events = userEvent.setup();
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     await events.click(screen.getByRole("button", { name: "Sửa rubric" }));

@@ -6,10 +6,11 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Dialog } from "../../components/Dialog";
 import { Field } from "../../components/Field";
+import { LatestSubmissions } from "../../components/LatestSubmissions";
 import { Spinner } from "../../components/Spinner";
-import { request } from "../../lib/api";
+import { assignmentSubmissionsPath, request } from "../../lib/api";
 import { formatDateTime } from "../../lib/format";
-import type { Assignment } from "../../types";
+import type { Assignment, TeacherSubmissionRow } from "../../types";
 
 const token = () => sessionStorage.getItem("access_token") ?? undefined;
 
@@ -24,6 +25,7 @@ type CriterionDraft = { title: string; maximum_score: string };
 export function TeacherAssignmentPage() {
   const { assignmentId } = useParams();
   const [assignment, setAssignment] = useState<Assignment>();
+  const [rows, setRows] = useState<TeacherSubmissionRow[]>([]);
   const [failure, setFailure] = useState("");
   const [rubricOpen, setRubricOpen] = useState(false);
   const [isEditingRubric, setIsEditingRubric] = useState(false);
@@ -32,8 +34,14 @@ export function TeacherAssignmentPage() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    request<Assignment>(`/assignments/${assignmentId}`, { token: token() })
-      .then((value) => value && setAssignment(value))
+    Promise.all([
+      request<Assignment>(`/assignments/${assignmentId}`, { token: token() }),
+      request<TeacherSubmissionRow[]>(assignmentSubmissionsPath(Number(assignmentId)), { token: token() }),
+    ])
+      .then(([loadedAssignment, loadedRows]) => {
+        if (loadedAssignment) setAssignment(loadedAssignment);
+        if (loadedRows) setRows(loadedRows);
+      })
       .catch(() => setFailure("Unable to load assignment."));
   }, [assignmentId]);
   useEffect(() => {
@@ -148,7 +156,7 @@ export function TeacherAssignmentPage() {
         </Card>
       )}
       <Card>
-        <p className="muted">Submissions — see 04-submissions.</p>
+        <LatestSubmissions assignmentId={assignment.id} rows={rows} />
       </Card>
       {rubricOpen && (
         <Dialog
