@@ -36,6 +36,11 @@ export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps
       render: (row) => (row.submission ? formatDateTime(row.submission.created_at) : ""),
     },
     {
+      key: "score",
+      header: "Điểm",
+      render: (row) => (row.submission && row.graded ? row.score : ""),
+    },
+    {
       key: "actions",
       header: "",
       render: (row) => {
@@ -47,9 +52,7 @@ export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps
               label="Tải"
               onClick={() => downloadSubmission(row.submission!.id, row.submission!.original_filename)}
             />
-            {row.graded ? (
-              <span>{row.score}</span>
-            ) : (
+            {!row.graded && (
               <IconLinkButton
                 icon={<GradeIcon />}
                 label="Chấm"
