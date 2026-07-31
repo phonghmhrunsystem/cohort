@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { Alert } from "../../components/Alert";
 import { Card } from "../../components/Card";
+import { ResultBlock } from "../../components/ResultBlock";
 import { Spinner } from "../../components/Spinner";
 import { SubmissionHistory } from "../../components/SubmissionHistory";
 import { assignmentSubmissionsPath, request } from "../../lib/api";
@@ -86,6 +87,9 @@ export function StudentAssignmentPage() {
       </div>
       {assignment.description && (
         <Card><p className="assignment-description">{assignment.description}</p></Card>
+      )}
+      {assignment.learning_state === "GRADED" && (
+        <ResultBlock assignmentId={assignment.id} criteria={assignment.criteria} submissions={submissions} />
       )}
       <SubmissionHistory
         assignmentId={assignment.id}
