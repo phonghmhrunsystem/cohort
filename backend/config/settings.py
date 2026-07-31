@@ -54,7 +54,7 @@ USE_TZ = True
 STATIC_URL = "static/"
 MEDIA_ROOT = BASE_DIR / "media"
 MEDIA_URL = "/media/"
-MAX_UPLOAD_BYTES = 1_073_741_824
+MAX_UPLOAD_BYTES = 26_214_400  # 25 MiB — spec 04-submissions.md §5
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "accounts.User"
 

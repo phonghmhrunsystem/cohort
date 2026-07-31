@@ -248,6 +248,16 @@ class SubmissionApiTests(TestCase):
         after = self.teacher_client.get(self.teacher_list_url).json()
         self.assertEqual(after[0]["graded"], True)
 
+    def test_file_over_25mb_is_rejected(self):
+        oversized = SimpleUploadedFile(
+            "big.pdf", b"%PDF-1.4" + b"0" * (settings.MAX_UPLOAD_BYTES), "application/pdf"
+        )
+        response = self.student_client.post(
+            self.submit_url, {"file": oversized}, format="multipart"
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(Submission.objects.count(), 0)
+
     def test_download_is_limited_to_submitter_or_assigned_teacher(self):
         submission = self.submit("one.pdf").json()
         download_url = f"/api/submissions/{submission['id']}/download"
