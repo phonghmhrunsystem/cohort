@@ -26,6 +26,7 @@ export function TeacherAssignmentPage() {
   const [assignment, setAssignment] = useState<Assignment>();
   const [failure, setFailure] = useState("");
   const [rubricOpen, setRubricOpen] = useState(false);
+  const [isEditingRubric, setIsEditingRubric] = useState(false);
   const [criteria, setCriteria] = useState<CriterionDraft[]>([]);
   const [rubricFailure, setRubricFailure] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,15 +46,15 @@ export function TeacherAssignmentPage() {
   );
 
   function openRubric() {
-    const source = assignment?.criteria.length
-      ? assignment.criteria
-      : DEFAULT_TEMPLATE;
+    const hasExisting = Boolean(assignment?.criteria.length);
+    const source = hasExisting ? assignment!.criteria : DEFAULT_TEMPLATE;
     setCriteria(
       source.map((criterion) => ({
         title: criterion.title,
         maximum_score: String(criterion.maximum_score),
       })),
     );
+    setIsEditingRubric(hasExisting);
     setRubricFailure("");
     setRubricOpen(true);
   }
@@ -196,6 +197,7 @@ export function TeacherAssignmentPage() {
                     id={`rubric-title-${index}`}
                     label="Criterion"
                     value={criterion.title}
+                    disabled={isEditingRubric}
                     onChange={(event) =>
                       updateCriterion(index, "title", event.target.value)
                     }

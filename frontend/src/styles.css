@@ -43,6 +43,7 @@ button:focus-visible, input:focus-visible, a:focus-visible { outline: 2px solid 
 .field > label { font-size: .9375rem; font-weight: 600; line-height: 1.35; }
 .field-required > label::after { content: " *"; color: var(--color-danger); }
 .field-hint { color: var(--color-muted); font-size: .8125rem; }
+.field input:disabled { background: #e2e8f0; color: var(--color-muted); cursor: not-allowed; }
 .field input, .field select, .field textarea { width: 100%; min-height: 2.75rem; padding: .5rem .75rem; border: 1px solid var(--color-border); border-radius: .375rem; background-color: var(--color-surface); color: var(--color-text); font: inherit; }
 .field textarea { min-height: 6rem; resize: vertical; }
 .field select { appearance: none; padding-right: 2.25rem; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right .75rem center; background-size: 1rem; cursor: pointer; }
