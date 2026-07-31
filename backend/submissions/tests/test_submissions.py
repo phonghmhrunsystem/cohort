@@ -148,6 +148,16 @@ class SubmissionApiTests(TestCase):
         rows = {row["student_id"]: row["student_name"] for row in teacher_response.json()}
         self.assertIsNone(rows[self.other_student.id])
 
+    def test_teacher_submission_detail_omits_version(self):
+        submission_id = self.submit("one.pdf").json()["id"]
+        response = self.teacher_client.get(f"/api/submissions/{submission_id}")
+        self.assertNotIn("version", response.json())
+
+    def test_student_submission_detail_still_has_version(self):
+        submission_id = self.submit("one.pdf").json()["id"]
+        response = self.student_client.get(f"/api/submissions/{submission_id}")
+        self.assertEqual(response.json()["version"], 1)
+
     def test_inactive_class_blocks_submission_even_inside_the_time_window(self):
         before = list(Path(settings.MEDIA_ROOT).rglob("*"))
 

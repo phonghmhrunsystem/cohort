@@ -53,3 +53,9 @@ class SubmissionSerializer(serializers.ModelSerializer):
 
     def get_graded(self, submission):
         return hasattr(submission, "grade")
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if self.context.get("omit_version"):
+            data.pop("version", None)
+        return data

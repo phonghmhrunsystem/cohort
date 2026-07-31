@@ -82,7 +82,9 @@ class SubmissionDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, submission_id):
-        return Response(SubmissionSerializer(self.get_submission(request, submission_id)).data)
+        submission = self.get_submission(request, submission_id)
+        context = {"omit_version": request.user.role == User.Role.TEACHER}
+        return Response(SubmissionSerializer(submission, context=context).data)
 
     def get_submission(self, request, submission_id):
         submissions = Submission.objects.select_related("assignment__classroom", "grade", "student")
