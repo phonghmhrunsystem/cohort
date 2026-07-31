@@ -9,13 +9,14 @@ import { Dialog } from "../../components/Dialog";
 import { EmptyState } from "../../components/EmptyState";
 import { Field, Textarea } from "../../components/Field";
 import { EditIcon, EyeIcon, IconButton, IconLinkButton } from "../../components/IconButton";
+import { Pagination } from "../../components/Pagination";
 import { Spinner } from "../../components/Spinner";
-import { Table } from "../../components/Table";
+import { DataTable, type Column } from "../../components/Table";
 import { useToast } from "../../components/Toast";
 import { classAssignmentsPath, classStudentsPath, request } from "../../lib/api";
 import { ApiFailure } from "../../lib/errors";
 import { deadlineBadge, formatDate, formatDateTime } from "../../lib/format";
-import type { Assignment, ClassRow, FieldErrors, RosterResponse } from "../../types";
+import type { Assignment, ClassRow, FieldErrors, RosterResponse, RosterStudent } from "../../types";
 
 function assignmentStatus(class_: ClassRow, assignment: Assignment, now: Date): "Đang mở" | "Hết hạn" | "Đã đóng" {
   const classOpen = class_.is_active && new Date(class_.starts_at) <= now && now < new Date(class_.ends_at);
@@ -106,6 +107,12 @@ export function TeacherClassPage() {
 
   const search = (event: FormEvent) => { event.preventDefault(); setPageNumber(1); setSubmitted(query); };
 
+  const rosterColumns: Column<RosterStudent>[] = [
+    { key: "name", header: "Name", render: (s) => s.full_name },
+    { key: "phone", header: "Phone", render: (s) => s.phone || "—" },
+    { key: "action", header: "Action", render: (s) => <div className="row-actions"><IconLinkButton to={`/teacher/classes/${classId}/students/${s.id}`} icon={<EyeIcon />} label="View" /></div> },
+  ];
+
   if (failure) return <Alert>{failure}</Alert>;
   if (!class_) return <Spinner label="Loading class" />;
   return <section className="page-stack">
@@ -118,33 +125,28 @@ export function TeacherClassPage() {
     {tab === "students" && roster && <Card>
       <p>Đã ghi danh {roster.enrolled_students} · Đã nộp {roster.submitted_students} · Đã chấm {roster.graded_students}</p>
       <form className="filters" noValidate onSubmit={search}><div className="filters-row filters-search"><Field id="teacher-roster-search" label="Search Student" value={query} onChange={(event) => setQuery(event.target.value)} /><Button type="submit">Search</Button></div></form>
-      {roster.students.results.length === 0 ? <EmptyState>No students.</EmptyState> : <><Table><thead><tr><th>Name</th><th>Phone</th><th>Action</th></tr></thead>
-        <tbody>{roster.students.results.map((s) => <tr key={s.id}><td>{s.full_name}</td><td>{s.phone || "—"}</td><td><div className="row-actions"><IconLinkButton to={`/teacher/classes/${classId}/students/${s.id}`} icon={<EyeIcon />} label="View" /></div></td></tr>)}</tbody>
-      </Table><nav className="pagination" aria-label="Students pagination"><button disabled={!roster.students.previous} onClick={() => setPageNumber((v) => v - 1)}>Previous</button><span>Page {pageNumber}</span><button disabled={!roster.students.next} onClick={() => setPageNumber((v) => v + 1)}>Next</button></nav></>}
+      {roster.students.results.length === 0 ? <EmptyState>No students.</EmptyState> : <><DataTable columns={rosterColumns} data={roster.students.results} rowKey={(s) => s.id} />
+        <Pagination label="Students pagination" page={pageNumber} count={roster.students.count} onChange={setPageNumber} /></>}
     </Card>}
     {tab === "assignments" && <Card>
       <div className="page-header"><h2>Assignments</h2><Button onClick={openCreate}>Tạo assignment</Button></div>
       {assignmentsFailure && <Alert>{assignmentsFailure}</Alert>}
       {!assignments ? <Spinner label="Loading assignments" /> :
         assignments.length === 0 ? <EmptyState>No assignments.</EmptyState> :
-          <Table><thead><tr><th>Tên</th><th>Ngày tạo</th><th>Hạn nộp</th><th>Trạng thái</th><th>Đã nộp</th><th>Action</th></tr></thead>
-            <tbody>{assignments.map((assignment) => {
-              const now = new Date();
-              const status = assignmentStatus(class_, assignment, now);
-              const editDisabled = new Date(assignment.due_at) <= now;
-              return <tr key={assignment.id}>
-                <td>{assignment.title}</td>
-                <td>{formatDate(assignment.created_at)}</td>
-                <td>{formatDateTime(assignment.due_at)}<br /><span className="muted">{deadlineBadge(assignment.due_at, now)}</span></td>
-                <td><Badge className={statusBadgeClass(status)}>{status}</Badge></td>
-                <td>{assignment.submitted_count ?? 0}/{assignment.enrolled_count ?? 0}{!!assignment.graded_count && <> <Badge className="badge-active">{assignment.graded_count} đã chấm</Badge></>}</td>
-                <td><div className="row-actions">
-                  <IconLinkButton to={`/teacher/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />
-                  <IconButton icon={<EditIcon />} label="Sửa" disabled={editDisabled} title={editDisabled ? "Assignment đã hết hạn, không thể chỉnh sửa." : undefined} onClick={() => openEdit(assignment)} />
-                </div></td>
-              </tr>;
-            })}</tbody>
-          </Table>}
+          <DataTable rowKey={(assignment) => assignment.id} data={assignments} columns={[
+            { key: "title", header: "Tên", render: (assignment) => assignment.title },
+            { key: "created", header: "Ngày tạo", render: (assignment) => formatDate(assignment.created_at) },
+            { key: "due", header: "Hạn nộp", render: (assignment) => <>{formatDateTime(assignment.due_at)}<br /><span className="muted">{deadlineBadge(assignment.due_at, new Date())}</span></> },
+            { key: "status", header: "Trạng thái", render: (assignment) => <Badge className={statusBadgeClass(assignmentStatus(class_, assignment, new Date()))}>{assignmentStatus(class_, assignment, new Date())}</Badge> },
+            { key: "submitted", header: "Đã nộp", render: (assignment) => <>{assignment.submitted_count ?? 0}/{assignment.enrolled_count ?? 0}{!!assignment.graded_count && <> <Badge className="badge-active">{assignment.graded_count} đã chấm</Badge></>}</> },
+            { key: "action", header: "Action", render: (assignment) => {
+              const editDisabled = new Date(assignment.due_at) <= new Date();
+              return <div className="row-actions">
+                <IconLinkButton to={`/teacher/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />
+                <IconButton icon={<EditIcon />} label="Sửa" disabled={editDisabled} title={editDisabled ? "Assignment đã hết hạn, không thể chỉnh sửa." : undefined} onClick={() => openEdit(assignment)} />
+              </div>;
+            } },
+          ]} />}
     </Card>}
     {dialogAssignment && <Dialog open onClose={() => setDialogAssignment(undefined)} title={dialogAssignment === "new" ? "Tạo assignment" : "Sửa assignment"} className="dialog-md">
       <form noValidate onSubmit={saveAssignment} className="form-grid">

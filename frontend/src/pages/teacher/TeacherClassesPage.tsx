@@ -6,10 +6,17 @@ import { EmptyState } from "../../components/EmptyState";
 import { Field } from "../../components/Field";
 import { Button } from "../../components/Button";
 import { EyeIcon, IconLinkButton } from "../../components/IconButton";
+import { Pagination } from "../../components/Pagination";
 import { Spinner } from "../../components/Spinner";
-import { Table } from "../../components/Table";
+import { DataTable, type Column } from "../../components/Table";
 import { classesPath, request } from "../../lib/api";
 import type { ClassRow, Page } from "../../types";
+
+const columns: Column<ClassRow>[] = [
+  { key: "name", header: "Name", render: (row) => row.name },
+  { key: "students", header: "Students", render: (row) => row.student_count },
+  { key: "action", header: "Action", render: (row) => <div className="row-actions"><IconLinkButton to={`/teacher/classes/${row.id}`} icon={<EyeIcon />} label="View" /></div> },
+];
 
 export function TeacherClassesPage() {
   const [query, setQuery] = useState("");
@@ -31,8 +38,7 @@ export function TeacherClassesPage() {
     <div className="page-header"><h1>My Classes</h1></div>
     <Card><form className="filters" noValidate onSubmit={search}><div className="filters-row filters-search"><Field id="teacher-class-search" label="Search Classes" value={query} onChange={(event) => setQuery(event.target.value)} /><Button type="submit">Search</Button></div></form></Card>
     {failure ? <Alert>{failure}</Alert> : !data ? <Spinner label="Loading classes" /> :
-      data.results.length === 0 ? <EmptyState>No classes assigned.</EmptyState> : <><Table><thead><tr><th>Name</th><th>Students</th><th>Action</th></tr></thead>
-        <tbody>{data.results.map((row) => <tr key={row.id}><td>{row.name}</td><td>{row.student_count}</td><td><div className="row-actions"><IconLinkButton to={`/teacher/classes/${row.id}`} icon={<EyeIcon />} label="View" /></div></td></tr>)}</tbody>
-      </Table><nav className="pagination" aria-label="Classes pagination"><button disabled={!data.previous} onClick={() => setPageNumber((v) => v - 1)}>Previous</button><span>Page {pageNumber}</span><button disabled={!data.next} onClick={() => setPageNumber((v) => v + 1)}>Next</button></nav></>}
+      data.results.length === 0 ? <EmptyState>No classes assigned.</EmptyState> : <><DataTable columns={columns} data={data.results} rowKey={(row) => row.id} />
+      <Pagination label="Classes pagination" page={pageNumber} count={data.count} onChange={setPageNumber} /></>}
   </section>;
 }

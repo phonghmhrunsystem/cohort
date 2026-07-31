@@ -9,8 +9,9 @@ import { Dialog } from "../../../components/Dialog";
 import { EmptyState } from "../../../components/EmptyState";
 import { Field } from "../../../components/Field";
 import { EyeIcon, IconButton, IconLinkButton, PowerIcon } from "../../../components/IconButton";
+import { Pagination } from "../../../components/Pagination";
 import { Spinner } from "../../../components/Spinner";
-import { Table } from "../../../components/Table";
+import { DataTable, type Column } from "../../../components/Table";
 import { useToast } from "../../../components/Toast";
 import { classesPath, request } from "../../../lib/api";
 import { formatDate } from "../../../lib/format";
@@ -51,6 +52,26 @@ export function AdminClassesPage() {
 
   const canDisable = (row: ClassRow) => new Date(row.starts_at) > new Date();
 
+  const columns: Column<ClassRow>[] = [
+    { key: "name", header: "Name", render: (row) => row.name },
+    { key: "teacher", header: "Teacher", render: (row) => row.teacher.full_name },
+    { key: "starts", header: "Starts", render: (row) => formatDate(row.starts_at) },
+    { key: "ends", header: "Ends", render: (row) => formatDate(row.ends_at) },
+    { key: "students", header: "Students", render: (row) => row.student_count },
+    { key: "status", header: "Status", render: (row) => <Badge className={row.is_active ? "badge-active" : "badge-disabled"}>{row.is_active ? "Active" : "Disabled"}</Badge> },
+    { key: "action", header: "Action", render: (row) => <div className="row-actions">
+      <IconLinkButton to={`/admin/classes/${row.id}`} icon={<EyeIcon />} label="View" />
+      <IconButton
+        icon={<PowerIcon />}
+        label={row.is_active ? "Disable" : "Enable"}
+        variant={row.is_active ? "danger" : "active"}
+        disabled={row.is_active && !canDisable(row)}
+        title={row.is_active && !canDisable(row) ? "Class has already started." : undefined}
+        onClick={() => setConfirmation(row)}
+      />
+    </div> },
+  ];
+
   async function toggleStatus() {
     if (!confirmation) return;
     setBusy(true);
@@ -78,23 +99,8 @@ export function AdminClassesPage() {
     </form></Card>
     {loading && !data ? <Spinner label="Loading classes" /> : failure ? <Alert>{failure} <button onClick={() => void load()}>Retry</button></Alert> :
       data?.results.length === 0 ? <EmptyState>No classes found.</EmptyState> :
-        data && <><Table><thead><tr><th>Name</th><th>Teacher</th><th>Starts</th><th>Ends</th><th>Students</th><th>Status</th><th>Action</th></tr></thead>
-          <tbody>{data.results.map((row) => <tr key={row.id}>
-            <td>{row.name}</td><td>{row.teacher.full_name}</td><td>{formatDate(row.starts_at)}</td><td>{formatDate(row.ends_at)}</td><td>{row.student_count}</td>
-            <td><Badge className={row.is_active ? "badge-active" : "badge-disabled"}>{row.is_active ? "Active" : "Disabled"}</Badge></td>
-            <td><div className="row-actions">
-              <IconLinkButton to={`/admin/classes/${row.id}`} icon={<EyeIcon />} label="View" />
-              <IconButton
-                icon={<PowerIcon />}
-                label={row.is_active ? "Disable" : "Enable"}
-                variant={row.is_active ? "danger" : "active"}
-                disabled={row.is_active && !canDisable(row)}
-                title={row.is_active && !canDisable(row) ? "Class has already started." : undefined}
-                onClick={() => setConfirmation(row)}
-              />
-            </div></td>
-          </tr>)}</tbody>
-        </Table><nav className="pagination" aria-label="Classes pagination"><button disabled={!data.previous} aria-label="Previous page" onClick={() => setPageNumber((value) => value - 1)}>Previous</button><span>Page {pageNumber}</span><button disabled={!data.next} aria-label="Next page" onClick={() => setPageNumber((value) => value + 1)}>Next</button></nav></>}
+        data && <><DataTable columns={columns} data={data.results} rowKey={(row) => row.id} />
+        <Pagination label="Classes pagination" page={pageNumber} count={data.count} onChange={setPageNumber} /></>}
     {confirmation && <Dialog open onClose={() => setConfirmation(undefined)} title={confirmation.is_active ? "Disable class" : "Enable class"}>
       <p>{confirmation.is_active ? `Disable ${confirmation.name}? Students and the teacher will lose access.` : `Enable ${confirmation.name}?`}</p>
       <div className="dialog-actions">

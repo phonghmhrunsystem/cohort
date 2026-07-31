@@ -10,8 +10,9 @@ import { Dialog } from "../../../components/Dialog";
 import { EmptyState } from "../../../components/EmptyState";
 import { Field, Select } from "../../../components/Field";
 import { PasswordField } from "../../../components/PasswordField";
+import { Pagination } from "../../../components/Pagination";
 import { Spinner } from "../../../components/Spinner";
-import { Table } from "../../../components/Table";
+import { DataTable, type Column } from "../../../components/Table";
 import { useToast } from "../../../components/Toast";
 import { request, usersPath } from "../../../lib/api";
 import { ApiFailure } from "../../../lib/errors";
@@ -106,6 +107,17 @@ export function AdminUsersPage() {
   };
   const statusAction = confirmation?.account.is_active ? "Disable" : "Enable";
 
+  const columns: Column<User>[] = [
+    { key: "email", header: "Email", render: (account) => account.email },
+    { key: "full_name", header: "Full name", render: (account) => account.full_name },
+    { key: "phone", header: "Phone", render: (account) => account.phone || "—" },
+    { key: "created", header: "Created", render: (account) => formatDate(account.created_at) },
+    { key: "updated", header: "Updated", render: (account) => formatDate(account.updated_at) },
+    { key: "role", header: "Role", render: (account) => roleLabel(account.role) },
+    { key: "status", header: "Status", render: (account) => <Badge className={account.is_active ? "badge-active" : "badge-disabled"}>{account.is_active ? "Active" : "Disabled"}</Badge> },
+    { key: "action", header: "Action", render: (account) => <AccountActions account={account} onPassword={() => openPassword(account)} onStatus={() => openConfirmation("status", account)} onDelete={() => openConfirmation("delete", account)} /> },
+  ];
+
   return <section className="page-stack">
     <div className="page-header"><div><h1>Accounts</h1><p>Manage Teacher and Student access.</p></div>
       <Link className="button" to="/admin/users/new">Create User</Link>
@@ -127,9 +139,8 @@ export function AdminUsersPage() {
     </form></Card>
     {loading && !data ? <Spinner label="Loading accounts" /> : failure ? <Alert>{failure} <button onClick={() => void load()}>Retry</button></Alert> :
       data?.results.length === 0 ? <EmptyState>No accounts found.</EmptyState> :
-        data && <><Table><thead><tr><th>Email</th><th>Full name</th><th>Phone</th><th>Created</th><th>Updated</th><th>Role</th><th>Status</th><th>Action</th></tr></thead>
-          <tbody>{data.results.map((account) => <tr key={account.id}><td>{account.email}</td><td>{account.full_name}</td><td>{account.phone || "—"}</td><td>{formatDate(account.created_at)}</td><td>{formatDate(account.updated_at)}</td><td>{roleLabel(account.role)}</td><td><Badge className={account.is_active ? "badge-active" : "badge-disabled"}>{account.is_active ? "Active" : "Disabled"}</Badge></td><td><AccountActions account={account} onPassword={() => openPassword(account)} onStatus={() => openConfirmation("status", account)} onDelete={() => openConfirmation("delete", account)} /></td></tr>)}</tbody>
-        </Table><nav className="pagination" aria-label="Accounts pagination"><button disabled={!data.previous} aria-label="Previous page" onClick={() => setPageNumber((value) => value - 1)}>Previous</button><span>Page {pageNumber}</span><button disabled={!data.next} aria-label="Next page" onClick={() => setPageNumber((value) => value + 1)}>Next</button></nav></>}
+        data && <><DataTable columns={columns} data={data.results} rowKey={(account) => account.id} />
+        <Pagination label="Accounts pagination" page={pageNumber} count={data.count} onChange={setPageNumber} /></>}
 
     {passwordUser &&<Dialog open onClose={() => setPasswordUser(undefined)} title="Change password"><form noValidate onSubmit={setPassword}>
       <p className="muted">Choose a new password for <strong>{passwordUser.email}</strong>. The user will need it to sign in.</p>

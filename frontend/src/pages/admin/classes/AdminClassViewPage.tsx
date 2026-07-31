@@ -9,8 +9,9 @@ import { Dialog } from "../../../components/Dialog";
 import { EmptyState } from "../../../components/EmptyState";
 import { Field } from "../../../components/Field";
 import { EyeIcon, IconButton, IconLinkButton, TrashIcon } from "../../../components/IconButton";
+import { Pagination } from "../../../components/Pagination";
 import { Spinner } from "../../../components/Spinner";
-import { Table } from "../../../components/Table";
+import { DataTable, type Column } from "../../../components/Table";
 import { useToast } from "../../../components/Toast";
 import { classStudentsPath, request } from "../../../lib/api";
 import { ApiFailure } from "../../../lib/errors";
@@ -101,6 +102,17 @@ export function AdminClassViewPage() {
   const ended = new Date(class_.ends_at) <= new Date();
   const visibleCandidates = candidates.filter((c) => c.full_name.toLowerCase().includes(candidateQuery.toLowerCase()) || c.email.toLowerCase().includes(candidateQuery.toLowerCase()));
 
+  const rosterColumns: Column<RosterStudent>[] = [
+    { key: "name", header: "Name", render: (student) => student.full_name },
+    { key: "hometown", header: "Quê quán", render: (student) => student.hometown || "—" },
+    { key: "phone", header: "Phone", render: (student) => student.phone || "—" },
+    { key: "enrolled", header: "Enrolled", render: (student) => formatDate(student.enrolled_at) },
+    { key: "action", header: "Action", render: (student) => <div className="row-actions">
+      <IconLinkButton to={`/admin/classes/${id}/students/${student.id}`} icon={<EyeIcon />} label="View" />
+      {!ended && student.submitted_assignments === 0 && <IconButton icon={<TrashIcon />} label="Remove" variant="danger" onClick={() => void removeStudent(student.id)} />}
+    </div> },
+  ];
+
   return <section className="page-stack">
     <div className="page-header">
       <div className="class-title"><h1>{class_.name}</h1><Badge className={class_.is_active ? "badge-active" : "badge-disabled"}>{class_.is_active ? "Active" : "Disabled"}</Badge></div>
@@ -122,15 +134,8 @@ export function AdminClassViewPage() {
     {roster && <Card>
       <div className="page-header"><h2 className="section-title">Students ({roster.enrolled_students})</h2>{!ended && <Button onClick={() => void openEditRoster()}>Edit roster</Button>}</div>
       <form className="filters" noValidate onSubmit={search}><div className="filters-row filters-search"><Field id="roster-search" label="Search Students" value={rosterQuery} onChange={(event) => setRosterQuery(event.target.value)} /><Button type="submit">Search</Button></div></form>
-      {roster.students.results.length === 0 ? <EmptyState>No students enrolled.</EmptyState> : <><Table><thead><tr><th>Name</th><th>Quê quán</th><th>Phone</th><th>Enrolled</th><th>Action</th></tr></thead>
-        <tbody>{roster.students.results.map((student) => <tr key={student.id}>
-          <td>{student.full_name}</td><td>{student.hometown || "—"}</td><td>{student.phone || "—"}</td><td>{formatDate(student.enrolled_at)}</td>
-          <td><div className="row-actions">
-            <IconLinkButton to={`/admin/classes/${id}/students/${student.id}`} icon={<EyeIcon />} label="View" />
-            {!ended && student.submitted_assignments === 0 && <IconButton icon={<TrashIcon />} label="Remove" variant="danger" onClick={() => void removeStudent(student.id)} />}
-          </div></td>
-        </tr>)}</tbody>
-      </Table><nav className="pagination" aria-label="Students pagination"><button disabled={!roster.students.previous} onClick={() => setRosterPage((v) => v - 1)}>Previous</button><span>Page {rosterPage}</span><button disabled={!roster.students.next} onClick={() => setRosterPage((v) => v + 1)}>Next</button></nav></>}
+      {roster.students.results.length === 0 ? <EmptyState>No students enrolled.</EmptyState> : <><DataTable columns={rosterColumns} data={roster.students.results} rowKey={(student) => student.id} />
+        <Pagination label="Students pagination" page={rosterPage} count={roster.students.count} onChange={setRosterPage} /></>}
     </Card>}
 
     <Link to="/admin/classes">Back to classes</Link>
