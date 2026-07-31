@@ -142,6 +142,21 @@ class SubmissionApiTests(TestCase):
         rows = {row["student_id"]: row["student_name"] for row in teacher_response.json()}
         self.assertIsNone(rows[self.other_student.id])
 
+    def test_inactive_class_blocks_submission_even_inside_the_time_window(self):
+        before = list(Path(settings.MEDIA_ROOT).rglob("*"))
+
+        response = self.submit_after_view_checks(
+            lambda: Class.objects.filter(id=self.classroom.id).update(is_active=False)
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json(),
+            {"detail": "Submissions are accepted only before the deadline while the Class is open."},
+        )
+        self.assertEqual(Submission.objects.count(), 0)
+        self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
+
     def test_late_and_unenrolled_students_cannot_submit(self):
         self.assignment.due_at = timezone.now() - timedelta(seconds=1)
         self.assignment.save(update_fields=("due_at",))

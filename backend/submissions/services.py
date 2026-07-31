@@ -10,6 +10,7 @@ from django.utils import timezone
 from audit.services import write_audit
 from assignments.models import Assignment, AssignmentGrade
 from classes.models import Enrollment
+from classes.views import is_open
 
 from .models import Submission
 
@@ -22,11 +23,7 @@ class SubmissionRejected(Exception):
 
 
 def can_submit(assignment):
-    now = timezone.now()
-    return (
-        assignment.classroom.starts_at <= now < assignment.classroom.ends_at
-        and now < assignment.due_at
-    )
+    return is_open(assignment.classroom) and timezone.now() < assignment.due_at
 
 
 def create_submission(*, assignment, student, upload, note):
