@@ -171,3 +171,31 @@ export interface Assignment {
   graded_count?: number | null;
   enrolled_count?: number | null;
 }
+
+export interface Submission {
+  id: number;
+  assignment_id: number;
+  student_id: number;
+  student_name: string | null;
+  version: number;
+  original_filename: string;
+  content_type: string;
+  size: number;
+  created_at: string;
+  graded: boolean;
+}
+
+export interface TeacherSubmissionRow {
+  student_id: number;
+  student_name: string | null;
+  is_active: boolean;
+  submission: {
+    id: number;
+    original_filename: string;
+    content_type: string;
+    size: number;
+    created_at: string;
+  } | null;
+  graded: boolean;
+  score: number | null;
+}
