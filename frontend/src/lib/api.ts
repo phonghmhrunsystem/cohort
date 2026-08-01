@@ -88,6 +88,10 @@ export function assignmentMyResultPath(assignmentId: number): string {
   return `/assignments/${assignmentId}/my-result`;
 }
 
+export function assignmentStudentResultPath(assignmentId: number, studentId: number): string {
+  return `/assignments/${assignmentId}/students/${studentId}/result`;
+}
+
 export function classGradebookPath(classId: number): string {
   return `/classes/${classId}/gradebook`;
 }
