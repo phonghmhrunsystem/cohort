@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useParams } from "react-router-dom";
 
 import { AuthProvider, useAuth } from "./auth/AuthProvider";
 import { RequireAuth } from "./auth/RequireAuth";
@@ -28,13 +28,18 @@ import { StudentClassPage } from "./pages/student/StudentClassPage";
 import { StudentAssignmentPage } from "./pages/student/StudentAssignmentPage";
 import { TeacherClassesPage } from "./pages/teacher/TeacherClassesPage";
 import { TeacherClassPage } from "./pages/teacher/TeacherClassPage";
-import { TeacherGradebookPage } from "./pages/teacher/TeacherGradebookPage";
 import { TeacherAssignmentPage } from "./pages/teacher/TeacherAssignmentPage";
 import { TeacherGradePage } from "./pages/teacher/TeacherGradePage";
 
 function Placeholder({ title }: { title: string }) { return <h1>{title}</h1>; }
 
 function ProtectedShell() { return <AppShell />; }
+
+/** The gradebook used to be its own page; it now lives in a tab on the class page. */
+function GradebookRedirect() {
+  const { classId } = useParams();
+  return <Navigate replace to={`/teacher/classes/${classId}?tab=gradebook`} />;
+}
 
 function RedirectForcedUser() {
   const { user, loading } = useAuth();
@@ -60,7 +65,7 @@ export function App() {
       <Route element={<RequireRole roles={["TEACHER"]} />}>
         <Route path="/teacher/classes" element={<TeacherClassesPage />} />
         <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />
-        <Route path="/teacher/classes/:classId/gradebook" element={<TeacherGradebookPage />} />
+        <Route path="/teacher/classes/:classId/gradebook" element={<GradebookRedirect />} />
         <Route path="/teacher/classes/:classId/students/:studentId" element={<ClassStudentViewPage />} />
         <Route path="/teacher/assignments/:assignmentId" element={<TeacherAssignmentPage />} />
         <Route path="/teacher/assignments/:assignmentId/grade/:submissionId" element={<TeacherGradePage />} />

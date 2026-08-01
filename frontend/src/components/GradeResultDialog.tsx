@@ -12,7 +12,7 @@ const token = () => sessionStorage.getItem("access_token") ?? undefined;
 export interface GradeResultDialogProps {
   assignmentId: number;
   studentId: number;
-  studentName: string;
+  studentName: string | null;
   open: boolean;
   onClose: () => void;
 }
@@ -39,7 +39,7 @@ export function GradeResultDialog({ assignmentId, studentId, studentName, open, 
   }, [assignmentId, studentId, open]);
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Kết quả: ${studentName}`}>
+    <Dialog open={open} onClose={onClose} title={studentName ? `Kết quả: ${studentName}` : "Kết quả"}>
       {failure ? <Alert>{failure}</Alert> : !grade ? <Spinner label="Loading result" /> : <GradeDetail grade={grade} />}
     </Dialog>
   );

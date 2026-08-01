@@ -7,6 +7,7 @@ import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Dialog } from "../../components/Dialog";
 import { EmptyState } from "../../components/EmptyState";
+import { GradebookPanel } from "../../components/GradebookPanel";
 import { Field, Textarea } from "../../components/Field";
 import { EditIcon, EyeIcon, IconButton, IconLinkButton } from "../../components/IconButton";
 import { Pagination } from "../../components/Pagination";
@@ -33,7 +34,8 @@ function statusBadgeClass(status: string): string {
 export function TeacherClassPage() {
   const { classId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get("tab") === "assignments" ? "assignments" : "students";
+  const requestedTab = searchParams.get("tab");
+  const tab = requestedTab === "assignments" || requestedTab === "gradebook" ? requestedTab : "students";
   const [class_, setClass] = useState<ClassRow>();
   const [roster, setRoster] = useState<RosterResponse>();
   const [query, setQuery] = useState("");
@@ -117,11 +119,13 @@ export function TeacherClassPage() {
   if (!class_) return <Spinner label="Loading class" />;
   return <section className="page-stack">
     <Link className="back-link" to="/teacher/classes">‹ Back</Link>
-    <div className="page-header"><h1>{class_.name}</h1><Link className="button" to={`/teacher/classes/${classId}/gradebook`}>Bảng điểm</Link></div>
+    <div className="page-header"><h1>{class_.name}</h1></div>
     <div className="tabs" role="tablist">
       <button type="button" className="tab" role="tab" aria-selected={tab === "students"} onClick={() => setSearchParams({ tab: "students" })}>Students</button>
       <button type="button" className="tab" role="tab" aria-selected={tab === "assignments"} onClick={() => setSearchParams({ tab: "assignments" })}>Assignments</button>
+      <button type="button" className="tab" role="tab" aria-selected={tab === "gradebook"} onClick={() => setSearchParams({ tab: "gradebook" })}>Bảng điểm</button>
     </div>
+    {tab === "gradebook" && <GradebookPanel classId={Number(classId)} />}
     {tab === "students" && roster && <Card>
       <p>Đã ghi danh {roster.enrolled_students} · Đã nộp {roster.submitted_students} · Đã chấm {roster.graded_students}</p>
       <form className="filters" noValidate onSubmit={search}><div className="filters-row filters-search"><Field id="teacher-roster-search" label="Search Student" value={query} onChange={(event) => setQuery(event.target.value)} /><Button type="submit">Search</Button></div></form>

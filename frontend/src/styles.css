@@ -160,3 +160,5 @@ h1 { font-family: "Be Vietnam Pro", system-ui, sans-serif; font-size: 1.875rem; 
 
 .submission-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .submission-row p { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+.gradebook-cell-button { border: 0; background: none; padding: 0; color: var(--color-primary); font: inherit; text-decoration: underline; cursor: pointer; }

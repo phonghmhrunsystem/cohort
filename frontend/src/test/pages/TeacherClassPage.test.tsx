@@ -54,11 +54,11 @@ const assignmentRow = (overrides: Partial<import("../../types").Assignment> = {}
   ...overrides,
 });
 
-function openPage(fetchMock: ReturnType<typeof vi.fn>) {
+function openPage(fetchMock: ReturnType<typeof vi.fn>, entry = "/teacher/classes/9") {
   sessionStorage.setItem("access_token", "token");
   vi.stubGlobal("fetch", fetchMock);
   render(
-    <MemoryRouter initialEntries={["/teacher/classes/9"]}>
+    <MemoryRouter initialEntries={[entry]}>
       <ToastProvider>
         <Routes>
           <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />
@@ -72,6 +72,23 @@ describe("Teacher class page", () => {
   afterEach(() => {
     sessionStorage.clear();
     vi.unstubAllGlobals();
+  });
+
+  it("shows the gradebook in a third tab", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(classDetail))
+      .mockResolvedValueOnce(json({
+        assignments: [{ id: 11, title: "Graded one", maximum_score: 100 }],
+        students: [{
+          id: 1, full_name: "Bao Nguyen", email: "bao@example.test", is_active: true,
+          grades: [{ assignment_id: 11, learning_state: "GRADED", score: 88 }],
+        }],
+      }));
+    openPage(fetchMock, "/teacher/classes/9?tab=gradebook");
+
+    await waitFor(() => expect(screen.getByRole("tab", { name: "Bảng điểm" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("88")).toBeTruthy());
+    expect(screen.queryByRole("link", { name: "Bảng điểm" })).toBeNull();
   });
 
   it("renders header counts from the roster response and a Students table", async () => {

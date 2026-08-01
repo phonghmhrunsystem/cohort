@@ -1,17 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter } from "react-router-dom";
 
-import { TeacherGradebookPage } from "../../pages/teacher/TeacherGradebookPage";
+import { GradebookPanel } from "../../components/GradebookPanel";
 import { ToastProvider } from "../../components/Toast";
 
-const teacher = { id: 2, full_name: "Ada Teacher", email: "ada@example.test" };
-const classDetail = {
-  id: 9, name: "Cohort 5", description: "Intro cohort", teacher,
-  starts_at: "2026-08-01T00:00:00Z", ends_at: "2026-12-01T00:00:00Z",
-  is_active: true, student_count: 2, assignment_count: 4, graded_count: 1, next_due_at: null,
-};
 const assignments = [
   { id: 11, title: "Graded one", maximum_score: 100 },
   { id: 12, title: "Submitted one", maximum_score: 50 },
@@ -47,34 +41,28 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
   headers: { "Content-Type": "application/json" },
 });
 
-function openPage(fetchMock: ReturnType<typeof vi.fn>) {
+function openPanel(fetchMock: ReturnType<typeof vi.fn>) {
   sessionStorage.setItem("access_token", "token");
   vi.stubGlobal("fetch", fetchMock);
   render(
-    <MemoryRouter initialEntries={["/teacher/classes/9/gradebook"]}>
+    <MemoryRouter>
       <ToastProvider>
-        <Routes>
-          <Route path="/teacher/classes/:classId/gradebook" element={<TeacherGradebookPage />} />
-        </Routes>
+        <GradebookPanel classId={9} />
       </ToastProvider>
     </MemoryRouter>,
   );
 }
 
-describe("Teacher gradebook page", () => {
+describe("GradebookPanel", () => {
   afterEach(() => {
     sessionStorage.clear();
     vi.unstubAllGlobals();
   });
 
   it("renders a score for graded cells and a Vietnamese label for every other state", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(classDetail))
-      .mockResolvedValueOnce(json(gradebook()));
-    openPage(fetchMock);
+    openPanel(vi.fn().mockResolvedValueOnce(json(gradebook())));
 
-    await waitFor(() => expect(screen.getByText("Bảng điểm: Cohort 5")).toBeTruthy());
-    expect(screen.getByText("88")).toBeTruthy();
+    await waitFor(() => expect(screen.getByText("88")).toBeTruthy());
     expect(screen.getByText("Đã nộp")).toBeTruthy();
     expect(screen.getAllByText("Chưa nộp").length).toBe(3);
     expect(screen.getAllByText("Đã đóng").length).toBe(2);
@@ -82,10 +70,7 @@ describe("Teacher gradebook page", () => {
   });
 
   it("links column headers to their assignment and keeps cells unlinked", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(classDetail))
-      .mockResolvedValueOnce(json(gradebook()));
-    openPage(fetchMock);
+    openPanel(vi.fn().mockResolvedValueOnce(json(gradebook())));
 
     await waitFor(() => expect(screen.getByText("Graded one (100)")).toBeTruthy());
     expect(screen.getByRole("link", { name: "Graded one (100)" }).getAttribute("href")).toBe("/teacher/assignments/11");
@@ -94,21 +79,39 @@ describe("Teacher gradebook page", () => {
   });
 
   it("tags disabled students but still shows their scores", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(classDetail))
-      .mockResolvedValueOnce(json(gradebook()));
-    openPage(fetchMock);
+    openPanel(vi.fn().mockResolvedValueOnce(json(gradebook())));
 
     await waitFor(() => expect(screen.getByText("Chi Le")).toBeTruthy());
     expect(screen.getByText("đã tắt")).toBeTruthy();
     expect(screen.getByText("42")).toBeTruthy();
   });
 
+  it("opens the grade dialog from a graded cell", async () => {
+    openPanel(vi.fn()
+      .mockResolvedValueOnce(json(gradebook()))
+      .mockResolvedValueOnce(json({
+        id: 1, assignment_id: 11, student_id: 1, submission_id: 42,
+        total_score: 88, feedback: "Solid work.", scores: [],
+        created_at: "2026-08-16T09:30:00Z",
+      })));
+    const events = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByText("88")).toBeTruthy());
+    await events.click(screen.getByRole("button", { name: "Xem kết quả Bao Nguyen · Graded one" }));
+
+    await waitFor(() => expect(screen.getByText("Điểm: 88 / 100")).toBeTruthy());
+    expect(screen.getByText(/Solid work\./)).toBeTruthy();
+  });
+
+  it("leaves ungraded cells unclickable", async () => {
+    openPanel(vi.fn().mockResolvedValueOnce(json(gradebook())));
+
+    await waitFor(() => expect(screen.getByText("Đã nộp")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /Submitted one/ })).toBeNull();
+  });
+
   it("shows an empty state instead of a table when the class has no assignments", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(classDetail))
-      .mockResolvedValueOnce(json(gradebook({ assignments: [] })));
-    openPage(fetchMock);
+    openPanel(vi.fn().mockResolvedValueOnce(json(gradebook({ assignments: [] }))));
 
     await waitFor(() => expect(screen.getByText("Lớp chưa có bài tập hoặc học viên.")).toBeTruthy());
     expect(screen.queryByRole("table")).toBeNull();
@@ -116,10 +119,7 @@ describe("Teacher gradebook page", () => {
   });
 
   it("surfaces a load failure as an alert", async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(classDetail))
-      .mockResolvedValueOnce(json({ detail: "Nope." }, 403));
-    openPage(fetchMock);
+    openPanel(vi.fn().mockResolvedValueOnce(json({ detail: "Nope." }, 403)));
 
     await waitFor(() => expect(screen.getByText("Unable to load gradebook.")).toBeTruthy());
     expect(screen.queryByRole("table")).toBeNull();
@@ -130,17 +130,16 @@ describe("Teacher gradebook page", () => {
     const revokeObjectURL = vi.fn();
     vi.stubGlobal("URL", { ...URL, createObjectURL, revokeObjectURL });
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(classDetail))
       .mockResolvedValueOnce(json(gradebook()))
       .mockResolvedValueOnce(new Response("Họ tên,Email\r\n", { status: 200, headers: { "Content-Type": "text/csv" } }));
-    openPage(fetchMock);
+    openPanel(fetchMock);
     const events = userEvent.setup();
 
     await waitFor(() => expect(screen.getByRole("button", { name: "Xuất CSV" })).toBeTruthy());
     await events.click(screen.getByRole("button", { name: "Xuất CSV" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    const [url, init] = fetchMock.mock.calls[2];
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const [url, init] = fetchMock.mock.calls[1];
     expect(url).toBe("/api/classes/9/gradebook.csv");
     expect((init.headers as Record<string, string>).Authorization).toBe("Bearer token");
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:gradebook");

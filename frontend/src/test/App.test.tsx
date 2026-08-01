@@ -108,6 +108,20 @@ describe("App", () => {
     },
   );
 
+  it("sends the retired gradebook route to the class page gradebook tab", async () => {
+    window.history.replaceState({}, "", "/teacher/classes/9/gradebook");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 1, full_name: "Ada", email: "ada@example.test", role: "TEACHER", phone: null,
+      date_of_birth: null, gender: null, hometown: null, address: null, is_active: true, must_change_password: false,
+    }), { headers: { "Content-Type": "application/json" } })));
+
+    render(<App />);
+
+    await waitFor(() => expect(window.location.pathname).toBe("/teacher/classes/9"));
+    expect(window.location.search).toBe("?tab=gradebook");
+  });
+
   it("routes /admin/classes to the AdminClassesPage instead of the placeholder", async () => {
     window.history.replaceState({}, "", "/admin/classes");
     sessionStorage.setItem("access_token", "token");
