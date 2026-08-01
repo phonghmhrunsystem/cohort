@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import { DownloadIcon, GradeIcon, IconButton, IconLinkButton } from "./IconButton";
+import { GradeResultDialog } from "./GradeResultDialog";
+import { DownloadIcon, EyeIcon, GradeIcon, IconButton, IconLinkButton } from "./IconButton";
 import { Pagination } from "./Pagination";
 import { DataTable, type Column } from "./Table";
 import { downloadSubmission } from "../lib/api";
@@ -16,6 +17,7 @@ export interface LatestSubmissionsProps {
 
 export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps) {
   const [page, setPage] = useState(1);
+  const [reviewing, setReviewing] = useState<TeacherSubmissionRow>();
   const submittedCount = rows.filter((row) => row.submission).length;
   const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
@@ -52,7 +54,9 @@ export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps
               label="Tải"
               onClick={() => downloadSubmission(row.submission!.id, row.submission!.original_filename)}
             />
-            {!row.graded && (
+            {row.graded ? (
+              <IconButton icon={<EyeIcon />} label="Xem kết quả" onClick={() => setReviewing(row)} />
+            ) : (
               <IconLinkButton
                 icon={<GradeIcon />}
                 label="Chấm"
@@ -70,6 +74,15 @@ export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps
       <p className="section-title">Bài nộp {submittedCount}/{rows.length}</p>
       <DataTable columns={columns} data={pageRows} rowKey={(row) => row.student_id} />
       <Pagination page={page} count={rows.length} pageSize={PAGE_SIZE} onChange={setPage} label="Danh sách bài nộp" />
+      {reviewing && (
+        <GradeResultDialog
+          assignmentId={assignmentId}
+          studentId={reviewing.student_id}
+          studentName={reviewing.student_name}
+          open
+          onClose={() => setReviewing(undefined)}
+        />
+      )}
     </>
   );
 }

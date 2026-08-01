@@ -51,6 +51,22 @@ describe("LatestSubmissions", () => {
     expect(screen.getAllByText("chưa nộp")).toHaveLength(2);
   });
 
+  it("opens the grade result dialog from a graded row", async () => {
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 1, assignment_id: 5, student_id: 1, submission_id: 10,
+      total_score: 82, feedback: "Solid work.", scores: [],
+      created_at: "2026-08-16T09:30:00Z",
+    }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    renderRows([row({ graded: true, score: 82 })]);
+    const events = userEvent.setup();
+
+    await events.click(screen.getByRole("button", { name: "Xem kết quả" }));
+
+    await waitFor(() => expect(screen.getByText("Điểm: 82 / 100")).toBeTruthy());
+    expect(screen.getByText(/Solid work\./)).toBeTruthy();
+  });
+
   it("Tải triggers an authenticated download of the latest submission", async () => {
     sessionStorage.setItem("access_token", "token");
     vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:mock"), revokeObjectURL: vi.fn() });
