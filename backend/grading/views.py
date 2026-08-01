@@ -31,6 +31,21 @@ class SubmissionGradeView(APIView):
         return Response(GradeSerializer(grade).data, status=status.HTTP_200_OK)
 
 
+class AssignmentStudentResultView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, assignment_id, student_id):
+        if request.user.role != User.Role.TEACHER:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        grade = get_object_or_404(
+            Grade.objects.prefetch_related("scores__criterion"),
+            assignment_id=assignment_id,
+            student_id=student_id,
+            assignment__classroom__teacher=request.user,
+        )
+        return Response(GradeSerializer(grade).data)
+
+
 class AssignmentMyResultView(APIView):
     permission_classes = [IsAuthenticated]
 
