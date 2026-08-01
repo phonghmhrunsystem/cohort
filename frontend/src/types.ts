@@ -230,6 +230,8 @@ export interface GradebookResponse {
 
 export interface CriterionScoreResult {
   criterion_id: number;
+  criterion_title: string;
+  maximum_score: number;
   score: number;
 }
 

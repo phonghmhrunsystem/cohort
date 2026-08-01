@@ -89,7 +89,7 @@ export function StudentAssignmentPage() {
         <Card><p className="assignment-description">{assignment.description}</p></Card>
       )}
       {assignment.learning_state === "GRADED" && (
-        <ResultBlock assignmentId={assignment.id} criteria={assignment.criteria} submissions={submissions} />
+        <ResultBlock assignmentId={assignment.id} submissions={submissions} />
       )}
       <SubmissionHistory
         assignmentId={assignment.id}

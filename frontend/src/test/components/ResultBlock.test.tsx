@@ -28,24 +28,14 @@ describe("ResultBlock", () => {
       id: 1, assignment_id: 5, student_id: 1, submission_id: 42,
       total_score: 82, feedback: "Good structure, add tests next time.",
       scores: [
-        { criterion_id: 1, score: 32 },
-        { criterion_id: 2, score: 26 },
-        { criterion_id: 3, score: 24 },
+        { criterion_id: 1, criterion_title: "Correctness", maximum_score: 40, score: 32 },
+        { criterion_id: 2, criterion_title: "Code quality", maximum_score: 30, score: 26 },
+        { criterion_id: 3, criterion_title: "Documentation", maximum_score: 30, score: 24 },
       ],
       created_at: "2026-08-16T09:30:00Z",
     })));
 
-    render(
-      <ResultBlock
-        assignmentId={5}
-        criteria={[
-          { id: 1, title: "Correctness", maximum_score: 40 },
-          { id: 2, title: "Code quality", maximum_score: 30 },
-          { id: 3, title: "Documentation", maximum_score: 30 },
-        ]}
-        submissions={submissions}
-      />,
-    );
+    render(<ResultBlock assignmentId={5} submissions={submissions} />);
 
     await waitFor(() => expect(screen.getByText("Điểm: 82 / 100")).toBeTruthy());
     expect(screen.getByText("32 / 40")).toBeTruthy();
@@ -63,7 +53,7 @@ describe("ResultBlock", () => {
       created_at: "2026-08-16T09:30:00Z",
     })));
 
-    render(<ResultBlock assignmentId={5} criteria={[]} submissions={submissions} />);
+    render(<ResultBlock assignmentId={5} submissions={submissions} />);
 
     await waitFor(() => expect(screen.getByText("Điểm: 85 / 100")).toBeTruthy());
     expect(screen.queryByText(/\/ 40/)).toBeNull();
