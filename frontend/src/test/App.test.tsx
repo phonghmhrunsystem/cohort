@@ -45,8 +45,8 @@ describe("App", () => {
 
   it.each([
     ["ADMIN", ["Dashboard", "Accounts", "Classes", "Audit"]],
-    ["TEACHER", ["Dashboard", "My Classes", "Profile", "Notifications"]],
-    ["STUDENT", ["Dashboard", "My Classes", "Profile", "Notifications"]],
+    ["TEACHER", ["Dashboard", "My Classes", "Notifications"]],
+    ["STUDENT", ["Dashboard", "My Classes", "Notifications"]],
   ] as const)("shows the %s navigation", async (role, links) => {
     window.history.replaceState({}, "", "/dashboard");
     sessionStorage.setItem("access_token", "token");
@@ -227,9 +227,9 @@ describe("App", () => {
     render(<App />);
 
     await screen.findByRole("heading", { name: "Dashboard" });
-    const profileLink = screen.getByRole("link", { name: "Profile" });
-    await user.click(profileLink);
-    expect(profileLink).toBe(document.activeElement);
+    const navLink = screen.getByRole("link", { name: "My Classes" });
+    await user.click(navLink);
+    expect(navLink).toBe(document.activeElement);
   });
 
   it("returns focus to the menu opener after Escape closes the drawer", async () => {
@@ -288,7 +288,7 @@ describe("App", () => {
 
     await screen.findByRole("heading", { name: "Dashboard" });
     await user.click(screen.getByRole("button", { name: "Open menu" }));
-    await user.click(screen.getByRole("link", { name: "Profile" }));
+    await user.click(screen.getByRole("link", { name: "My Classes" }));
     await waitFor(() => expect(document.querySelector('aside[aria-label="Main navigation"]')?.getAttribute("aria-hidden")).toBe("true"));
   });
 

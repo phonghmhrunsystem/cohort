@@ -18,6 +18,16 @@ function pdfFile(name = "homework.pdf", sizeBytes = 1024) {
   return file;
 }
 
+/** The dropzone label swaps text once a file is picked ("Click để chọn file" -> "Đổi file"),
+ * and the filled state adds a "Xóa file" button, so match the two dropzone labels only. */
+const fileInput = () => screen.getByLabelText(/(chọn|đổi) file/i);
+
+/** The input carries accept=".pdf,.docx" and userEvent honours it, which would drop a bad
+ * file before the component ever sees it. A real user can still get past accept (the OS
+ * dialog's "All files", drag-and-drop), so the inline validation has to stay reachable. */
+const badFile = () => new File(["hi"], "notes.txt", { type: "text/plain" });
+const eventsIgnoringAccept = () => userEvent.setup({ applyAccept: false });
+
 describe("SubmissionHistory", () => {
   afterEach(() => {
     sessionStorage.clear();
@@ -51,7 +61,7 @@ describe("SubmissionHistory", () => {
     sessionStorage.setItem("access_token", "token");
     vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:mock"), revokeObjectURL: vi.fn() });
     const fetchMock = vi.fn().mockResolvedValueOnce(
-      new Response(new Blob(["file bytes"]), { status: 200 }),
+      new Response("file bytes", { status: 200 }),
     );
     vi.stubGlobal("fetch", fetchMock);
     render(
@@ -71,11 +81,9 @@ describe("SubmissionHistory", () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
-    const events = userEvent.setup();
+    const events = eventsIgnoringAccept();
 
-    const input = screen.getByLabelText(/choose file/i);
-    const badFile = new File(["hi"], "notes.txt", { type: "text/plain" });
-    await events.upload(input, badFile);
+    await events.upload(fileInput(), badFile());
 
     expect(screen.getByText("Chỉ nhận file PDF hoặc DOCX.")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
@@ -87,7 +95,7 @@ describe("SubmissionHistory", () => {
     render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
     const events = userEvent.setup();
 
-    const input = screen.getByLabelText(/choose file/i);
+    const input = fileInput();
     await events.upload(input, pdfFile("big.pdf", 26 * 1024 * 1024));
 
     expect(screen.getByText("File vượt quá 25 MB.")).toBeTruthy();
@@ -106,25 +114,24 @@ describe("SubmissionHistory", () => {
         onPendingFileChange={onPendingFileChange}
       />,
     );
-    const events = userEvent.setup();
+    const events = eventsIgnoringAccept();
 
-    await events.upload(screen.getByLabelText(/choose file/i), pdfFile());
+    await events.upload(fileInput(), pdfFile());
     expect(onPendingFileChange).toHaveBeenLastCalledWith(true);
 
-    const badFile = new File(["hi"], "notes.txt", { type: "text/plain" });
-    await events.upload(screen.getByLabelText(/choose file/i), badFile);
+    await events.upload(fileInput(), badFile());
 
     expect(screen.getByText("Chỉ nhận file PDF hoặc DOCX.")).toBeTruthy();
     expect(onPendingFileChange).toHaveBeenLastCalledWith(false);
   });
 
-  it("clears the chosen file with the (x) button", async () => {
+  it("clears the chosen file with the Xóa file button", async () => {
     render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
     const events = userEvent.setup();
-    await events.upload(screen.getByLabelText(/choose file/i), pdfFile());
+    await events.upload(fileInput(), pdfFile());
     expect(screen.getByText("homework.pdf")).toBeTruthy();
 
-    await events.click(screen.getByRole("button", { name: "x" }));
+    await events.click(screen.getByRole("button", { name: "Xóa file" }));
     expect(screen.queryByText("homework.pdf")).toBeNull();
   });
 
@@ -139,7 +146,7 @@ describe("SubmissionHistory", () => {
     render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={onSubmitted} />);
     const events = userEvent.setup();
 
-    await events.upload(screen.getByLabelText(/choose file/i), pdfFile());
+    await events.upload(fileInput(), pdfFile());
     await events.click(screen.getByRole("button", { name: "Nộp bài" }));
 
     await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith(created));
@@ -161,7 +168,7 @@ describe("SubmissionHistory", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
     const events = userEvent.setup();
-    await events.upload(screen.getByLabelText(/choose file/i), pdfFile());
+    await events.upload(fileInput(), pdfFile());
     await events.click(screen.getByRole("button", { name: "Nộp bài" }));
 
     await waitFor(() => expect(screen.getByText("Chỉ nhận file PDF hoặc DOCX.")).toBeTruthy());
@@ -189,7 +196,7 @@ describe("SubmissionHistory", () => {
       />,
     );
     const events = userEvent.setup();
-    await events.upload(screen.getByLabelText(/choose file/i), pdfFile());
+    await events.upload(fileInput(), pdfFile());
     await events.click(screen.getByRole("button", { name: "Nộp bài" }));
 
     await waitFor(() => expect(onClosed).toHaveBeenCalled());
@@ -199,7 +206,7 @@ describe("SubmissionHistory", () => {
     render(
       <SubmissionHistory assignmentId={5} submissions={[]} canSubmit={false} closureReason="Đã chấm, không thể nộp lại" onSubmitted={() => {}} />,
     );
-    expect(screen.queryByLabelText(/choose file/i)).toBeNull();
+    expect(screen.queryByLabelText(/(chọn|đổi) file/i)).toBeNull();
     expect(screen.getByText("Đã chấm, không thể nộp lại")).toBeTruthy();
   });
 });

@@ -4,7 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Alert } from "../../components/Alert";
 import { Card } from "../../components/Card";
 import { EmptyState } from "../../components/EmptyState";
-import { EyeIcon, IconLinkButton } from "../../components/IconButton";
+import { EyeIcon, IconLinkButton, UploadIcon } from "../../components/IconButton";
 import { Spinner } from "../../components/Spinner";
 import { DataTable, TruncatedText, type Column } from "../../components/Table";
 import { classAssignmentsPath, request } from "../../lib/api";
@@ -16,6 +16,14 @@ const LEARNING_STATE_LABEL: Record<string, { label: string }> = {
   SUBMITTED: { label: "Đã nộp" },
   GRADED: { label: "Đã chấm" },
   CLOSED: { label: "Đã đóng" },
+};
+
+/** Second, state-driven action next to `Xem` (03 §2.2). All three land on the same
+ * assignment page; `CLOSED` gets none, because there is nothing left to do there. */
+const STATE_ACTION: Record<string, { label: string; icon: boolean }> = {
+  OPEN: { label: "Nộp bài", icon: true },
+  SUBMITTED: { label: "Xem lịch sử", icon: false },
+  GRADED: { label: "Xem kết quả", icon: false },
 };
 
 export function StudentClassPage() {
@@ -66,11 +74,15 @@ export function StudentClassPage() {
               return <span title={assignment.learning_state === "CLOSED" ? assignment.closure_reason ?? undefined : undefined}>{state.label}</span>;
             } },
             { key: "score", header: "Điểm", width: "5rem", render: (assignment) => assignment.score ?? "—" },
-            { key: "action", header: "Action", width: "9rem", render: (assignment) => (
-              <div className="row-actions">
+            { key: "action", header: "Action", width: "9rem", render: (assignment) => {
+              const action = STATE_ACTION[assignment.learning_state ?? "CLOSED"];
+              return <div className="row-actions">
                 <IconLinkButton to={`/student/assignments/${assignment.id}`} icon={<EyeIcon />} label="Xem" />
-              </div>
-            ) },
+                {action && (action.icon
+                  ? <IconLinkButton to={`/student/assignments/${assignment.id}`} icon={<UploadIcon />} label={action.label} />
+                  : <Link className="button button-secondary" to={`/student/assignments/${assignment.id}`}>{action.label}</Link>)}
+              </div>;
+            } },
           ]} />}
     </Card>}
   </section>;

@@ -54,7 +54,7 @@ describe("LatestSubmissions", () => {
   it("Tải triggers an authenticated download of the latest submission", async () => {
     sessionStorage.setItem("access_token", "token");
     vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:mock"), revokeObjectURL: vi.fn() });
-    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(new Blob(["file bytes"]), { status: 200 }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("file bytes", { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
     renderRows([row()]);
     const events = userEvent.setup();

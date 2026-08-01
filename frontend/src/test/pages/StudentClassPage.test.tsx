@@ -69,7 +69,8 @@ describe("Student class page", () => {
 
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     expect(screen.getByText(label)).toBeTruthy();
-    expect(screen.getByText(actionLabel)).toBeTruthy();
+    // Nộp bài is an icon button (03 §2.2), so match the accessible name, not visible text.
+    expect(screen.getByRole("link", { name: actionLabel })).toBeTruthy();
   });
 
   it("shows closure_reason as a tooltip and no second action for CLOSED", async () => {
@@ -87,8 +88,8 @@ describe("Student class page", () => {
 
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     expect(screen.getByText("Đã đóng").getAttribute("title")).toBe("Deadline has passed.");
-    expect(screen.queryByText("Nộp bài")).toBeNull();
-    expect(screen.queryByText("Xem lịch sử")).toBeNull();
-    expect(screen.queryByText("Xem kết quả")).toBeNull();
+    expect(screen.queryByRole("link", { name: "Nộp bài" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Xem lịch sử" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Xem kết quả" })).toBeNull();
   });
 });

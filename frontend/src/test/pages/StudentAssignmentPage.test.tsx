@@ -60,7 +60,7 @@ describe("Student assignment page", () => {
 
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     expect(screen.getByText("Đã chấm, không thể nộp lại")).toBeTruthy();
-    expect(screen.queryByLabelText(/choose file/i)).toBeNull();
+    expect(screen.queryByLabelText(/(chọn|đổi) file/i)).toBeNull();
   });
 
   it("has no Cancel button — only the Back link", async () => {
@@ -82,7 +82,7 @@ describe("Student assignment page", () => {
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
 
     const events = userEvent.setup();
-    await events.upload(screen.getByLabelText(/choose file/i), pdfFile());
+    await events.upload(screen.getByLabelText(/(chọn|đổi) file/i), pdfFile());
     expect(screen.getByText("homework.pdf")).toBeTruthy();
 
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
