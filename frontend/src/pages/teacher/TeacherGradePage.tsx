@@ -5,6 +5,7 @@ import { Alert } from "../../components/Alert";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
 import { Field, Textarea } from "../../components/Field";
+import { DownloadIcon, IconButton } from "../../components/IconButton";
 import { Spinner } from "../../components/Spinner";
 import { downloadSubmission, request, submissionGradePath, submissionPath } from "../../lib/api";
 import { ApiFailure } from "../../lib/errors";
@@ -108,15 +109,16 @@ export function TeacherGradePage() {
         </div>
       </div>
       <Card>
-        <p>
-          <span>{submission.original_filename}</span> {formatSize(submission.size)} {formatDateTime(submission.created_at)}
-        </p>
-        <Button
-          className="button-secondary"
-          onClick={() => downloadSubmission(submission.id, submission.original_filename)}
-        >
-          Tải
-        </Button>
+        <div className="submission-row">
+          <p>
+            <span>{submission.original_filename}</span> {formatSize(submission.size)} {formatDateTime(submission.created_at)}
+          </p>
+          <IconButton
+            icon={<DownloadIcon />}
+            label="Tải"
+            onClick={() => downloadSubmission(submission.id, submission.original_filename)}
+          />
+        </div>
       </Card>
 
       {locked ? (

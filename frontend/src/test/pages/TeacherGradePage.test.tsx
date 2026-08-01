@@ -47,6 +47,15 @@ describe("Teacher grade page", () => {
     vi.unstubAllGlobals();
   });
 
+  it("offers the submission download as an icon button", async () => {
+    openPage(vi.fn()
+      .mockResolvedValueOnce(json(submissionInfo()))
+      .mockResolvedValueOnce(json(assignment())));
+
+    const download = await screen.findByRole("button", { name: "Tải" });
+    expect(download.className).toContain("icon-button");
+  });
+
   it("renders one score field per rubric criterion and computes the total client-side", async () => {
     openPage(vi.fn()
       .mockResolvedValueOnce(json(submissionInfo()))
