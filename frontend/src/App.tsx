@@ -28,6 +28,7 @@ import { StudentClassPage } from "./pages/student/StudentClassPage";
 import { StudentAssignmentPage } from "./pages/student/StudentAssignmentPage";
 import { TeacherClassesPage } from "./pages/teacher/TeacherClassesPage";
 import { TeacherClassPage } from "./pages/teacher/TeacherClassPage";
+import { TeacherGradebookPage } from "./pages/teacher/TeacherGradebookPage";
 import { TeacherAssignmentPage } from "./pages/teacher/TeacherAssignmentPage";
 import { TeacherGradePage } from "./pages/teacher/TeacherGradePage";
 
@@ -59,6 +60,7 @@ export function App() {
       <Route element={<RequireRole roles={["TEACHER"]} />}>
         <Route path="/teacher/classes" element={<TeacherClassesPage />} />
         <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />
+        <Route path="/teacher/classes/:classId/gradebook" element={<TeacherGradebookPage />} />
         <Route path="/teacher/classes/:classId/students/:studentId" element={<ClassStudentViewPage />} />
         <Route path="/teacher/assignments/:assignmentId" element={<TeacherAssignmentPage />} />
         <Route path="/teacher/assignments/:assignmentId/grade/:submissionId" element={<TeacherGradePage />} />

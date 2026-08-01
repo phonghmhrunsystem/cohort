@@ -88,18 +88,36 @@ export function assignmentMyResultPath(assignmentId: number): string {
   return `/assignments/${assignmentId}/my-result`;
 }
 
-export async function downloadSubmission(submissionId: number, suggestedFilename?: string): Promise<void> {
-  const response = await fetch(submissionDownloadUrl(submissionId), {
+export function classGradebookPath(classId: number): string {
+  return `/classes/${classId}/gradebook`;
+}
+
+export function gradebookCsvUrl(classId: number): string {
+  return `/api/classes/${classId}/gradebook.csv`;
+}
+
+/** Downloads are authenticated with the Bearer token, so a plain <a href> cannot
+ * be used; fetch the bytes and hand the browser a blob URL instead. */
+async function downloadBlob(url: string, suggestedFilename?: string): Promise<void> {
+  const response = await fetch(url, {
     headers: { Authorization: `Bearer ${sessionStorage.getItem("access_token") ?? ""}` },
   });
   if (!response.ok) throw new Error("Download failed.");
   const blob = await response.blob();
-  const url = URL.createObjectURL(blob);
+  const objectUrl = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url;
+  a.href = objectUrl;
   a.download = suggestedFilename ?? "";
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(objectUrl);
+}
+
+export async function downloadSubmission(submissionId: number, suggestedFilename?: string): Promise<void> {
+  return downloadBlob(submissionDownloadUrl(submissionId), suggestedFilename);
+}
+
+export async function downloadGradebookCsv(classId: number): Promise<void> {
+  return downloadBlob(gradebookCsvUrl(classId), `gradebook-${classId}.csv`);
 }

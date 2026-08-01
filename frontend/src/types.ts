@@ -201,6 +201,33 @@ export interface TeacherSubmissionRow {
   score: number | null;
 }
 
+export type LearningState = "OPEN" | "SUBMITTED" | "GRADED" | "CLOSED";
+
+export interface GradebookCell {
+  assignment_id: number;
+  learning_state: LearningState;
+  score: number | null;
+}
+
+export interface GradebookAssignment {
+  id: number;
+  title: string;
+  maximum_score: number;
+}
+
+export interface GradebookStudent {
+  id: number;
+  full_name: string | null;
+  email: string;
+  is_active: boolean;
+  grades: GradebookCell[];
+}
+
+export interface GradebookResponse {
+  assignments: GradebookAssignment[];
+  students: GradebookStudent[];
+}
+
 export interface CriterionScoreResult {
   criterion_id: number;
   score: number;

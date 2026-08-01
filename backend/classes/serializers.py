@@ -127,23 +127,23 @@ class GradebookSerializer(serializers.Serializer):
                 "id": student.id,
                 "full_name": student.full_name,
                 "email": student.email,
+                "is_active": student.is_active,
                 "grades": [
-                    {
-                        "assignment_id": assignment.id,
-                        "learning_state": assignment_learning_state(
-                            assignment,
-                            student,
-                            now,
-                            latest_submissions.get((assignment.id, student.id)),
-                        ),
-                        "score": getattr(latest_submissions.get((assignment.id, student.id)), "grade", None).total_score
-                        if hasattr(latest_submissions.get((assignment.id, student.id)), "grade") else None,
-                    }
+                    self._cell(assignment, student, now, latest_submissions)
                     for assignment in assignments
                 ],
             }
             for student in gradebook["students"]
         ]
+
+    def _cell(self, assignment, student, now, latest_submissions):
+        submission = latest_submissions.get((assignment.id, student.id))
+        grade = getattr(submission, "grade", None) if submission else None
+        return {
+            "assignment_id": assignment.id,
+            "learning_state": assignment_learning_state(assignment, student, now, submission),
+            "score": grade.total_score if grade else None,
+        }
 
 
 class StudentProfileSerializer(StudentProgressSerializer):

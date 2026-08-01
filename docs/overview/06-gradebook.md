@@ -39,7 +39,7 @@ Read-only, matrix view of every student × assignment for a Class, for the ownin
 - **Column header links to `/teacher/assignments/{id}`** ([04 §2.2](04-submissions.md#22-teacher--assignment-submissions-teacherassignmentsid)) — the matrix is where a teacher notices "HW2 has 8 ungraded", and grading lives one click away. Cells themselves are not links: there is no per-cell grade route ([05 §2.1](05-grading-and-results.md#21-teacher--grade-submission-teacherassignmentsidgradesubmissionid) is reached from the assignment page), and half the cells would have nowhere to point.
 - **Rows sorted by student name**, same order as the submissions list ([04 §2.2](04-submissions.md#22-teacher--assignment-submissions-teacherassignmentsid)) — a teacher moving between the two screens reads the same sequence of names on both.
 - **Columns in `created_at` ascending** (oldest left), unlike the Assignments table's newest-first ([03 §2.1](03-assignments-and-rubrics.md#21-teacher--assignments-tab-teacherclassesidtabassignments)). A matrix is read left-to-right as the course progressed; a task list is read top-down as "what did I just make".
-- Disabled accounts stay in the matrix tagged `đã tắt`, same as the submissions list ([02 §6](02-classes-and-enrollment.md#6-edge-cases)) — they were graded on work handed in while active, and dropping the row would silently drop those scores out of the export.
+- Disabled accounts stay in the matrix tagged `đã tắt` — each `students[]` row carries `is_active` so the tag comes from the payload, never from a client-side guess — same as the submissions list ([02 §6](02-classes-and-enrollment.md#6-edge-cases)) — they were graded on work handed in while active, and dropping the row would silently drop those scores out of the export.
 - Score column header carries the assignment's `maximum_score`, always `100` ([03 §4](03-assignments-and-rubrics.md#4-db)).
 
 ## 3. API
@@ -47,7 +47,9 @@ Read-only, matrix view of every student × assignment for a Class, for the ownin
 | Method | Path | Access | Notes |
 |---|---|---|---|
 | GET | `/api/classes/{id}/gradebook` | Owning Teacher | JSON matrix: `assignments[]` (`created_at` ascending), `students[]` (by name, with `is_active`), per-cell `{score, learning_state}`. Unpaginated |
-| GET | `/api/classes/{id}/gradebook.csv` | Owning Teacher | Same data as CSV download, UTF-8 with BOM for Excel |
+| GET | `/api/classes/{id}/gradebook.csv` | Owning Teacher | Same data as CSV download, UTF-8 with BOM for Excel; `Content-Disposition: attachment; filename="gradebook-{id}.csv"` |
+
+The JSON returns **raw enums** (`GRADED`/`SUBMITTED`/`OPEN`/`CLOSED`) and each client translates them; the CSV is the one server-rendered surface, so it writes the Vietnamese labels itself (`LEARNING_STATE_LABELS` in `assignments/services.py`, next to the state rule it labels). That is a language boundary, not a duplicated rule — the states themselves are still computed in exactly one place. The filename is plain ASCII on purpose: a Vietnamese Class name in `Content-Disposition` would need RFC 5987 encoding for no gain. Without the `attachment` header the browser renders the CSV inline, which is not "Xuất CSV"; the frontend still has to `fetch` it with the Bearer token and hand the bytes to a blob download, since a plain `<a href>` carries no `Authorization`.
 
 Unpaginated on both axes, for the same reason the submissions list is ([04 §3.1](04-submissions.md#31-the-teacher-list-is-roster-shaped)) — a matrix split across pages is not a matrix, and Class sizes are tens. `ponytail:` paginate students if a Class ever passes a few hundred, not before.
 
@@ -58,7 +60,8 @@ No dedicated table — this is a read-model computed on the fly from `classes`, 
 ## 5. Key functions / rules
 
 - `teacher_gradebook_class(user, class_id)` — resolves the Class for the caller, and the two failure modes get **different** statuses, per the convention in [00 §6](00-system-overview.md#6-cross-cutting-rules-apply-to-every-feature):
-  - **Non-owning Teacher, or Student** → `404`. `scoped_classes` ([02 §5](02-classes-and-enrollment.md#5-key-functions--rules)) filters the Class out before the object lookup, so it is not-in-scope, exactly like every other `/classes/{id}/...` route ([02 §6](02-classes-and-enrollment.md#6-edge-cases)). A teacher must not be able to probe which Class ids exist.
+  - **Non-owning Teacher, or Student** → `404`. The lookup is `Class.objects.filter(teacher=user)`, so the Class is not-in-scope for them, exactly like every other `/classes/{id}/...` route ([02 §6](02-classes-and-enrollment.md#6-edge-cases)). A teacher must not be able to probe which Class ids exist.
+  - Deliberately **not** `scoped_classes` ([02 §5](02-classes-and-enrollment.md#5-key-functions--rules)), the one read that departs from it: `scoped_classes` filters `is_active=True` for a Teacher, which would `404` the gradebook of a Class that has ended or been disabled — precisely when the export matters most, as the term's final tally. Ownership is still enforced; only the active-window filter is dropped, and the screen writes nothing.
   - **Admin** → `403`. Admin *can* see the Class everywhere else, so `404` here would be a lie. Gradebook is explicitly teacher-only — the one Class read Admin is refused — and `403` says that plainly.
 
   That split is the whole convention in one function: `404` means "not yours to know about", `403` means "yours to know about, not yours to open".

@@ -14,6 +14,7 @@ from rest_framework.views import APIView
 
 from accounts.models import User
 from assignments.models import Assignment
+from assignments.services import LEARNING_STATE_LABELS
 from audit.services import write_audit
 from notifications.services import create_notifications, notify_user
 from submissions.models import Submission
@@ -156,6 +157,8 @@ class GradebookCsvView(APIView):
             return Response(status=status.HTTP_403_FORBIDDEN)
         gradebook = gradebook_data(classroom)
         response = HttpResponse(content_type="text/csv; charset=utf-8")
+        # ASCII filename on purpose: a Vietnamese Class name would need RFC 5987 encoding.
+        response["Content-Disposition"] = f'attachment; filename="gradebook-{classroom.id}.csv"'
         response.write("\ufeff")
         writer = csv.writer(response)
         assignments = gradebook["assignments"]
@@ -167,10 +170,7 @@ class GradebookCsvView(APIView):
             writer.writerow([
                 csv_value(student["full_name"] or ""),
                 csv_value(student["email"]),
-                *[
-                    f"{grade['learning_state']}: {grade['score']}" if grade["score"] is not None else grade["learning_state"]
-                    for grade in student["grades"]
-                ],
+                *[csv_value(gradebook_cell_text(grade)) for grade in student["grades"]],
             ])
         return response
 
@@ -346,7 +346,11 @@ def students_progress_queryset(class_):
 
 
 def teacher_gradebook_class(user, class_id):
-    if user.role != User.Role.TEACHER:
+    """Admins see the Class but cannot open its gradebook (None -> 403); everyone
+    else must own it, so Students and other Teachers fall through to 404.
+    Deliberately not scoped_classes(): an ended or disabled Class must stay
+    exportable, which is when a gradebook matters most."""
+    if user.role == User.Role.ADMIN:
         return None
     return get_object_or_404(Class.objects.filter(teacher=user), id=class_id)
 
@@ -357,14 +361,14 @@ def gradebook_data(classroom):
             enrollments__classroom=classroom,
             role=User.Role.STUDENT,
             is_deleted=False,
-        ).order_by("id")
+        ).order_by("full_name", "id")
     )
     latest = Submission.objects.filter(
         assignment_id=OuterRef("assignment_id"),
         student_id=OuterRef("student_id"),
     ).order_by("-version").values("id")[:1]
     assignments = list(
-        Assignment.objects.filter(classroom=classroom).order_by("id").select_related("classroom").prefetch_related(
+        Assignment.objects.filter(classroom=classroom).order_by("created_at", "id").select_related("classroom").prefetch_related(
             Prefetch(
                 "submissions",
                 queryset=Submission.objects.filter(
@@ -384,6 +388,12 @@ def gradebook_data(classroom):
         {"assignments": assignments, "students": students},
         context={"now": timezone.now(), "latest_submissions": latest_submissions},
     ).data
+
+
+def gradebook_cell_text(grade):
+    if grade["learning_state"] == "GRADED":
+        return str(grade["score"])
+    return LEARNING_STATE_LABELS[grade["learning_state"]]
 
 
 def csv_value(value):

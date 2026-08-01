@@ -117,7 +117,7 @@ export function TeacherClassPage() {
   if (!class_) return <Spinner label="Loading class" />;
   return <section className="page-stack">
     <Link className="back-link" to="/teacher/classes">‹ Back</Link>
-    <h1>{class_.name}</h1>
+    <div className="page-header"><h1>{class_.name}</h1><Link className="button" to={`/teacher/classes/${classId}/gradebook`}>Bảng điểm</Link></div>
     <div className="tabs" role="tablist">
       <button type="button" className="tab" role="tab" aria-selected={tab === "students"} onClick={() => setSearchParams({ tab: "students" })}>Students</button>
       <button type="button" className="tab" role="tab" aria-selected={tab === "assignments"} onClick={() => setSearchParams({ tab: "assignments" })}>Assignments</button>
