@@ -65,6 +65,31 @@ class NotificationApiTests(TestCase):
                   self.authenticate(self.student).get("/api/notifications").data["items"][:3]]
         self.assertEqual(titles, ["Bulk 2", "Bulk 1", "Bulk 0"])
 
+    def test_read_all_clears_every_unread_row_of_the_caller_only(self):
+        mine = Notification.objects.create(
+            recipient=self.student, type="ASSIGNMENT_CREATED", title="Second unread", link="/x",
+        )
+        theirs = Notification.objects.create(
+            recipient=self.other, type="ASSIGNMENT_CREATED", title="Theirs", link="/x",
+        )
+        response = self.authenticate(self.student).post("/api/notifications/read-all")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"unread_count": 0})
+        self.unread.refresh_from_db(); mine.refresh_from_db(); theirs.refresh_from_db()
+        self.assertIsNotNone(self.unread.read_at)
+        self.assertIsNotNone(mine.read_at)
+        self.assertIsNone(theirs.read_at)
+
+    def test_read_all_is_idempotent_and_does_not_move_an_existing_read_at(self):
+        client = self.authenticate(self.student)
+        client.post("/api/notifications/read-all")
+        first_read_at = Notification.objects.get(id=self.read.id).read_at
+        self.assertEqual(client.post("/api/notifications/read-all").data, {"unread_count": 0})
+        self.assertEqual(Notification.objects.get(id=self.read.id).read_at, first_read_at)
+
+    def test_read_all_requires_authentication(self):
+        self.assertEqual(APIClient().post("/api/notifications/read-all").status_code, 401)
+
     def test_serializer_exposes_type_and_created_at(self):
         item = self.authenticate(self.student).get("/api/notifications").data["items"][0]
         self.assertEqual(

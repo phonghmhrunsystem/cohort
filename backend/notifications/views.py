@@ -23,3 +23,14 @@ class NotificationReadView(APIView):
         if notification.read_at is None:
             notification.read_at = timezone.now(); notification.save(update_fields=("read_at",))
         return Response(NotificationSerializer(notification).data)
+
+
+class NotificationReadAllView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """Một queryset update() thay vì loop POST /{id}/read: không nạp row nào,
+        không có lỗi từng-row để hỏng nửa chừng. Mệnh đề WHERE đã mang guard
+        read_at IS NULL nên không cần kiểm trong Python (07 §3)."""
+        Notification.objects.filter(recipient=request.user, read_at__isnull=True).update(read_at=timezone.now())
+        return Response({"unread_count": 0})
