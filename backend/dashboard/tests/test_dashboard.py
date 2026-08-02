@@ -482,3 +482,64 @@ class StudentDashboardTests(TestCase):
         self.assertEqual(data["cards"]["my_classes"], 0)
         self.assertEqual(data["cards"]["not_submitted"], 0)
         self.assertEqual(data["todo"], [])
+
+
+class QueryBudgetTests(TestCase):
+    """Ngân sách ≤ 8 query, không phụ thuộc số bản ghi. Nếu test này đỏ vì
+    con số tăng: tìm vòng lặp mới, đừng nới ngưỡng.
+
+    Đo thật tại 2026-08-03 với fixture dưới đây: admin=3, teacher=7, student=6.
+    Admin rẻ ở đây vì log audit rỗng; khi log chạm cả bốn bảng nhãn thì
+    `resolve_labels` thêm bốn query nữa — đo được admin=7, vẫn dưới ngưỡng.
+    Teacher là role sát trần nhất: còn đúng một query trống."""
+
+    BUDGET = 8
+
+    def setUp(self):
+        self.client = APIClient()
+        now = timezone.now()
+        self.admin = User.objects.create_user("budget-admin@example.test", "pw", role="ADMIN")
+        self.teacher = User.objects.create_user("budget-teacher@example.test", "pw", role="TEACHER")
+        self.student = User.objects.create_user("budget-student@example.test", "pw", role="STUDENT")
+        self.classroom = Class.objects.create(
+            teacher=self.teacher, name="Budget", starts_at=now - timedelta(days=1),
+            ends_at=now + timedelta(days=30), is_active=True,
+        )
+        Enrollment.objects.create(classroom=self.classroom, student=self.student)
+        self.assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Lab", description="d", due_at=now + timedelta(days=2),
+        )
+        make_submission(self.assignment, self.student)
+
+    def _grow(self):
+        """Thêm 10 lớp, 10 bài, 10 học viên, 10 bản nộp. Gọi một lần cho mỗi
+        role, nên email phải mang cả số vòng — email là unique."""
+        now = timezone.now()
+        self.round = getattr(self, "round", 0) + 1
+        for i in range(10):
+            classroom = Class.objects.create(
+                teacher=self.teacher, name=f"Grow {self.round}-{i}", starts_at=now - timedelta(days=1),
+                ends_at=now + timedelta(days=30), is_active=True,
+            )
+            student = User.objects.create_user(f"grow{self.round}-{i}@example.test", "pw", role="STUDENT")
+            Enrollment.objects.create(classroom=classroom, student=student)
+            Enrollment.objects.create(classroom=classroom, student=self.student)
+            assignment = Assignment.objects.create(
+                classroom=classroom, title=f"Lab {i}", description="d", due_at=now + timedelta(days=2),
+            )
+            make_submission(assignment, student)
+
+    def test_each_role_stays_within_budget_and_does_not_grow_with_data(self):
+        for user in (self.admin, self.teacher, self.student):
+            self.client.force_authenticate(user)
+            with CaptureQueriesContext(connection) as small:
+                self.client.get("/api/dashboard")
+            self._grow()
+            with CaptureQueriesContext(connection) as large:
+                self.client.get("/api/dashboard")
+
+            self.assertLessEqual(len(small.captured_queries), self.BUDGET, msg=f"{user.role} over budget")
+            self.assertEqual(
+                len(small.captured_queries), len(large.captured_queries),
+                msg=f"{user.role}: query count grew with the data",
+            )
