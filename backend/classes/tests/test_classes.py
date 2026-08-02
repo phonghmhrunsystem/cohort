@@ -143,6 +143,18 @@ class ClassApiTests(TestCase):
         blocked = self.admin_client.patch(f"/api/classes/{ended.id}", {"teacher_id": self.other_teacher.id}, format="json")
         self.assertEqual(blocked.status_code, 422)
 
+    def test_reassigning_a_class_notifies_both_teachers_and_leaves_the_outgoing_row_linkless(self):
+        from notifications.models import Notification
+
+        response = self.admin_client.patch(
+            f"/api/classes/{self.course.id}", {"teacher_id": self.other_teacher.id}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+        outgoing = Notification.objects.get(recipient=self.teacher, type="CLASS_UNASSIGNED")
+        incoming = Notification.objects.get(recipient=self.other_teacher, type="CLASS_ASSIGNED")
+        self.assertIsNone(outgoing.link)
+        self.assertEqual(incoming.link, f"/teacher/classes/{self.course.id}")
+
     def test_deleted_accounts_cannot_be_selected_or_appear_in_rosters(self):
         deleted_teacher = User.objects.create_user(
             "deleted-teacher@example.test", "pw", role="TEACHER", is_deleted=True

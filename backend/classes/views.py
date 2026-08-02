@@ -109,7 +109,7 @@ class ClassDetailView(APIView):
                     target=class_,
                     metadata={"from_teacher_id": previous_teacher_id, "to_teacher_id": class_.teacher_id},
                 )
-                notify_user(User.objects.get(id=previous_teacher_id), "CLASS_UNASSIGNED", f"Unassigned from {class_.name}", "/teacher/classes")
+                notify_user(User.objects.get(id=previous_teacher_id), "CLASS_UNASSIGNED", f"Unassigned from {class_.name}", None)
                 notify_user(class_.teacher, "CLASS_ASSIGNED", f"Assigned to {class_.name}", f"/teacher/classes/{class_.id}")
         return Response(ClassSerializer(class_).data)
 

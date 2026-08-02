@@ -46,6 +46,14 @@ class NotificationApiTests(TestCase):
         self.assertEqual(self.authenticate(self.other)
                          .post(f"/api/notifications/{self.unread.id}/read").status_code, 404)
 
+    def test_a_row_can_be_stored_without_a_link(self):
+        Notification.objects.create(
+            recipient=self.student, type="CLASS_UNASSIGNED", title="Unassigned from Cohort 5", link=None,
+        )
+        item = self.authenticate(self.student).get("/api/notifications").data["items"][0]
+        self.assertEqual(item["type"], "CLASS_UNASSIGNED")
+        self.assertIsNone(item["link"])
+
     def test_rows_created_in_one_bulk_write_keep_a_stable_newest_first_order(self):
         stamp = timezone.now()
         rows = Notification.objects.bulk_create([
