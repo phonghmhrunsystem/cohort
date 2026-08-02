@@ -107,3 +107,47 @@ class AdminAccountCountTests(TestCase):
         response = self.client.get("/api/dashboard")
 
         self.assertEqual(response.data["accounts"]["teachers"], 0)
+
+
+class AdminClassBucketTests(TestCase):
+    """Migration `classes.0001_initial` gieo sẵn hai lớp demo; setUp xoá sạch lớp
+    trước khi dựng bảy lớp của mình để bốn con số dưới đây nói về đúng chúng."""
+
+    def setUp(self):
+        self.client = APIClient()
+        Class.objects.all().delete()
+        self.admin = User.objects.create_user("bucket-admin@example.test", "pw", role="ADMIN")
+        teacher = User.objects.create_user("bucket-teacher@example.test", "pw", role="TEACHER")
+        now = timezone.now()
+        make = lambda name, starts, ends, active: Class.objects.create(
+            teacher=teacher, name=name, starts_at=starts, ends_at=ends, is_active=active
+        )
+        make("running-1", now - timedelta(days=1), now + timedelta(days=1), True)
+        make("running-2", now - timedelta(days=3), now + timedelta(days=3), True)
+        make("scheduled", now + timedelta(days=1), now + timedelta(days=5), True)
+        make("ended-1", now - timedelta(days=9), now - timedelta(days=2), True)
+        make("ended-2", now - timedelta(days=8), now - timedelta(days=1), True)
+        make("ended-3", now - timedelta(days=7), now - timedelta(hours=1), True)
+        make("disabled", now - timedelta(days=1), now + timedelta(days=1), False)
+        self.client.force_authenticate(self.admin)
+
+    def test_classes_are_split_into_four_buckets(self):
+        response = self.client.get("/api/dashboard")
+
+        self.assertEqual(
+            response.data["classes"],
+            {"running": 2, "scheduled": 1, "ended": 3, "disabled": 1},
+        )
+
+    def test_the_buckets_partition_every_class(self):
+        response = self.client.get("/api/dashboard")
+
+        self.assertEqual(sum(response.data["classes"].values()), Class.objects.count())
+
+    def test_a_disabled_class_is_never_counted_as_running(self):
+        Class.objects.filter(name="running-1").update(is_active=False)
+
+        response = self.client.get("/api/dashboard")
+
+        self.assertEqual(response.data["classes"]["running"], 1)
+        self.assertEqual(response.data["classes"]["disabled"], 2)
