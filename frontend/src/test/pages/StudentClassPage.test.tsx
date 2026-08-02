@@ -52,8 +52,8 @@ describe("Student class page", () => {
 
   it.each([
     ["OPEN", "Chưa nộp", "Nộp bài"],
-    ["SUBMITTED", "Đã nộp", "Xem lịch sử"],
-    ["GRADED", "Đã chấm", "Xem kết quả"],
+    ["SUBMITTED", "Đã nộp", null],
+    ["GRADED", "Đã chấm", null],
   ] as const)("maps learning_state %s to the correct Trạng thái and action label", async (learningState, label, actionLabel) => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(classDetail()))
@@ -69,8 +69,14 @@ describe("Student class page", () => {
 
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     expect(screen.getByText(label)).toBeTruthy();
-    // Nộp bài is an icon button (03 §2.2), so match the accessible name, not visible text.
-    expect(screen.getByRole("link", { name: actionLabel })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Xem" })).toBeTruthy();
+    if (actionLabel) {
+      // Nộp bài is an icon button (03 §2.2), so match the accessible name, not visible text.
+      expect(screen.getByRole("link", { name: actionLabel })).toBeTruthy();
+    } else {
+      // Xem already opens the assignment page; a second link to the same place is noise.
+      expect(screen.getAllByRole("link", { name: /Xem/ })).toHaveLength(1);
+    }
   });
 
   it("shows closure_reason as a tooltip and no second action for CLOSED", async () => {
