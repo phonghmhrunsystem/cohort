@@ -370,6 +370,12 @@ class ClassResourcesView(APIView):
         try:
             with transaction.atomic():
                 resource = serializer.save(classroom=classroom, **written)
+                write_audit(
+                    actor=request.user,
+                    action="class_resource.created",
+                    target=resource,
+                    metadata={"class_id": classroom.id, "resource_id": resource.id},
+                )
                 create_notifications(classroom, "RESOURCE_CREATED", f"New resource: {resource.title}", f"/student/classes/{classroom.id}")
         except Exception:
             discard_file(written.get("file_path"))

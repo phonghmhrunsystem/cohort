@@ -16,6 +16,7 @@ EXPECTED_ACTIONS = {
     "enrollment.created", "enrollment.replaced", "enrollment.removed",
     "assignment.created", "assignment.updated", "assignment.rubric.updated",
     "submission.created", "grade.created",
+    "class_resource.created",
 }
 
 

@@ -81,6 +81,27 @@ class ClassApiTests(TestCase):
         response = self.teacher_client.get(f"/api/classes/{self.course.id}/resources")
         self.assertEqual([row["title"] for row in response.data], ["Third", "Second", "First"])
 
+    def test_creating_a_resource_writes_an_audit_row_in_the_same_transaction(self):
+        response = self.teacher_client.post(
+            f"/api/classes/{self.course.id}/resources",
+            {"title": "Slide deck", "description": "Week 1", "url": "https://example.test/slides"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        log = AuditLog.objects.get(action="class_resource.created")
+        self.assertEqual(log.actor_id, self.teacher.id)
+        self.assertEqual(log.target_type, "classes.classresource")
+        self.assertEqual(log.target_id, response.data["id"])
+        self.assertEqual(log.metadata, {"class_id": self.course.id, "resource_id": response.data["id"]})
+
+    def test_a_rejected_resource_leaves_no_audit_row(self):
+        response = self.teacher_client.post(
+            f"/api/classes/{self.course.id}/resources",
+            {"title": "x", "url": "not-a-url"}, format="json",
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertFalse(AuditLog.objects.filter(action="class_resource.created").exists())
+
     def test_only_admin_can_mutate_classes_and_enrollment(self):
         payload = self.class_payload()
         self.assertEqual(self.teacher_client.post("/api/classes", payload, format="json").status_code, 403)
