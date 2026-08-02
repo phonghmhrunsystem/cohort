@@ -1,9 +1,47 @@
+import ast
+from pathlib import Path
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import User
 from audit.models import AuditLog
 from audit.services import safe_metadata
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+EXPECTED_ACTIONS = {
+    "account.created", "account.updated", "account.self_updated", "account.deactivated",
+    "account.reactivated", "account.deleted", "account.password_changed", "account.password_set",
+    "class.created", "class.updated", "class.status_changed", "class.reopened", "class.teacher_changed",
+    "enrollment.created", "enrollment.replaced", "enrollment.removed",
+    "assignment.created", "assignment.updated", "assignment.rubric.updated",
+    "submission.created", "grade.created",
+}
+
+
+class AuditActionInventoryTests(TestCase):
+    """Bảng action trong docs/overview/08-audit-log.md §4 là hợp đồng với UI:
+    mỗi mã ở đây phải có một câu tiếng Việt tương ứng ở frontend."""
+
+    def test_the_code_writes_exactly_the_documented_actions(self):
+        found = set()
+        for path in BACKEND_ROOT.rglob("*.py"):
+            if "tests" in path.parts or "migrations" in path.parts:
+                continue
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if not (isinstance(node, ast.Call) and getattr(node.func, "id", None) == "write_audit"):
+                    continue
+                for keyword in node.keywords:
+                    if keyword.arg != "action":
+                        continue
+                    # Đi vào cả biểu thức: hai call site dùng `A if cond else B`
+                    # (account.reactivated/deactivated, class.reopened/updated),
+                    # nên bắt theo chuỗi literal chứ không theo dạng cú pháp.
+                    found.update(
+                        child.value for child in ast.walk(keyword.value)
+                        if isinstance(child, ast.Constant) and isinstance(child.value, str)
+                    )
+        self.assertEqual(found, EXPECTED_ACTIONS)
 
 
 class AuditTests(TestCase):
