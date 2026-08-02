@@ -73,3 +73,35 @@ class TeacherDashboardSerializer(serializers.Serializer):
     cards = TeacherCardsSerializer()
     pending = PendingRowSerializer(many=True)
     due_soon = DueSoonRowSerializer(many=True)
+
+
+class StudentCardsSerializer(serializers.Serializer):
+    my_classes = serializers.IntegerField()
+    not_submitted = serializers.IntegerField()
+    graded = serializers.IntegerField()
+    average_score = serializers.FloatField(allow_null=True)
+
+
+class TodoRowSerializer(serializers.Serializer):
+    assignment_id = serializers.IntegerField()
+    title = serializers.CharField()
+    class_id = serializers.IntegerField()
+    class_name = serializers.CharField()
+    due_at = serializers.DateTimeField()
+
+
+class RecentGradeSerializer(serializers.Serializer):
+    assignment_id = serializers.IntegerField()
+    title = serializers.CharField()
+    class_id = serializers.IntegerField()
+    class_name = serializers.CharField()
+    score = serializers.IntegerField()
+    maximum_score = serializers.IntegerField()
+    graded_at = serializers.DateTimeField()
+
+
+class StudentDashboardSerializer(serializers.Serializer):
+    role = serializers.CharField()
+    cards = StudentCardsSerializer()
+    todo = TodoRowSerializer(many=True)
+    recent_grades = RecentGradeSerializer(many=True)

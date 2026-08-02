@@ -4,6 +4,7 @@ from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from rest_framework.test import APIClient
 
 from accounts.models import User
@@ -383,3 +384,101 @@ class TeacherListTests(TestCase):
         due_soon = self.client.get("/api/dashboard").data["due_soon"]
 
         self.assertEqual([row["assignment_id"] for row in due_soon], [self.assignment.id])
+
+
+class StudentDashboardTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        now = timezone.now()
+        self.teacher = User.objects.create_user("stu-teacher@example.test", "pw", role="TEACHER")
+        self.student = User.objects.create_user("stu-student@example.test", "pw", role="STUDENT")
+        self.outsider = User.objects.create_user("stu-outsider@example.test", "pw", role="STUDENT")
+        self.classroom = Class.objects.create(
+            teacher=self.teacher, name="Web Development K18A",
+            starts_at=now - timedelta(days=1), ends_at=now + timedelta(days=30), is_active=True,
+        )
+        self.foreign = Class.objects.create(
+            teacher=self.teacher, name="Not mine",
+            starts_at=now - timedelta(days=1), ends_at=now + timedelta(days=30), is_active=True,
+        )
+        Enrollment.objects.create(classroom=self.classroom, student=self.student)
+        Enrollment.objects.create(classroom=self.foreign, student=self.outsider)
+        self.soon = Assignment.objects.create(
+            classroom=self.classroom, title="Lab 4", description="d", due_at=now + timedelta(days=2),
+        )
+        self.later = Assignment.objects.create(
+            classroom=self.classroom, title="Lab 5", description="d", due_at=now + timedelta(days=9),
+        )
+        self.overdue = Assignment.objects.create(
+            classroom=self.classroom, title="Lab 1", description="d", due_at=now - timedelta(days=1),
+        )
+        Assignment.objects.create(
+            classroom=self.foreign, title="Foreign lab", description="d", due_at=now + timedelta(days=2),
+        )
+        self.client.force_authenticate(self.student)
+
+    def test_only_my_open_unsubmitted_assignments_are_counted(self):
+        data = self.client.get("/api/dashboard").data
+
+        self.assertEqual(data["cards"]["my_classes"], 1)
+        self.assertEqual(data["cards"]["not_submitted"], 2)
+
+    def test_todo_is_due_date_ascending_and_excludes_overdue_work(self):
+        todo = self.client.get("/api/dashboard").data["todo"]
+
+        self.assertEqual([row["assignment_id"] for row in todo], [self.soon.id, self.later.id])
+        self.assertEqual(todo[0]["class_name"], "Web Development K18A")
+
+    def test_a_submitted_assignment_leaves_the_todo_list(self):
+        make_submission(self.soon, self.student)
+
+        data = self.client.get("/api/dashboard").data
+
+        self.assertEqual(data["cards"]["not_submitted"], 1)
+        self.assertEqual([row["assignment_id"] for row in data["todo"]], [self.later.id])
+
+    def test_average_is_null_when_nothing_is_graded_yet(self):
+        data = self.client.get("/api/dashboard").data
+
+        self.assertEqual(data["cards"]["graded"], 0)
+        self.assertIsNone(data["cards"]["average_score"])
+
+    def test_average_is_rounded_to_one_decimal(self):
+        AssignmentGrade.objects.create(assignment=self.soon, student=self.student, score=80)
+        AssignmentGrade.objects.create(assignment=self.later, student=self.student, score=85)
+
+        cards = self.client.get("/api/dashboard").data["cards"]
+
+        self.assertEqual(cards["graded"], 2)
+        self.assertEqual(cards["average_score"], 82.5)
+
+    def test_recent_grades_are_newest_first(self):
+        submission = make_submission(self.overdue, self.student)
+        grade = Grade.objects.create(
+            assignment=self.overdue, student=self.student, teacher=self.teacher,
+            submission=submission, total_score=77, feedback="ok",
+        )
+
+        row = self.client.get("/api/dashboard").data["recent_grades"][0]
+
+        self.assertEqual(row["assignment_id"], self.overdue.id)
+        self.assertEqual(row["title"], "Lab 1")
+        self.assertEqual(row["score"], 77)
+        self.assertEqual(row["maximum_score"], 100)
+        self.assertEqual(row["class_name"], "Web Development K18A")
+        # Serializer đã render datetime thành chuỗi ISO trước khi tới đây.
+        self.assertEqual(parse_datetime(row["graded_at"]), grade.created_at)
+
+    def test_a_class_i_am_not_enrolled_in_is_invisible(self):
+        todo_titles = [row["title"] for row in self.client.get("/api/dashboard").data["todo"]]
+
+        self.assertNotIn("Foreign lab", todo_titles)
+
+    def test_a_disabled_class_takes_its_assignments_with_it(self):
+        Class.objects.filter(id=self.classroom.id).update(is_active=False)
+
+        data = self.client.get("/api/dashboard").data
+
+        self.assertEqual(data["cards"]["my_classes"], 0)
+        self.assertEqual(data["cards"]["not_submitted"], 0)
+        self.assertEqual(data["todo"], [])

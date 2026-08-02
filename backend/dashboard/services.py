@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.db.models import Count, Exists, F, OuterRef, Q, Subquery
+from django.db.models import Avg, Count, Exists, F, OuterRef, Q, Subquery
 from django.utils import timezone
 
 from accounts.models import User
@@ -9,6 +9,7 @@ from audit.labels import resolve_labels
 from audit.models import AuditLog
 from classes.models import Class, Enrollment
 from classes.views import open_class_q, scoped_classes
+from grading.models import Grade
 from submissions.models import Submission
 
 _ROLE_KEYS = {User.Role.ADMIN: "admins", User.Role.TEACHER: "teachers", User.Role.STUDENT: "students"}
@@ -165,4 +166,66 @@ def teacher_dashboard(user):
         "cards": cards,
         "pending": _pending_rows(class_ids),
         "due_soon": _due_soon_rows(open_ids, now),
+    }
+
+
+_TODO_LIMIT = 10
+_RECENT_GRADES_LIMIT = 5
+
+
+def student_dashboard(user):
+    now = timezone.now()
+    classes = scoped_classes(user)
+    open_ids = list(classes.filter(open_class_q(now)).values_list("id", flat=True))
+
+    mine = Submission.objects.filter(assignment_id=OuterRef("pk"), student=user)
+    # Bài quá hạn bị loại: không còn hành động nào làm được với nó, và một thẻ
+    # "chưa nộp" không bao giờ về 0 là thẻ không ai đọc nữa.
+    todo_qs = (
+        Assignment.objects.filter(classroom_id__in=open_ids, due_at__gt=now)
+        .annotate(submitted=Exists(mine))
+        .filter(submitted=False)
+        .select_related("classroom")
+        .order_by("due_at", "id")
+    )
+    scores = AssignmentGrade.objects.filter(student=user).aggregate(
+        graded=Count("id"), average=Avg("score")
+    )
+    recent = (
+        Grade.objects.filter(student=user)
+        .select_related("assignment", "assignment__classroom")
+        .order_by("-created_at", "-id")[:_RECENT_GRADES_LIMIT]
+    )
+
+    return {
+        "role": User.Role.STUDENT,
+        "cards": {
+            "my_classes": classes.count(),
+            "not_submitted": todo_qs.count(),
+            "graded": scores["graded"],
+            # None khi chưa có điểm nào — frontend hiện "—", không hiện 0.
+            "average_score": None if scores["average"] is None else round(scores["average"], 1),
+        },
+        "todo": [
+            {
+                "assignment_id": row.id,
+                "title": row.title,
+                "class_id": row.classroom_id,
+                "class_name": row.classroom.name,
+                "due_at": row.due_at,
+            }
+            for row in todo_qs[:_TODO_LIMIT]
+        ],
+        "recent_grades": [
+            {
+                "assignment_id": row.assignment_id,
+                "title": row.assignment.title,
+                "class_id": row.assignment.classroom_id,
+                "class_name": row.assignment.classroom.name,
+                "score": row.total_score,
+                "maximum_score": row.assignment.maximum_score,
+                "graded_at": row.created_at,
+            }
+            for row in recent
+        ],
     }
