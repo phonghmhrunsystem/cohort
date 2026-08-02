@@ -59,9 +59,9 @@ function ResourceFields({ idPrefix, draft, errors, onChange, currentFilename }: 
   currentFilename?: string;
 }) {
   return <>
-    <div className="field field-full resource-kind" role="group" aria-label="Loại tài liệu">
-      <label><input type="radio" name={`${idPrefix}-kind`} checked={draft.kind === "link"} onChange={() => onChange({ ...draft, kind: "link", file: null })} /> Liên kết</label>
-      <label><input type="radio" name={`${idPrefix}-kind`} checked={draft.kind === "file"} onChange={() => onChange({ ...draft, kind: "file", url: "" })} /> Tệp tin</label>
+    <div className="field-full resource-kind" role="group" aria-label="Loại tài liệu">
+      <label><input type="radio" name={`${idPrefix}-kind`} checked={draft.kind === "link"} onChange={() => onChange({ ...draft, kind: "link", file: null })} /><span>Liên kết</span></label>
+      <label><input type="radio" name={`${idPrefix}-kind`} checked={draft.kind === "file"} onChange={() => onChange({ ...draft, kind: "file", url: "" })} /><span>Tệp tin</span></label>
     </div>
     <Field id={`${idPrefix}-title`} label="Title" required wide value={draft.title} error={errors.title?.[0]}
       onChange={(event) => onChange({ ...draft, title: event.target.value })} />
