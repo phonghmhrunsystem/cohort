@@ -58,7 +58,9 @@ Mỗi role tối đa 8 query, **cố định** — không phụ thuộc số l�
 ### 3.4 Tái sử dụng, không sao chép
 
 - `classes.views.scoped_classes(user)` đã ép đúng scope cho cả ba role (Admin thấy tất cả, Teacher chỉ lớp mình dạy, Student chỉ lớp mình học, cả hai role sau đều đã lọc `is_active=True`). Dashboard gọi hàm này, **không** tự viết filter — nếu không, luật scope sẽ có hai bản và chúng sẽ lệch nhau.
-- `classes.views.is_open(class_)` nhận một instance nên không dùng được trong `WHERE`. Thêm `open_class_q(now)` vào `classes/views.py` ngay dưới `is_open`, trả về `Q(is_active=True, starts_at__lte=now, ends_at__gt=now)`, và **viết lại `is_open` để dùng chung định nghĩa đó** — cửa sổ lớp phải có đúng một định nghĩa trong code.
+- `classes.views.is_open(class_)` nhận một instance nên không dùng được trong `WHERE`. Thêm `open_class_q(now)` vào `classes/views.py` ngay dưới `is_open`, trả về `Q(is_active=True, starts_at__lte=now, ends_at__gt=now)`.
+
+  `is_open` **giữ nguyên là kiểm tra trong bộ nhớ** — viết lại nó thành `Class.objects.filter(open_class_q(), pk=...).exists()` sẽ thêm một query vào mọi view đang gọi nó (`assignments/views.py` ba chỗ, `submissions/services.py` một chỗ), trả giá thật để mua một sự gọn gàng hình thức. Hai bản định nghĩa được buộc vào nhau bằng **một test**: dựng lớp ở cả bốn trạng thái, rồi khẳng định tập lớp mà `open_class_q` chọn ra bằng đúng tập lớp mà `is_open` trả `True`. Khi ai đó đổi luật cửa sổ ở một bên, test đỏ.
 - Nhãn audit lấy từ `audit.labels.resolve_labels(logs)` do plan 08 tạo.
 
 ## 4. Payload
@@ -184,5 +186,5 @@ Mỗi dòng trong `pending` / `due_soon` / `todo` / `recent_grades` là một li
 ## 8. Rủi ro đã biết
 
 - **`pending_grading` là truy vấn nặng nhất** — nó đi qua `Submission` × `AssignmentGrade` trên toàn bộ lớp của một teacher. Với dữ liệu demo thì không sao. Nếu chậm, cách sửa là index `(assignment_id, student_id)`, không phải cache — số này phải đúng ngay lúc đọc.
-- **Dashboard sẽ lệch với thực tế nếu ai đó đổi luật cửa sổ lớp mà quên `open_class_q`.** Đó là lý do §3.4 gộp `is_open` và `open_class_q` về một định nghĩa thay vì viết điều kiện `WHERE` mới.
+- **Dashboard sẽ lệch với thực tế nếu ai đó đổi luật cửa sổ lớp mà chỉ sửa một trong hai bản.** `is_open` và `open_class_q` là hai cách viết cùng một luật; test đồng-thuận ở §3.4 là thứ duy nhất giữ chúng khớp nhau. Đừng xoá nó.
 - **Thứ tự thi hành:** dashboard Admin không hoàn chỉnh cho tới khi plan 08 xong. Nếu cần chạy dashboard trước, `recent_audit` phải tạm thời trả mảng rỗng — nhưng như vậy sẽ phải sửa lại serializer sau, nên làm đúng thứ tự rẻ hơn.
