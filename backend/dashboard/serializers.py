@@ -14,7 +14,22 @@ class ClassBucketsSerializer(serializers.Serializer):
     disabled = serializers.IntegerField()
 
 
+class AuditActorSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    full_name = serializers.CharField(allow_null=True)
+    role = serializers.CharField()
+
+
+class RecentAuditSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    action = serializers.CharField()
+    target_label = serializers.CharField(allow_blank=True)
+    actor = AuditActorSerializer()
+    created_at = serializers.DateTimeField()
+
+
 class AdminDashboardSerializer(serializers.Serializer):
     role = serializers.CharField()
     accounts = AccountCountsSerializer()
     classes = ClassBucketsSerializer()
+    recent_audit = RecentAuditSerializer(many=True)

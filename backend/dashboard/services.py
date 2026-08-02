@@ -2,6 +2,8 @@ from django.db.models import Count, Q
 from django.utils import timezone
 
 from accounts.models import User
+from audit.labels import resolve_labels
+from audit.models import AuditLog
 from classes.models import Class
 from classes.views import open_class_q
 
@@ -32,10 +34,29 @@ def _class_buckets(now):
     )
 
 
+_RECENT_AUDIT_LIMIT = 5
+
+
+def _recent_audit():
+    logs = list(AuditLog.objects.select_related("actor")[:_RECENT_AUDIT_LIMIT])
+    labels = resolve_labels(logs)
+    return [
+        {
+            "id": log.id,
+            "action": log.action,
+            "target_label": labels.get(log.id, ""),
+            "actor": {"id": log.actor_id, "full_name": log.actor.full_name, "role": log.actor.role},
+            "created_at": log.created_at,
+        }
+        for log in logs
+    ]
+
+
 def admin_dashboard(user):
     now = timezone.now()
     return {
         "role": User.Role.ADMIN,
         "accounts": _account_counts(),
         "classes": _class_buckets(now),
+        "recent_audit": _recent_audit(),
     }

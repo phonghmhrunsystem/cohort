@@ -151,3 +151,53 @@ class AdminClassBucketTests(TestCase):
 
         self.assertEqual(response.data["classes"]["running"], 1)
         self.assertEqual(response.data["classes"]["disabled"], 2)
+
+
+class AdminRecentAuditTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.admin = User.objects.create_user("audit-admin@example.test", "pw", role="ADMIN")
+        teacher = User.objects.create_user("audit-teacher@example.test", "pw", role="TEACHER")
+        teacher.full_name = "Pham Thu Hoa"
+        teacher.save()
+        self.teacher = teacher
+        self.logs = [
+            AuditLog.objects.create(
+                actor=self.admin, action="account.created",
+                target_type="accounts.user", target_id=teacher.id, metadata={},
+            )
+            for _ in range(7)
+        ]
+        self.client.force_authenticate(self.admin)
+
+    def test_only_the_five_newest_rows_come_back(self):
+        response = self.client.get("/api/dashboard")
+
+        self.assertEqual(len(response.data["recent_audit"]), 5)
+        self.assertEqual(
+            [row["id"] for row in response.data["recent_audit"]],
+            [log.id for log in reversed(self.logs)][:5],
+        )
+
+    def test_a_row_carries_the_actor_and_the_resolved_target(self):
+        row = self.client.get("/api/dashboard").data["recent_audit"][0]
+
+        self.assertEqual(row["action"], "account.created")
+        # `resolve_labels` nêu cả vai trò cho họ action `account.*` (08 §2.1).
+        self.assertEqual(row["target_label"], "Teacher Pham Thu Hoa")
+        self.assertEqual(row["actor"]["id"], self.admin.id)
+        self.assertEqual(row["actor"]["role"], "ADMIN")
+
+
+class AdminEmptyAuditTests(TestCase):
+    """`AuditLog` là append-only — `.delete()` raise `RuntimeError` (08 §4), nên
+    danh sách rỗng chỉ dựng được trong một TestCase không ghi log nào."""
+
+    def test_an_empty_log_yields_an_empty_list_not_a_missing_key(self):
+        client = APIClient()
+        admin = User.objects.create_user("empty-audit@example.test", "pw", role="ADMIN")
+        client.force_authenticate(admin)
+
+        response = client.get("/api/dashboard")
+
+        self.assertEqual(response.data["recent_audit"], [])
