@@ -11,7 +11,7 @@ class NotificationsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        rows = Notification.objects.filter(recipient=request.user).order_by("-created_at")
+        rows = Notification.objects.filter(recipient=request.user).order_by("-created_at", "-id")
         return Response({"unread_count": rows.filter(read_at__isnull=True).count(), "items": NotificationSerializer(rows, many=True).data})
 
 

@@ -46,6 +46,17 @@ class NotificationApiTests(TestCase):
         self.assertEqual(self.authenticate(self.other)
                          .post(f"/api/notifications/{self.unread.id}/read").status_code, 404)
 
+    def test_rows_created_in_one_bulk_write_keep_a_stable_newest_first_order(self):
+        stamp = timezone.now()
+        rows = Notification.objects.bulk_create([
+            Notification(recipient=self.student, type="ASSIGNMENT_CREATED", title=f"Bulk {index}", link="/x")
+            for index in range(3)
+        ])
+        Notification.objects.filter(id__in=[row.id for row in rows]).update(created_at=stamp)
+        titles = [item["title"] for item in
+                  self.authenticate(self.student).get("/api/notifications").data["items"][:3]]
+        self.assertEqual(titles, ["Bulk 2", "Bulk 1", "Bulk 0"])
+
     def test_serializer_exposes_type_and_created_at(self):
         item = self.authenticate(self.student).get("/api/notifications").data["items"][0]
         self.assertEqual(
