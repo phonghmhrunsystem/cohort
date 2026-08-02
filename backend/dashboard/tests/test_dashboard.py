@@ -54,3 +54,56 @@ class DashboardAccessTests(TestCase):
         response = self.client.get("/api/dashboard?role=ADMIN")
 
         self.assertEqual(response.data["role"], "TEACHER")
+
+
+class AdminAccountCountTests(TestCase):
+    """Migration `accounts.0002_seed_demo_data` gieo sẵn một roster demo vào DB
+    test, nên mọi khẳng định ở đây là **delta** so với nền đó — con số tuyệt đối
+    sẽ đỏ ngay lần đầu ai đó thêm một dòng vào roster."""
+
+    def setUp(self):
+        self.client = APIClient()
+        self.baseline = {
+            key: User.objects.filter(role=role, is_deleted=False).count()
+            for key, role in (("admins", "ADMIN"), ("teachers", "TEACHER"), ("students", "STUDENT"))
+        }
+        self.admin = User.objects.create_user("count-admin@example.test", "pw", role="ADMIN")
+        User.objects.create_user("count-admin2@example.test", "pw", role="ADMIN")
+        for i in range(3):
+            User.objects.create_user(f"count-teacher{i}@example.test", "pw", role="TEACHER")
+        for i in range(5):
+            User.objects.create_user(f"count-student{i}@example.test", "pw", role="STUDENT")
+        self.client.force_authenticate(self.admin)
+
+    def test_counts_are_grouped_by_role(self):
+        response = self.client.get("/api/dashboard")
+
+        self.assertEqual(
+            response.data["accounts"],
+            {
+                "admins": self.baseline["admins"] + 2,
+                "teachers": self.baseline["teachers"] + 3,
+                "students": self.baseline["students"] + 5,
+            },
+        )
+
+    def test_a_disabled_account_still_counts(self):
+        User.objects.filter(email="count-student0@example.test").update(is_active=False)
+
+        response = self.client.get("/api/dashboard")
+
+        self.assertEqual(response.data["accounts"]["students"], self.baseline["students"] + 5)
+
+    def test_a_soft_deleted_account_does_not_count(self):
+        User.objects.filter(email="count-student0@example.test").update(is_deleted=True)
+
+        response = self.client.get("/api/dashboard")
+
+        self.assertEqual(response.data["accounts"]["students"], self.baseline["students"] + 4)
+
+    def test_a_role_with_no_accounts_reports_zero_not_a_missing_key(self):
+        User.objects.filter(role="TEACHER").update(is_deleted=True)
+
+        response = self.client.get("/api/dashboard")
+
+        self.assertEqual(response.data["accounts"]["teachers"], 0)
