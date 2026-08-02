@@ -302,3 +302,78 @@ export interface AuditLog {
   metadata: Record<string, unknown>;
   created_at: string;
 }
+
+export interface AuditRow {
+  id: number;
+  action: string;
+  target_label: string;
+  actor: { id: number; full_name: string | null; role: Role };
+  created_at: string;
+}
+
+export interface AdminDashboard {
+  role: "ADMIN";
+  accounts: { admins: number; teachers: number; students: number };
+  classes: { running: number; scheduled: number; ended: number; disabled: number };
+  recent_audit: AuditRow[];
+}
+
+export interface PendingRow {
+  submission_id: number;
+  assignment_id: number;
+  assignment_title: string;
+  class_id: number;
+  class_name: string;
+  student: { id: number; full_name: string | null };
+  submitted_at: string;
+}
+
+export interface DueSoonRow {
+  assignment_id: number;
+  title: string;
+  class_id: number;
+  class_name: string;
+  due_at: string;
+  submitted_count: number;
+  student_count: number;
+}
+
+export interface TeacherDashboard {
+  role: "TEACHER";
+  cards: {
+    my_classes: number;
+    running_classes: number;
+    open_assignments: number;
+    pending_grading: number;
+    students: number;
+  };
+  pending: PendingRow[];
+  due_soon: DueSoonRow[];
+}
+
+export interface TodoRow {
+  assignment_id: number;
+  title: string;
+  class_id: number;
+  class_name: string;
+  due_at: string;
+}
+
+export interface RecentGradeRow {
+  assignment_id: number;
+  title: string;
+  class_id: number;
+  class_name: string;
+  score: number;
+  maximum_score: number;
+  graded_at: string;
+}
+
+export interface StudentDashboard {
+  role: "STUDENT";
+  cards: { my_classes: number; not_submitted: number; graded: number; average_score: number | null };
+  todo: TodoRow[];
+  recent_grades: RecentGradeRow[];
+}
+
+export type DashboardData = AdminDashboard | TeacherDashboard | StudentDashboard;
