@@ -22,6 +22,8 @@ Append-only trail of the system's significant writes (accounts, Classes, enrollm
 | 2026-07-29 11:02  Teacher - Pham Thu Hoa   Created assignment  Lab 3 - Responsive Layout      |
 | 2026-07-29 14:40  Student - Tran Minh Anh  Submitted work      Lab 3 - Responsive Layout      |
 | 2026-07-29 15:10  Teacher - Pham Thu Hoa   Recorded grade      Lab 3 - Tran Minh Anh 85/100   |
+|                                                                                               |
+|                                        [ < ] 1 2 3 ... 12 [ > ]                               |
 +-----------------------------------------------------------------------------------------------+
 ```
 
@@ -62,7 +64,9 @@ Any `action` the UI doesn't recognise renders as the raw dotted code rather than
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/api/audit-logs` | Admin only | Full list, newest first (`-created_at, -id`) |
+| GET | `/api/audit-logs` | Admin only | Paginated list, newest first (`-created_at, -id`); `?page=N`, 10 rows/page |
+
+The table is append-only and never pruned, so the list is paginated like every other list in the app (`{count, next, previous, results}`, 10 per page) rather than shipping the whole log — the alternative gets slower every day it runs. `audit/labels.py` resolves labels for the current page only, so the batched-query count stays flat no matter how long the log grows. A `?page=` past the end is a 404, the DRF default.
 
 ## 4. DB
 

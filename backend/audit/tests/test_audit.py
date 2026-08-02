@@ -125,7 +125,34 @@ class AuditTests(TestCase):
         client.force_authenticate(self.admin)
         response = client.get("/api/audit-logs")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data[0]["id"], self.log.id)
+        self.assertEqual(response.data["results"][0]["id"], self.log.id)
+
+    def test_the_log_is_paginated_newest_first(self):
+        for index in range(24):
+            AuditLog.objects.create(actor=self.admin, action="account.updated",
+                                    target_type="accounts.user", target_id=self.teacher.id,
+                                    metadata={"index": index})
+        client = APIClient()
+        client.force_authenticate(self.admin)
+
+        first = client.get("/api/audit-logs")
+        last = client.get("/api/audit-logs", {"page": 3})
+
+        self.assertEqual(first.data["count"], 25)
+        self.assertEqual(len(first.data["results"]), 10)
+        self.assertIsNotNone(first.data["next"])
+        self.assertIsNone(first.data["previous"])
+        self.assertEqual(first.data["results"][0]["metadata"], {"index": 23})
+        # Trang cuối là phần đuôi cũ nhất: dòng của setUp đóng đuôi danh sách.
+        self.assertEqual(len(last.data["results"]), 5)
+        self.assertIsNone(last.data["next"])
+        self.assertEqual(last.data["results"][-1]["id"], self.log.id)
+
+    def test_a_page_past_the_end_is_a_404_not_an_empty_page(self):
+        client = APIClient()
+        client.force_authenticate(self.admin)
+
+        self.assertEqual(client.get("/api/audit-logs", {"page": 9}).status_code, 404)
 
     def test_audit_api_scrubs_preexisting_sensitive_metadata_and_shows_actor_display_data(self):
         log = AuditLog.objects.create(
@@ -146,8 +173,9 @@ class AuditTests(TestCase):
         response = client.get("/api/audit-logs")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data[0]["metadata"], {"safe": 1})
-        self.assertEqual(response.data[0]["actor"], {"id": self.admin.id, "full_name": None, "email": self.admin.email})
+        self.assertEqual(response.data["results"][0]["metadata"], {"safe": 1})
+        self.assertEqual(response.data["results"][0]["actor"],
+                         {"id": self.admin.id, "full_name": None, "email": self.admin.email})
 
 
 class TargetLabelTests(TestCase):
@@ -169,7 +197,7 @@ class TargetLabelTests(TestCase):
 
     def labels(self):
         self.client.force_authenticate(user=self.admin)
-        return {row["action"]: row["target_label"] for row in self.client.get("/api/audit-logs").data}
+        return {row["action"]: row["target_label"] for row in self.client.get("/api/audit-logs").data["results"]}
 
     def test_an_account_row_names_the_user_and_their_role(self):
         AuditLog.objects.create(actor=self.admin, action="account.created",
@@ -222,8 +250,8 @@ class TargetLabelTests(TestCase):
                                     target_type="accounts.user", target_id=self.student.id,
                                     metadata={"index": index})
         self.client.force_authenticate(user=self.admin)
-        # 1 (logs + actor qua select_related) + 1 (bảng user). Ba truy vấn nhãn
-        # còn lại không chạy vì không có id nào để tra. Điều được chốt ở đây là
-        # hằng số: thêm 20 dòng nữa cũng không làm nó tăng.
-        with self.assertNumQueries(2):
+        # 1 (COUNT của paginator) + 1 (logs + actor qua select_related) + 1 (bảng
+        # user). Ba truy vấn nhãn còn lại không chạy vì không có id nào để tra.
+        # Điều được chốt ở đây là hằng số: thêm 20 dòng nữa cũng không làm nó tăng.
+        with self.assertNumQueries(3):
             self.client.get("/api/audit-logs")
