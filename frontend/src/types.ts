@@ -257,3 +257,29 @@ export interface GradeSubmissionInfo {
   created_at: string;
   graded: boolean;
 }
+
+/** `type` cố ý nới thành string: backend lưu CharField tự do, UI fallback về
+ * icon chuông cho giá trị lạ (07 §4). */
+export type NotificationType =
+  | "ASSIGNMENT_CREATED" | "RESOURCE_CREATED" | "CLASS_ASSIGNED" | "CLASS_UNASSIGNED" | (string & {});
+
+export interface Notification {
+  id: number;
+  type: NotificationType;
+  title: string;
+  link: string | null;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface NotificationList {
+  unread_count: number;
+  items: Notification[];
+}
+
+export interface ClassResource {
+  id: number;
+  title: string;
+  description: string;
+  url: string;
+}
