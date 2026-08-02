@@ -1,9 +1,14 @@
+from datetime import timedelta
+
+from django.db import transaction
 from django.utils import timezone
 from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import User
+from classes.models import Class, Enrollment
 from notifications.models import Notification
+from notifications.services import create_notifications, notify_user
 
 
 class NotificationApiTests(TestCase):
@@ -95,3 +100,42 @@ class NotificationApiTests(TestCase):
         self.assertEqual(
             set(item), {"id", "type", "title", "link", "created_at", "read_at"},
         )
+
+
+class FanOutTests(TestCase):
+    def setUp(self):
+        self.teacher = User.objects.create_user("t@example.test", "pw", role="TEACHER")
+        self.enrolled = User.objects.create_user("a@example.test", "pw", role="STUDENT")
+        self.disabled = User.objects.create_user("b@example.test", "pw", role="STUDENT")
+        self.disabled.is_active = False
+        self.disabled.save(update_fields=("is_active",))
+        self.outsider = User.objects.create_user("c@example.test", "pw", role="STUDENT")
+        self.class_ = Class.objects.create(
+            name="Cohort 5", teacher=self.teacher,
+            starts_at=timezone.now(), ends_at=timezone.now() + timedelta(days=30),
+        )
+        Enrollment.objects.create(classroom=self.class_, student=self.enrolled)
+        Enrollment.objects.create(classroom=self.class_, student=self.disabled)
+
+    def test_fan_out_reaches_the_whole_roster_including_disabled_accounts(self):
+        create_notifications(self.class_, "ASSIGNMENT_CREATED", "New assignment: Lab 1", "/student/assignments/1")
+        recipients = set(Notification.objects.values_list("recipient_id", flat=True))
+        self.assertEqual(recipients, {self.enrolled.id, self.disabled.id})
+
+    def test_a_student_enrolled_after_the_fan_out_gets_nothing_retroactively(self):
+        create_notifications(self.class_, "ASSIGNMENT_CREATED", "New assignment: Lab 1", "/student/assignments/1")
+        Enrollment.objects.create(classroom=self.class_, student=self.outsider)
+        self.assertFalse(Notification.objects.filter(recipient=self.outsider).exists())
+
+    def test_a_rolled_back_transaction_leaves_no_orphan_fan_out(self):
+        try:
+            with transaction.atomic():
+                create_notifications(self.class_, "ASSIGNMENT_CREATED", "New assignment: Lab 1", "/student/assignments/1")
+                raise RuntimeError("the domain write failed")
+        except RuntimeError:
+            pass
+        self.assertFalse(Notification.objects.exists())
+
+    def test_notify_user_writes_one_row_for_a_teacher_who_is_not_enrolled(self):
+        notify_user(self.teacher, "CLASS_ASSIGNED", "Assigned to Cohort 5", f"/teacher/classes/{self.class_.id}")
+        self.assertEqual(Notification.objects.filter(recipient=self.teacher).count(), 1)
