@@ -80,6 +80,7 @@ flowchart LR
 | `classes` (Gradebook views) | [06-gradebook](06-gradebook.md) |
 | `notifications` | [07-notifications-and-resources](07-notifications-and-resources.md) |
 | `audit` | [08-audit-log](08-audit-log.md) |
+| `dashboard` | [09-dashboard](09-dashboard.md) |
 
 ## 6. Cross-cutting rules (apply to every feature)
 
