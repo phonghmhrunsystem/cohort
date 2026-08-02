@@ -3,6 +3,7 @@ import { Link, Outlet } from "react-router-dom";
 
 import { useAuth } from "../auth/AuthProvider";
 import { Icon } from "./Icon";
+import { NotificationBell } from "./NotificationBell";
 import { UserMenu } from "./UserMenu";
 
 export function AppShell({ children }: { children?: ReactNode }) {
@@ -72,7 +73,7 @@ export function AppShell({ children }: { children?: ReactNode }) {
       <header>
         <button ref={menuButton} className="menu-button" aria-label="Open menu" onClick={() => setOpen(true)}>&#9776;</button>
         <div className="header-actions">
-          <Link className="notification-link" to="/notifications" aria-label="Notifications"><Icon name="bell" /></Link>
+          {user?.role !== "ADMIN" && <NotificationBell />}
           <UserMenu />
         </div>
       </header>

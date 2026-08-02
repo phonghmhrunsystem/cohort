@@ -61,7 +61,6 @@ export function App() {
       <Route path="/dashboard" element={<DashboardPage />} />
       <Route path="/profile" element={<ProfilePage />} />
       <Route path="/profile/edit" element={<ProfileEditPage />} />
-      <Route path="/notifications" element={<Placeholder title="Notifications" />} />
       <Route element={<RequireRole roles={["TEACHER"]} />}>
         <Route path="/teacher/classes" element={<TeacherClassesPage />} />
         <Route path="/teacher/classes/:classId" element={<TeacherClassPage />} />

@@ -45,8 +45,8 @@ describe("App", () => {
 
   it.each([
     ["ADMIN", ["Dashboard", "Accounts", "Classes", "Audit"]],
-    ["TEACHER", ["Dashboard", "My Classes", "Notifications"]],
-    ["STUDENT", ["Dashboard", "My Classes", "Notifications"]],
+    ["TEACHER", ["Dashboard", "My Classes"]],
+    ["STUDENT", ["Dashboard", "My Classes"]],
   ] as const)("shows the %s navigation", async (role, links) => {
     window.history.replaceState({}, "", "/dashboard");
     sessionStorage.setItem("access_token", "token");
@@ -64,6 +64,37 @@ describe("App", () => {
 
     await screen.findByRole("heading", { name: "Dashboard" });
     for (const link of links) expect(screen.getByRole("link", { name: link })).toBeTruthy();
+  });
+
+  it("shows the notification bell in the shell header for a student and drops the /notifications link", async () => {
+    window.history.replaceState({}, "", "/dashboard");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 1, full_name: "Ada", email: "ada@example.test", role: "STUDENT", phone: null,
+      date_of_birth: null, gender: null, hometown: null, address: null, is_active: true, must_change_password: false,
+    }), { headers: { "Content-Type": "application/json" } })));
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "Dashboard" });
+    expect(screen.getByRole("button", { name: /Thông báo/ })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Notifications" })).toBeNull();
+  });
+
+  it("hides the bell for an admin", async () => {
+    window.history.replaceState({}, "", "/dashboard");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 1, full_name: "Ada", email: "ada@example.test", role: "ADMIN", phone: null,
+      date_of_birth: null, gender: null, hometown: null, address: null, is_active: true, must_change_password: false,
+    }), { headers: { "Content-Type": "application/json" } })));
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "Dashboard" });
+    expect(screen.queryByRole("button", { name: /Thông báo/ })).toBeNull();
   });
 
   it("allows a forced user only on change password", async () => {
