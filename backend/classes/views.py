@@ -313,7 +313,7 @@ class ClassResourcesView(APIView):
     def get(self, request, class_id):
         classroom = get_scoped_class(request.user, class_id)
         if request.user.role not in (User.Role.TEACHER, User.Role.STUDENT): return Response(status=status.HTTP_403_FORBIDDEN)
-        return Response(ClassResourceSerializer(classroom.resources.all(), many=True).data)
+        return Response(ClassResourceSerializer(classroom.resources.order_by("-id"), many=True).data)
 
     def post(self, request, class_id):
         classroom = get_object_or_404(Class.objects.filter(id=class_id, teacher=request.user), id=class_id)

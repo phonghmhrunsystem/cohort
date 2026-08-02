@@ -10,7 +10,7 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from assignments.models import Assignment
 from audit.models import AuditLog
-from classes.models import Class, Enrollment
+from classes.models import Class, ClassResource, Enrollment
 from grading.models import Grade
 from submissions.models import Submission
 
@@ -74,6 +74,12 @@ class ClassApiTests(TestCase):
         self.student_client.force_authenticate(self.student)
         self.other_student_client = APIClient()
         self.other_student_client.force_authenticate(self.other_student)
+
+    def test_resources_come_back_newest_first(self):
+        for title in ("First", "Second", "Third"):
+            ClassResource.objects.create(classroom=self.course, title=title, description="", url="https://example.test/x")
+        response = self.teacher_client.get(f"/api/classes/{self.course.id}/resources")
+        self.assertEqual([row["title"] for row in response.data], ["Third", "Second", "First"])
 
     def test_only_admin_can_mutate_classes_and_enrollment(self):
         payload = self.class_payload()
