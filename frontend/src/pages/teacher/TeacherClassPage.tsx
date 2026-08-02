@@ -5,6 +5,7 @@ import { Alert } from "../../components/Alert";
 import { Badge } from "../../components/Badge";
 import { Button } from "../../components/Button";
 import { Card } from "../../components/Card";
+import { ClassResources } from "../../components/ClassResources";
 import { Dialog } from "../../components/Dialog";
 import { EmptyState } from "../../components/EmptyState";
 import { GradebookPanel } from "../../components/GradebookPanel";
@@ -35,7 +36,7 @@ export function TeacherClassPage() {
   const { classId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const tab = requestedTab === "assignments" || requestedTab === "gradebook" ? requestedTab : "students";
+  const tab = requestedTab === "assignments" || requestedTab === "gradebook" || requestedTab === "resources" ? requestedTab : "students";
   const [class_, setClass] = useState<ClassRow>();
   const [roster, setRoster] = useState<RosterResponse>();
   const [query, setQuery] = useState("");
@@ -107,6 +108,29 @@ export function TeacherClassPage() {
     }
   }
 
+  const [resourceForm, setResourceForm] = useState({ title: "", description: "", url: "" });
+  const [resourceErrors, setResourceErrors] = useState<FieldErrors>({});
+  const [resourceBusy, setResourceBusy] = useState(false);
+  const [resourceReload, setResourceReload] = useState(0);
+
+  async function submitResource(event: FormEvent) {
+    event.preventDefault();
+    setResourceErrors({});
+    setResourceBusy(true);
+    try {
+      /** Resource cố ý không theo lifecycle của assignment: không kiểm is_open,
+       * không hạn — đăng tài liệu cho một lớp đã kết thúc là chuyện bình thường (07 §2.3). */
+      await request(`/classes/${classId}/resources`, { method: "POST", token: token(), body: resourceForm });
+      setResourceForm({ title: "", description: "", url: "" });
+      setResourceReload((value) => value + 1);
+    } catch (error) {
+      if (error instanceof ApiFailure && error.fields) setResourceErrors(error.fields);
+      else toast.error(error instanceof Error ? error.message : "Unable to add resource.");
+    } finally {
+      setResourceBusy(false);
+    }
+  }
+
   const search = (event: FormEvent) => { event.preventDefault(); setPageNumber(1); setSubmitted(query); };
 
   const rosterColumns: Column<RosterStudent>[] = [
@@ -124,7 +148,20 @@ export function TeacherClassPage() {
       <button type="button" className="tab" role="tab" aria-selected={tab === "students"} onClick={() => setSearchParams({ tab: "students" })}>Students</button>
       <button type="button" className="tab" role="tab" aria-selected={tab === "assignments"} onClick={() => setSearchParams({ tab: "assignments" })}>Assignments</button>
       <button type="button" className="tab" role="tab" aria-selected={tab === "gradebook"} onClick={() => setSearchParams({ tab: "gradebook" })}>Bảng điểm</button>
+      <button type="button" className="tab" role="tab" aria-selected={tab === "resources"} onClick={() => setSearchParams({ tab: "resources" })}>Class resources</button>
     </div>
+    {tab === "resources" && <Card>
+      <form noValidate className="form-grid" onSubmit={submitResource}>
+        <Field id="resource-title" label="Title" required wide value={resourceForm.title} error={resourceErrors.title?.[0]}
+          onChange={(event) => setResourceForm({ ...resourceForm, title: event.target.value })} />
+        <Textarea id="resource-description" label="Description" wide rows={3} value={resourceForm.description} error={resourceErrors.description?.[0]}
+          onChange={(event) => setResourceForm({ ...resourceForm, description: event.target.value })} />
+        <Field id="resource-url" label="URL" required wide value={resourceForm.url} error={resourceErrors.url?.[0]}
+          onChange={(event) => setResourceForm({ ...resourceForm, url: event.target.value })} />
+        <div className="form-actions field-full"><Button type="submit" disabled={resourceBusy}>{resourceBusy ? "Saving…" : "Tạo tài liệu"}</Button></div>
+      </form>
+      <ClassResources classId={Number(classId)} reloadKey={resourceReload} />
+    </Card>}
     {tab === "gradebook" && <GradebookPanel classId={Number(classId)} />}
     {tab === "students" && roster && <Card>
       <p>Đã ghi danh {roster.enrolled_students} · Đã nộp {roster.submitted_students} · Đã chấm {roster.graded_students}</p>

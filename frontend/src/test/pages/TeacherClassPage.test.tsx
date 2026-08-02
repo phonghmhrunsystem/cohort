@@ -68,6 +68,39 @@ function openPage(fetchMock: ReturnType<typeof vi.fn>, entry = "/teacher/classes
   );
 }
 
+describe("Teacher class resources", () => {
+  afterEach(() => { sessionStorage.clear(); vi.unstubAllGlobals(); });
+
+  it("creates a resource and reloads the list", async () => {
+    // fetch: 1) class detail  2) GET resources (rỗng)  3) POST resource  4) GET resources (1 dòng)
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(classDetail))
+      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(json({ id: 1, title: "Slide deck", description: "", url: "https://example.test/s" }, 201))
+      .mockResolvedValueOnce(json([{ id: 1, title: "Slide deck", description: "", url: "https://example.test/s" }]));
+    openPage(fetchMock, "/teacher/classes/9?tab=resources");
+    await userEvent.type(await screen.findByLabelText("Title"), "Slide deck");
+    await userEvent.type(screen.getByLabelText("URL"), "https://example.test/s");
+    await userEvent.click(screen.getByRole("button", { name: "Tạo tài liệu" }));
+    expect(await screen.findByRole("link", { name: /Slide deck/ })).toBeTruthy();
+    const [path, init] = fetchMock.mock.calls[2];
+    expect(path).toBe("/api/classes/9/resources");
+    expect(init.method).toBe("POST");
+  });
+
+  it("shows the server validation message when the URL is rejected", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(classDetail))
+      .mockResolvedValueOnce(json([]))
+      .mockResolvedValueOnce(json({ url: ["Enter a valid URL."] }, 422));
+    openPage(fetchMock, "/teacher/classes/9?tab=resources");
+    await userEvent.type(await screen.findByLabelText("Title"), "Bad");
+    await userEvent.type(screen.getByLabelText("URL"), "not-a-url");
+    await userEvent.click(screen.getByRole("button", { name: "Tạo tài liệu" }));
+    expect(await screen.findByText("Enter a valid URL.")).toBeTruthy();
+  });
+});
+
 describe("Teacher class page", () => {
   afterEach(() => {
     sessionStorage.clear();
