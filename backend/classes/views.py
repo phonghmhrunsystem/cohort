@@ -527,6 +527,13 @@ def is_open(class_):
     return class_.is_active and class_.starts_at <= now < class_.ends_at
 
 
+def open_class_q(now=None):
+    """Bản `WHERE` của `is_open`. Hai hàm phải luôn đồng ý với nhau —
+    xem `OpenClassWindowTests`."""
+    now = now or timezone.now()
+    return Q(is_active=True, starts_at__lte=now, ends_at__gt=now)
+
+
 def closed_response(detail="Class has ended and is read-only."):
     return Response({"detail": detail}, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
 

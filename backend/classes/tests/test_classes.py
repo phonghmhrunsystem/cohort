@@ -11,6 +11,7 @@ from accounts.models import User
 from assignments.models import Assignment
 from audit.models import AuditLog
 from classes.models import Class, ClassResource, Enrollment
+from classes.views import is_open, open_class_q
 from grading.models import Grade
 from submissions.models import Submission
 
@@ -917,3 +918,37 @@ class GradebookApiTests(TestCase):
         content = response.content.decode("utf-8-sig")
         self.assertIn("'=cmd|' /C calc'!A0,gradebook-student@example.test,Đã nộp,Đã đóng\r\n", content)
         self.assertIn(",gradebook-other-student@example.test,Chưa nộp,Đã đóng\r\n", content)
+
+
+class OpenClassWindowTests(TestCase):
+    """`is_open` (in-memory) và `open_class_q` (SQL) là hai cách viết cùng một
+    luật §6.2. Test này là thứ duy nhất giữ chúng khớp nhau — đừng xoá."""
+
+    def setUp(self):
+        self.teacher = User.objects.create_user("window-teacher@example.test", "pw", role="TEACHER")
+        now = timezone.now()
+        make = lambda name, starts, ends, active: Class.objects.create(
+            teacher=self.teacher, name=name, starts_at=starts, ends_at=ends, is_active=active
+        )
+        self.running = make("running", now - timedelta(days=1), now + timedelta(days=1), True)
+        self.scheduled = make("scheduled", now + timedelta(days=1), now + timedelta(days=2), True)
+        self.ended = make("ended", now - timedelta(days=2), now - timedelta(days=1), True)
+        self.disabled = make("disabled", now - timedelta(days=1), now + timedelta(days=1), False)
+        # DB test đã có lớp demo do migration gieo sẵn; khẳng định tập chính xác
+        # chỉ nói về bốn lớp dựng ở đây.
+        self.mine = {self.running.id, self.scheduled.id, self.ended.id, self.disabled.id}
+
+    def test_the_query_selects_exactly_the_classes_is_open_accepts(self):
+        by_query = set(Class.objects.filter(open_class_q()).values_list("id", flat=True))
+        by_instance = {c.id for c in Class.objects.all() if is_open(c)}
+
+        self.assertEqual(by_query, by_instance)
+        self.assertEqual(by_query & self.mine, {self.running.id})
+
+    def test_the_query_accepts_an_explicit_now(self):
+        before_start = self.scheduled.starts_at + timedelta(hours=1)
+
+        selected = set(Class.objects.filter(open_class_q(before_start)).values_list("id", flat=True))
+
+        self.assertIn(self.scheduled.id, selected)
+        self.assertNotIn(self.ended.id, selected)
