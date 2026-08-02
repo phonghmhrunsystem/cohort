@@ -277,9 +277,15 @@ export interface NotificationList {
   items: Notification[];
 }
 
+/** Một resource là link HOẶC file, không bao giờ cả hai (07 §4). `kind` do
+ * backend suy ra từ cột, không lưu — nên nó luôn khớp với dữ liệu. */
 export interface ClassResource {
   id: number;
   title: string;
   description: string;
+  kind: "link" | "file";
   url: string;
+  original_filename: string;
+  content_type: string;
+  size: number | null;
 }

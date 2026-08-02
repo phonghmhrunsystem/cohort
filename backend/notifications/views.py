@@ -15,6 +15,15 @@ class NotificationsView(APIView):
         return Response({"unread_count": rows.filter(read_at__isnull=True).count(), "items": NotificationSerializer(rows, many=True).data})
 
 
+class NotificationUnreadCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        """Chỉ một COUNT(*), không nạp row nào — đó là lý do client poll được
+        mỗi 30 giây mà GET /notifications thì không (07 §2.1)."""
+        return Response({"unread_count": Notification.objects.filter(recipient=request.user, read_at__isnull=True).count()})
+
+
 class NotificationReadView(APIView):
     permission_classes = [IsAuthenticated]
 

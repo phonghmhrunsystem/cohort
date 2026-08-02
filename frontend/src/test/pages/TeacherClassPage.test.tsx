@@ -76,8 +76,8 @@ describe("Teacher class resources", () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(classDetail))
       .mockResolvedValueOnce(json([]))
-      .mockResolvedValueOnce(json({ id: 1, title: "Slide deck", description: "", url: "https://example.test/s" }, 201))
-      .mockResolvedValueOnce(json([{ id: 1, title: "Slide deck", description: "", url: "https://example.test/s" }]));
+      .mockResolvedValueOnce(json({ id: 1, title: "Slide deck", description: "", kind: "link", url: "https://example.test/s", original_filename: "", content_type: "", size: null }, 201))
+      .mockResolvedValueOnce(json([{ id: 1, title: "Slide deck", description: "", kind: "link", url: "https://example.test/s", original_filename: "", content_type: "", size: null }]));
     openPage(fetchMock, "/teacher/classes/9?tab=resources");
     await userEvent.type(await screen.findByLabelText("Title"), "Slide deck");
     await userEvent.type(screen.getByLabelText("URL"), "https://example.test/s");

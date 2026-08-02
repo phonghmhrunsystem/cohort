@@ -37,6 +37,22 @@ class NotificationApiTests(TestCase):
         self.assertEqual([item["title"] for item in response.data["items"]],
                          ["New resource: Slides", "New assignment: Lab 1"])
 
+    def test_unread_count_matches_the_list_and_is_scoped_to_the_caller(self):
+        Notification.objects.create(recipient=self.other, type="ASSIGNMENT_CREATED", title="Not mine", link="/x")
+        response = self.authenticate(self.student).get("/api/notifications/unread-count")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data, {"unread_count": 1})
+
+        empty = self.authenticate(self.other).get("/api/notifications/unread-count")
+        self.assertEqual(empty.data["unread_count"], 1)
+        self.authenticate(self.other).post("/api/notifications/read-all")
+        self.assertEqual(self.authenticate(self.other).get("/api/notifications/unread-count").data["unread_count"], 0)
+        # Marking the other user's rows read leaves this user's badge alone.
+        self.assertEqual(self.authenticate(self.student).get("/api/notifications/unread-count").data["unread_count"], 1)
+
+    def test_unread_count_requires_authentication(self):
+        self.assertEqual(APIClient().get("/api/notifications/unread-count").status_code, 401)
+
     def test_list_requires_authentication(self):
         self.assertEqual(APIClient().get("/api/notifications").status_code, 401)
 

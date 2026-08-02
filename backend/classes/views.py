@@ -1,12 +1,16 @@
 from django.apps import apps
 from django.db import IntegrityError, connection, transaction
 import csv
+from pathlib import Path
+from uuid import uuid4
 
+from django.core.files.storage import default_storage
 from django.db.models import Count, F, OuterRef, Prefetch, Q, Subquery
-from django.http import HttpResponse
+from django.http import FileResponse, Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import serializers, status
+from rest_framework.exceptions import PermissionDenied
 from accounts.permissions import IsAuthenticated
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
@@ -307,22 +311,119 @@ class EnrollmentView(APIView):
         return Response(StudentSerializer(students, many=True).data)
 
 
+def owned_class(user, class_id):
+    """Resources are written only by the Teacher who owns the Class; anyone else
+    gets a 404 rather than a 403 — they cannot see the Class either."""
+    return get_object_or_404(Class.objects.filter(id=class_id, teacher=user), id=class_id)
+
+
+def readable_class(user, class_id):
+    classroom = get_scoped_class(user, class_id)
+    if user.role not in (User.Role.TEACHER, User.Role.STUDENT):
+        raise PermissionDenied("Resources are course material, not an admin surface.")
+    return classroom
+
+
+def store_resource_upload(upload):
+    return default_storage.save(f"resources/{uuid4().hex}{Path(upload.name).suffix.lower()}", upload)
+
+
+def resource_write_fields(validated):
+    """Turn validated input into the columns that carry the resource's source.
+    A resource is a link XOR a file, so writing one side always clears the other."""
+    upload = validated.pop("file", None)
+    if upload is not None:
+        return {
+            "url": "",
+            "file_path": store_resource_upload(upload),
+            "original_filename": upload.name,
+            "content_type": upload.content_type,
+            "size": upload.size,
+        }
+    if validated.get("url"):
+        return {"file_path": "", "original_filename": "", "content_type": "", "size": None}
+    return {}
+
+
+def discard_file(file_path):
+    """Best-effort cleanup. A file left behind is wasted disk; a row pointing at
+    a deleted file is a broken download, so the row always wins."""
+    if not file_path: return
+    try:
+        default_storage.delete(file_path)
+    except OSError:
+        pass
+
+
 class ClassResourcesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, class_id):
-        classroom = get_scoped_class(request.user, class_id)
-        if request.user.role not in (User.Role.TEACHER, User.Role.STUDENT): return Response(status=status.HTTP_403_FORBIDDEN)
+        classroom = readable_class(request.user, class_id)
         return Response(ClassResourceSerializer(classroom.resources.order_by("-id"), many=True).data)
 
     def post(self, request, class_id):
-        classroom = get_object_or_404(Class.objects.filter(id=class_id, teacher=request.user), id=class_id)
+        classroom = owned_class(request.user, class_id)
         serializer = ClassResourceSerializer(data=request.data)
         if not serializer.is_valid(): return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
-        with transaction.atomic():
-            resource = serializer.save(classroom=classroom)
-            create_notifications(classroom, "RESOURCE_CREATED", f"New resource: {resource.title}", f"/student/classes/{classroom.id}")
+        written = resource_write_fields(serializer.validated_data)
+        try:
+            with transaction.atomic():
+                resource = serializer.save(classroom=classroom, **written)
+                create_notifications(classroom, "RESOURCE_CREATED", f"New resource: {resource.title}", f"/student/classes/{classroom.id}")
+        except Exception:
+            discard_file(written.get("file_path"))
+            raise
         return Response(ClassResourceSerializer(resource).data, status=status.HTTP_201_CREATED)
+
+
+class ClassResourceDetailView(APIView):
+    """Edit and delete are silent: a fan-out per typo fix is how a bell gets
+    ignored, and only creation notifies (07 §5.1)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get_resource(self, user, class_id, resource_id):
+        return get_object_or_404(ClassResource, id=resource_id, classroom=owned_class(user, class_id))
+
+    def patch(self, request, class_id, resource_id):
+        resource = self.get_resource(request.user, class_id, resource_id)
+        serializer = ClassResourceSerializer(resource, data=request.data, partial=True)
+        if not serializer.is_valid(): return Response(serializer.errors, status=status.HTTP_422_UNPROCESSABLE_ENTITY)
+        replaced = resource.file_path
+        written = resource_write_fields(serializer.validated_data)
+        try:
+            with transaction.atomic():
+                serializer.save(**written)
+        except Exception:
+            discard_file(written.get("file_path"))
+            raise
+        if written.get("file_path", replaced) != replaced: discard_file(replaced)
+        return Response(ClassResourceSerializer(resource).data)
+
+    def delete(self, request, class_id, resource_id):
+        resource = self.get_resource(request.user, class_id, resource_id)
+        file_path = resource.file_path
+        resource.delete()
+        # After the row is gone: a failed delete orphans a file, which beats a
+        # rollback leaving a row that points at nothing.
+        discard_file(file_path)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ClassResourceDownloadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, class_id, resource_id):
+        classroom = readable_class(request.user, class_id)
+        resource = get_object_or_404(ClassResource, id=resource_id, classroom=classroom)
+        # A link has no bytes to serve; the client opens it directly.
+        if not resource.file_path: raise Http404
+        return FileResponse(
+            default_storage.open(resource.file_path, "rb"),
+            as_attachment=True,
+            filename=resource.original_filename,
+        )
 
 
 def students_progress_queryset(class_):

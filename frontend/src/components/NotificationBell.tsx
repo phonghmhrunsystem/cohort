@@ -28,12 +28,32 @@ export function NotificationBell() {
 
   useEffect(() => {
     if (!open) return;
-    /** Chỉ fetch khi mở: không polling, không websocket (07 §2.1). */
+    /** Danh sách chỉ nạp khi mở panel: nạp theo nhịp sẽ thay dòng ngay dưới con
+     * trỏ người dùng đang bấm (07 §2.1.1). */
     setFailure("");
     request<NotificationList>("/notifications", { token: token() })
       .then((value) => { if (!value) return; setItems(value.items); setUnread(value.unread_count); })
       /** Lỗi mạng không phải bằng chứng là đã đọc — giữ nguyên badge và danh sách cũ. */
       .catch(() => setFailure("Không tải được thông báo."));
+  }, [open]);
+
+  /** Badge tự cập nhật: một COUNT(*) mỗi 30 giây, chỉ khi tab đang hiện, và bắn
+   * ngay khi người dùng quay lại tab. Panel đang mở thì bỏ qua để không đè lên
+   * trạng thái optimistic của "đánh dấu đã đọc" (07 §2.1.1). */
+  useEffect(() => {
+    if (open) return;
+    let cancelled = false;
+    const poll = () => {
+      if (document.visibilityState !== "visible") return;
+      request<{ unread_count: number }>("/notifications/unread-count", { token: token() })
+        .then((value) => { if (value && !cancelled) setUnread(value.unread_count); })
+        /** Lỗi mạng: giữ nguyên con số cũ. */
+        .catch(() => undefined);
+    };
+    poll();
+    const timer = window.setInterval(poll, 30_000);
+    document.addEventListener("visibilitychange", poll);
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener("visibilitychange", poll); };
   }, [open]);
 
   useEffect(() => {

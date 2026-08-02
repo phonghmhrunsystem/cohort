@@ -1,6 +1,6 @@
 from django.urls import path
 
-from .views import ClassDetailView, ClassesView, ClassResourcesView, ClassStatusView, EnrollmentView, GradebookCsvView, GradebookView, StudentDetailView, StudentsView
+from .views import ClassDetailView, ClassesView, ClassResourceDetailView, ClassResourceDownloadView, ClassResourcesView, ClassStatusView, EnrollmentView, GradebookCsvView, GradebookView, StudentDetailView, StudentsView
 
 
 urlpatterns = [
@@ -14,4 +14,6 @@ urlpatterns = [
     path("classes/<int:class_id>/enrollments", EnrollmentView.as_view()),
     path("classes/<int:class_id>/enrollments/<int:student_id>", EnrollmentView.as_view()),
     path("classes/<int:class_id>/resources", ClassResourcesView.as_view()),
+    path("classes/<int:class_id>/resources/<int:resource_id>", ClassResourceDetailView.as_view()),
+    path("classes/<int:class_id>/resources/<int:resource_id>/download", ClassResourceDownloadView.as_view()),
 ]

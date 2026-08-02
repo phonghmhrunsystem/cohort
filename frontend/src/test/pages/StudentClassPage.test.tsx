@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { StudentClassPage } from "../../pages/student/StudentClassPage";
+import { ToastProvider } from "../../components/Toast";
 
 const teacher = { id: 2, full_name: "Ada Teacher", email: "ada@example.test" };
 const classDetail = (overrides = {}) => ({
@@ -21,11 +22,13 @@ function openPage(fetchMock: ReturnType<typeof vi.fn>) {
   sessionStorage.setItem("access_token", "token");
   vi.stubGlobal("fetch", fetchMock);
   render(
-    <MemoryRouter initialEntries={["/student/classes/9"]}>
-      <Routes>
-        <Route path="/student/classes/:classId" element={<StudentClassPage />} />
-      </Routes>
-    </MemoryRouter>,
+    <ToastProvider>
+      <MemoryRouter initialEntries={["/student/classes/9"]}>
+        <Routes>
+          <Route path="/student/classes/:classId" element={<StudentClassPage />} />
+        </Routes>
+      </MemoryRouter>
+    </ToastProvider>,
   );
 }
 
@@ -38,7 +41,7 @@ describe("Student class page", () => {
   it("lists class resources in the resources tab", async () => {
     openPage(vi.fn()
       .mockResolvedValueOnce(json(classDetail()))
-      .mockResolvedValueOnce(json([{ id: 1, title: "Slide deck", description: "Week 1 slides", url: "https://example.test/s" }])));
+      .mockResolvedValueOnce(json([{ id: 1, title: "Slide deck", description: "Week 1 slides", kind: "link", url: "https://example.test/s", original_filename: "", content_type: "", size: null }])));
     expect(await screen.findByRole("link", { name: /Slide deck/ })).toBeTruthy();
   });
 

@@ -122,6 +122,16 @@ export async function downloadSubmission(submissionId: number, suggestedFilename
   return downloadBlob(submissionDownloadUrl(submissionId), suggestedFilename);
 }
 
+export function classResourcePath(classId: number, resourceId: number): string {
+  return `/classes/${classId}/resources/${resourceId}`;
+}
+
+/** File tài liệu không nằm dưới MEDIA_URL công khai: tải qua endpoint có Bearer
+ * nên nó vẫn bị giới hạn trong phạm vi lớp (07 §2.2). */
+export async function downloadClassResource(classId: number, resource: { id: number; original_filename: string }): Promise<void> {
+  return downloadBlob(`/api/classes/${classId}/resources/${resource.id}/download`, resource.original_filename);
+}
+
 export async function downloadGradebookCsv(classId: number): Promise<void> {
   return downloadBlob(gradebookCsvUrl(classId), `gradebook-${classId}.csv`);
 }

@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from django.conf import settings
 from rest_framework import serializers
 from django.utils import timezone
 
@@ -196,10 +199,37 @@ class EnrollmentSetSerializer(serializers.Serializer):
         return students
 
 
+# Extension whitelist for an uploaded resource, with the magic prefix the file
+# must start with and the content type the server assigns. `.txt` has no
+# signature, so it is accepted on the extension alone.
+# ponytail: magic-byte prefix check, not a container parse — same trade-off as
+# submissions/serializers.py.
+UPLOAD_TYPES = {
+    ".pdf": (b"%PDF-", "application/pdf"),
+    ".doc": (b"\xd0\xcf\x11\xe0", "application/msword"),
+    ".docx": (b"PK\x03\x04", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ".ppt": (b"\xd0\xcf\x11\xe0", "application/vnd.ms-powerpoint"),
+    ".pptx": (b"PK\x03\x04", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+    ".xls": (b"\xd0\xcf\x11\xe0", "application/vnd.ms-excel"),
+    ".xlsx": (b"PK\x03\x04", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    ".txt": (None, "text/plain"),
+    ".zip": (b"PK\x03\x04", "application/zip"),
+}
+UPLOAD_MESSAGE = "Upload a PDF, Word, PowerPoint, Excel, text or zip file."
+
+
 class ClassResourceSerializer(serializers.ModelSerializer):
+    """One row is a link or a file (07 §1.1). `file` is write-only: the view
+    stores the bytes, the client reads them back through the download route."""
+
+    kind = serializers.CharField(read_only=True)
+    url = serializers.CharField(required=False, allow_blank=True, max_length=2048)
+    file = serializers.FileField(required=False, write_only=True)
+
     class Meta:
         model = ClassResource
-        fields = ("id", "title", "description", "url")
+        fields = ("id", "title", "description", "url", "file", "kind", "original_filename", "content_type", "size")
+        read_only_fields = ("original_filename", "content_type", "size")
 
     def validate_title(self, value):
         value = value.strip()
@@ -209,5 +239,31 @@ class ClassResourceSerializer(serializers.ModelSerializer):
     def validate_description(self, value): return value.strip()
 
     def validate_url(self, value):
-        if not value.startswith("https://"): raise serializers.ValidationError("Use an absolute https URL.")
+        value = value.strip()
+        if value and not value.startswith("https://"): raise serializers.ValidationError("Use an absolute https URL.")
         return value
+
+    def validate_file(self, upload):
+        spec = UPLOAD_TYPES.get(Path(upload.name).suffix.lower())
+        if spec is None: raise serializers.ValidationError(UPLOAD_MESSAGE)
+        magic, content_type = spec
+        if magic is not None:
+            header = upload.read(len(magic))
+            upload.seek(0)
+            if header != magic: raise serializers.ValidationError(UPLOAD_MESSAGE)
+        if upload.size > settings.MAX_UPLOAD_BYTES: raise serializers.ValidationError("File exceeds the upload size limit.")
+        # The browser-sent type is attacker-controlled; derive it from the extension.
+        upload.content_type = content_type
+        return upload
+
+    def validate(self, attrs):
+        url, upload = attrs.get("url", ""), attrs.get("file")
+        if url and upload:
+            raise serializers.ValidationError("Provide either a link or a file, not both.")
+        if not url and not upload:
+            # On PATCH an untouched resource keeps whatever side it already has,
+            # but blanking the link of a link resource would leave it with no
+            # source at all — the DB constraint would reject it as a 500.
+            if not self.instance or ("url" in attrs and not self.instance.file_path):
+                raise serializers.ValidationError("Provide a link or a file.")
+        return attrs

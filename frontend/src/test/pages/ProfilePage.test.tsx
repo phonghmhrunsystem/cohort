@@ -41,10 +41,14 @@ describe("Profile", () => {
 
   it("omits immutable fields from edit and PATCHes profile-only data", async () => {
     const updated = { ...profile, full_name: "Lan Nguyen" };
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(profile))
-      .mockResolvedValueOnce(json(updated))
-      .mockResolvedValueOnce(json(updated));
+    // Định tuyến theo URL: chuông trong shell tự gọi unread-count nên xếp phản
+    // hồi theo thứ tự sẽ trả nhầm dữ liệu cho /auth/me (07 §2.2).
+    let saved = false;
+    const fetchMock = vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/notifications/unread-count") return Promise.resolve(json({ unread_count: 0 }));
+      if (init?.method === "PATCH") { saved = true; return Promise.resolve(json(updated)); }
+      return Promise.resolve(json(saved ? updated : profile));
+    });
     openProfile("/profile/edit", fetchMock);
     const events = userEvent.setup();
 
@@ -55,8 +59,10 @@ describe("Profile", () => {
     await events.type(fullName, "Lan Nguyen");
     await events.click(screen.getByRole("button", { name: "Save changes" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    const request = fetchMock.mock.calls[1];
+    // Đếm theo URL chứ không theo số lần gọi: chuông thông báo trong shell tự
+    // poll unread-count nên tổng số request không cố định (07 §2.2).
+    await waitFor(() => expect(fetchMock.mock.calls.some((call) => call[1]?.method === "PATCH")).toBe(true));
+    const request = fetchMock.mock.calls.find((call) => call[1]?.method === "PATCH")!;
     expect(request[0]).toBe("/api/auth/me");
     const body = JSON.parse(String(request[1]?.body));
     expect(body.full_name).toBe("Lan Nguyen");
