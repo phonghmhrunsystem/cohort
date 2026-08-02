@@ -35,6 +35,13 @@ describe("Student class page", () => {
     vi.unstubAllGlobals();
   });
 
+  it("lists class resources in the resources tab", async () => {
+    openPage(vi.fn()
+      .mockResolvedValueOnce(json(classDetail()))
+      .mockResolvedValueOnce(json([{ id: 1, title: "Slide deck", description: "Week 1 slides", url: "https://example.test/s" }])));
+    expect(await screen.findByRole("link", { name: /Slide deck/ })).toBeTruthy();
+  });
+
   it("renders the progress line with graded/assignment counts and a due date", async () => {
     openPage(vi.fn().mockResolvedValueOnce(json(classDetail())));
 
@@ -57,6 +64,8 @@ describe("Student class page", () => {
   ] as const)("maps learning_state %s to the correct Trạng thái and action label", async (learningState, label, actionLabel) => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(classDetail()))
+      /** Tab mặc định là resources, nên trang nạp tài liệu trước khi test mở tab Assignments. */
+      .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json([{
         id: 1, classroom_id: 9, title: "Homework 1", description: "Build a small app.",
         due_at: "2026-08-15T20:00:00Z", maximum_score: 100, criteria: [], created_at: "2026-07-20T00:00:00Z",
@@ -82,6 +91,8 @@ describe("Student class page", () => {
   it("shows closure_reason as a tooltip and no second action for CLOSED", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(classDetail()))
+      /** Tab mặc định là resources, nên trang nạp tài liệu trước khi test mở tab Assignments. */
+      .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json([{
         id: 1, classroom_id: 9, title: "Homework 1", description: "Build a small app.",
         due_at: "2026-07-01T20:00:00Z", maximum_score: 100, criteria: [], created_at: "2026-06-20T00:00:00Z",

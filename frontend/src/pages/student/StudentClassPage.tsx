@@ -3,6 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { Alert } from "../../components/Alert";
 import { Card } from "../../components/Card";
+import { ClassResources } from "../../components/ClassResources";
 import { EmptyState } from "../../components/EmptyState";
 import { EyeIcon, IconLinkButton, UploadIcon } from "../../components/IconButton";
 import { Spinner } from "../../components/Spinner";
@@ -53,7 +54,7 @@ export function StudentClassPage() {
       <button type="button" className="tab" role="tab" aria-selected={tab === "resources"} onClick={() => setSearchParams({ tab: "resources" })}>Class resources</button>
       <button type="button" className="tab" role="tab" aria-selected={tab === "assignments"} onClick={() => setSearchParams({ tab: "assignments" })}>Assignments</button>
     </div>
-    {tab === "resources" && <Card><p className="muted">Class resources — see 07-notifications-and-resources.</p></Card>}
+    {tab === "resources" && <Card><ClassResources classId={Number(classId)} /></Card>}
     {tab === "assignments" && <Card>
       {assignmentsFailure && <Alert>{assignmentsFailure}</Alert>}
       {!assignments ? <Spinner label="Loading assignments" /> :
