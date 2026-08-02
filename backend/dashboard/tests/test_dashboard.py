@@ -301,3 +301,85 @@ class TeacherCardTests(TestCase):
         cards = self.client.get("/api/dashboard").data["cards"]
 
         self.assertEqual(cards["pending_grading"], 0)
+
+
+class TeacherListTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        now = timezone.now()
+        self.teacher = User.objects.create_user("list-teacher@example.test", "pw", role="TEACHER")
+        self.classroom = Class.objects.create(
+            teacher=self.teacher, name="Web Development K18A",
+            starts_at=now - timedelta(days=1), ends_at=now + timedelta(days=30), is_active=True,
+        )
+        self.students = [
+            User.objects.create_user(f"list-student{i}@example.test", "pw", role="STUDENT",
+                                     full_name=f"Student {i}")
+            for i in range(2)
+        ]
+        for student in self.students:
+            Enrollment.objects.create(classroom=self.classroom, student=student)
+        self.assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Lab 3", description="d", due_at=now + timedelta(days=3),
+        )
+        self.client.force_authenticate(self.teacher)
+
+    def test_pending_shows_the_latest_version_of_each_pair(self):
+        make_submission(self.assignment, self.students[0], version=1)
+        latest = make_submission(self.assignment, self.students[0], version=2)
+
+        pending = self.client.get("/api/dashboard").data["pending"]
+
+        self.assertEqual([row["submission_id"] for row in pending], [latest.id])
+
+    def test_a_pending_row_carries_the_names_the_screen_shows(self):
+        make_submission(self.assignment, self.students[0])
+
+        row = self.client.get("/api/dashboard").data["pending"][0]
+
+        self.assertEqual(row["assignment_id"], self.assignment.id)
+        self.assertEqual(row["assignment_title"], "Lab 3")
+        self.assertEqual(row["class_id"], self.classroom.id)
+        self.assertEqual(row["class_name"], "Web Development K18A")
+        self.assertEqual(row["student"]["id"], self.students[0].id)
+        self.assertEqual(row["student"]["full_name"], "Student 0")
+
+    def test_pending_is_newest_first_and_capped_at_ten(self):
+        extra = [
+            User.objects.create_user(f"list-extra{i}@example.test", "pw", role="STUDENT")
+            for i in range(12)
+        ]
+        for student in extra:
+            Enrollment.objects.create(classroom=self.classroom, student=student)
+            make_submission(self.assignment, student)
+
+        pending = self.client.get("/api/dashboard").data["pending"]
+
+        self.assertEqual(len(pending), 10)
+        self.assertEqual(pending[0]["student"]["id"], extra[-1].id)
+
+    def test_a_graded_pair_leaves_the_pending_list(self):
+        make_submission(self.assignment, self.students[0])
+        AssignmentGrade.objects.create(assignment=self.assignment, student=self.students[0], score=90)
+
+        self.assertEqual(self.client.get("/api/dashboard").data["pending"], [])
+
+    def test_due_soon_carries_the_two_numbers_that_make_the_row_worth_reading(self):
+        make_submission(self.assignment, self.students[0], version=1)
+        make_submission(self.assignment, self.students[0], version=2)
+
+        row = self.client.get("/api/dashboard").data["due_soon"][0]
+
+        self.assertEqual(row["assignment_id"], self.assignment.id)
+        self.assertEqual(row["submitted_count"], 1)
+        self.assertEqual(row["student_count"], 2)
+
+    def test_due_soon_ignores_anything_further_out_than_a_week(self):
+        Assignment.objects.create(
+            classroom=self.classroom, title="Far away", description="d",
+            due_at=timezone.now() + timedelta(days=20),
+        )
+
+        due_soon = self.client.get("/api/dashboard").data["due_soon"]
+
+        self.assertEqual([row["assignment_id"] for row in due_soon], [self.assignment.id])

@@ -1,4 +1,6 @@
-from django.db.models import Count, Exists, OuterRef, Q
+from datetime import timedelta
+
+from django.db.models import Count, Exists, F, OuterRef, Q, Subquery
 from django.utils import timezone
 
 from accounts.models import User
@@ -77,6 +79,68 @@ def _ungraded_submissions(class_ids):
     )
 
 
+_PENDING_LIMIT = 10
+_DUE_SOON_LIMIT = 5
+_DUE_SOON_WINDOW = timedelta(days=7)
+
+
+def _pending_rows(class_ids):
+    """Chỉ bản nộp mới nhất của mỗi cặp: teacher chỉ chấm bản mới nhất (04 §1),
+    nên hiện bản cũ ở đây là mời người ta bấm nhầm."""
+    latest = (
+        Submission.objects.filter(
+            assignment_id=OuterRef("assignment_id"), student_id=OuterRef("student_id")
+        )
+        .order_by("-version")
+        .values("id")[:1]
+    )
+    rows = (
+        _ungraded_submissions(class_ids)
+        .annotate(latest_id=Subquery(latest))
+        .filter(id=F("latest_id"))
+        .select_related("assignment", "assignment__classroom", "student")
+        .order_by("-created_at", "-id")[:_PENDING_LIMIT]
+    )
+    return [
+        {
+            "submission_id": row.id,
+            "assignment_id": row.assignment_id,
+            "assignment_title": row.assignment.title,
+            "class_id": row.assignment.classroom_id,
+            "class_name": row.assignment.classroom.name,
+            "student": {"id": row.student_id, "full_name": row.student.full_name},
+            "submitted_at": row.created_at,
+        }
+        for row in rows
+    ]
+
+
+def _due_soon_rows(open_ids, now):
+    rows = (
+        Assignment.objects.filter(
+            classroom_id__in=open_ids, due_at__gt=now, due_at__lte=now + _DUE_SOON_WINDOW
+        )
+        .select_related("classroom")
+        .annotate(
+            submitted_count=Count("submissions__student", distinct=True),
+            student_count=Count("classroom__enrollments__student", distinct=True),
+        )
+        .order_by("due_at", "id")[:_DUE_SOON_LIMIT]
+    )
+    return [
+        {
+            "assignment_id": row.id,
+            "title": row.title,
+            "class_id": row.classroom_id,
+            "class_name": row.classroom.name,
+            "due_at": row.due_at,
+            "submitted_count": row.submitted_count,
+            "student_count": row.student_count,
+        }
+        for row in rows
+    ]
+
+
 def teacher_dashboard(user):
     now = timezone.now()
     classes = scoped_classes(user)
@@ -96,4 +160,9 @@ def teacher_dashboard(user):
         "pending_grading": _ungraded_submissions(class_ids)
         .values("assignment_id", "student_id").distinct().count(),
     }
-    return {"role": User.Role.TEACHER, "cards": cards}
+    return {
+        "role": User.Role.TEACHER,
+        "cards": cards,
+        "pending": _pending_rows(class_ids),
+        "due_soon": _due_soon_rows(open_ids, now),
+    }

@@ -43,6 +43,33 @@ class TeacherCardsSerializer(serializers.Serializer):
     students = serializers.IntegerField()
 
 
+class StudentRefSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    full_name = serializers.CharField(allow_null=True)
+
+
+class PendingRowSerializer(serializers.Serializer):
+    submission_id = serializers.IntegerField()
+    assignment_id = serializers.IntegerField()
+    assignment_title = serializers.CharField()
+    class_id = serializers.IntegerField()
+    class_name = serializers.CharField()
+    student = StudentRefSerializer()
+    submitted_at = serializers.DateTimeField()
+
+
+class DueSoonRowSerializer(serializers.Serializer):
+    assignment_id = serializers.IntegerField()
+    title = serializers.CharField()
+    class_id = serializers.IntegerField()
+    class_name = serializers.CharField()
+    due_at = serializers.DateTimeField()
+    submitted_count = serializers.IntegerField()
+    student_count = serializers.IntegerField()
+
+
 class TeacherDashboardSerializer(serializers.Serializer):
     role = serializers.CharField()
     cards = TeacherCardsSerializer()
+    pending = PendingRowSerializer(many=True)
+    due_soon = DueSoonRowSerializer(many=True)
