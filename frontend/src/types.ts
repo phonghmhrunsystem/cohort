@@ -289,3 +289,16 @@ export interface ClassResource {
   content_type: string;
   size: number | null;
 }
+
+export interface AuditLog {
+  id: number;
+  actor_id: number;
+  actor: { id: number; full_name: string | null; email: string };
+  action: string;
+  target_type: string;
+  target_id: number;
+  /** Backend phân giải sẵn theo lô; rỗng khi target không còn tra được (08 §5.1). */
+  target_label: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
