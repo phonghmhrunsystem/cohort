@@ -18,6 +18,7 @@ import { AdminUsersPage } from "./pages/admin/users/AdminUsersPage";
 import { AdminUserViewPage } from "./pages/admin/users/AdminUserViewPage";
 import { ProfileEditPage } from "./pages/account/ProfileEditPage";
 import { ProfilePage } from "./pages/account/ProfilePage";
+import { AuditLogPage } from "./pages/admin/AuditLogPage";
 import { AdminClassCreatePage } from "./pages/admin/classes/AdminClassCreatePage";
 import { AdminClassEditPage } from "./pages/admin/classes/AdminClassEditPage";
 import { AdminClassesPage } from "./pages/admin/classes/AdminClassesPage";
@@ -30,8 +31,6 @@ import { TeacherClassesPage } from "./pages/teacher/TeacherClassesPage";
 import { TeacherClassPage } from "./pages/teacher/TeacherClassPage";
 import { TeacherAssignmentPage } from "./pages/teacher/TeacherAssignmentPage";
 import { TeacherGradePage } from "./pages/teacher/TeacherGradePage";
-
-function Placeholder({ title }: { title: string }) { return <h1>{title}</h1>; }
 
 function ProtectedShell() { return <AppShell />; }
 
@@ -75,7 +74,7 @@ export function App() {
         <Route path="/student/assignments/:assignmentId" element={<StudentAssignmentPage />} />
       </Route>
       <Route element={<RequireRole roles={["ADMIN"]} />}>
-        <Route path="/audit" element={<Placeholder title="Audit" />} />
+        <Route path="/admin/audit-logs" element={<AuditLogPage />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
         <Route path="/admin/users/new" element={<AdminUserCreatePage />} />
         <Route path="/admin/users/:userId" element={<AdminUserViewPage />} />
