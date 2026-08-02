@@ -4,9 +4,9 @@ This document is the entry point for understanding the system. Feature-level det
 
 > **This folder is the target design, not a description of the current code.** `backend/` and `frontend/` are being brought in line with it — where they disagree, these documents win and the code is the thing that needs changing. `docs/ba/` holds the original product requirements spec: read this folder for the design being built, and `docs/ba/` for the original intent/history.
 >
-> **On "not built yet" notes.** A few places call out that the current code does not have the thing yet — `POST /api/notifications/read-all` and the teacher-side resource UI ([07](07-notifications-and-resources.md)) are the ones flagged today. Those notes are a courtesy where the gap is known and load-bearing; **their absence is not evidence that the code matches.** Treat every doc here as the spec and verify against the code before assuming an endpoint exists.
+> **On "not built yet" notes.** These documents describe the target, so most of them are ahead of the code in places. Individual gaps are tracked in `docs/plans/` (one plan per feature doc) rather than annotated inline here — **the absence of a note is not evidence that the code matches.** Treat every doc here as the spec and verify against the code before assuming an endpoint exists.
 >
-> **Altitude.** These docs stop at screens, API, DB and rules. One exception is deliberate: [07 §2.1](07-notifications-and-resources.md#21-notification-bell-appshell-teacherstudent-only--not-shown-for-admin) describes an `AppShell` DOM/CSS change, because the notification bell cannot move to where the design puts it until that restructure happens — it is a design constraint, not styling detail. Nothing else in this folder goes below the component level.
+> **Altitude.** These docs stop at screens, API, DB and rules — no file goes below the component level. Where a doc names a CSS token, a class name or a `z-index` ([07 §2.1](07-notifications-and-resources.md#21-notification-bell-appshell-teacherstudent-only--not-shown-for-admin)), it is because the value has to agree with something that already exists in the app, not because the styling is being specified here.
 
 ## 1. Business context
 

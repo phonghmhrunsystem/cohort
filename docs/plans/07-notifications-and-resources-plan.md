@@ -4,7 +4,9 @@
 
 **Goal:** Đưa notification fan-out từ "chỉ có bảng DB + 2 endpoint" lên đúng spec 07 — chuông + panel trong AppShell, `read-all`, `link` nullable — và hiện thực hoá Class resources ở cả phía Student lẫn Teacher.
 
-**Architecture:** Backend đã có `Notification`, `create_notifications`, `notify_user`, `ClassResource` và 4 endpoint; thiếu `read-all`, `link` nullable, thứ tự ổn định và toàn bộ test. Frontend là con số 0: `/notifications` là `Placeholder`, tab "Class resources" là một dòng chữ chờ. Plan này không viết lại app shell theo `.workspace-topbar` như spec §2.1 mô tả (xem [Quyết định D2](#d2--vị-trí-chuông-không-tái-cấu-trúc-shell)) mà gắn chuông vào `header` sẵn có.
+**Architecture:** Backend đã có `Notification`, `create_notifications`, `notify_user`, `ClassResource` và 4 endpoint; thiếu `read-all`, `link` nullable, thứ tự ổn định (cả notification lẫn resource) và toàn bộ test. Frontend là con số 0: `/notifications` là `Placeholder`, tab "Class resources" là một dòng chữ chờ.
+
+**Spec đã được đồng bộ trước khi viết plan này** (`docs/overview/07-notifications-and-resources.md` + đoạn Altitude của `00-system-overview.md`): §2.1 nay mô tả đúng shell `.app-shell > aside.sidebar + main.canvas > header > .header-actions` thay vì `.workspace-topbar` không tồn tại, panel dùng lại idiom `.action-menu-panel` với `z-index: 15`, và chỉ thêm hai token màu. Plan này thi hành spec đó — **không còn quyết định "làm khác spec" nào**; các mục D bên dưới ghi lại lý do cho người đọc sau.
 
 **Tech Stack:** Django 5 + DRF (`backend/notifications`, `backend/classes`), React 19 + Vite + TypeScript + Tailwind v4 (`frontend/src`), test: `python manage.py test`, `npm test` (vitest + Testing Library).
 
@@ -14,10 +16,11 @@
 - Mọi `write_audit` và fan-out notification phải nằm trong `transaction.atomic()` của view gọi nó — hiện tại cả 4 call site đều đã đúng, không được phá.
 - `safe_metadata` **loại bỏ mọi chuỗi**; metadata chỉ chứa số/bool/list/dict.
 - Text hiển thị cho người dùng viết tiếng Việt có dấu, giống các trang đã có (`Chưa nộp`, `Đã chấm`...).
-- Token màu chỉ khai báo trong `@theme` của `frontend/src/styles.css`; không hardcode hex trong component.
-- Không sửa file ngoài phạm vi 2 feature này; `docs/overview/*.md` chỉ sửa ở Task 11.
+- Token màu chỉ khai báo trong `@theme` của `frontend/src/styles.css`; không hardcode hex trong component. **Không** khai báo `--radius-*` / `--shadow-*` trong `@theme`: đó là namespace của Tailwind v4, đặt `--radius-md` sẽ đổi luôn mọi utility `rounded-md` trong app.
+- Không sửa file ngoài phạm vi 2 feature này. `docs/overview/*.md` đã được đồng bộ trước khi plan chạy — Task 11 chỉ còn là bước kiểm lại.
+- CSS mới bám các lớp sẵn có (`.action-menu-panel`, `.header-actions`, `.tabs`, `.muted`, `.empty-state`) thay vì dựng hệ thống thứ hai.
 
-Trạng thái audit: 2026-08-02, branch `feature/improve_ui` @ `72ec5a0`.
+Trạng thái audit: 2026-08-02, branch `worktree-plans-notifications-audit` @ `b7c3c63` (code app không đổi so với `72ec5a0`).
 
 ---
 
@@ -35,6 +38,8 @@ Trạng thái audit: 2026-08-02, branch `feature/improve_ui` @ `72ec5a0`.
 | Type TS `Notification` | **Chưa có** (spec §2.1 nói "chỉ thiếu `type`/`created_at`" — sai, không có type nào cả) |
 | Component `ClassResources` | **Chưa có** — tab Student render `<p>Class resources — see 07-...</p>` |
 | UI tạo resource cho Teacher | **Chưa có** → hôm nay không có đường nào tạo resource trong app |
+| Thứ tự `GET /classes/{id}/resources` | **Không xác định** — `classroom.resources.all()`, model không có `Meta.ordering`, không có `created_at` |
+| Test `App.test.tsx` đang khẳng định link `Notifications` | **Sẽ đỏ** khi bỏ link chuông — phải sửa trong cùng task |
 
 Khối lượng ước tính: ~0.5 ngày backend, ~1.5 ngày frontend.
 
@@ -51,12 +56,16 @@ Khối lượng ước tính: ~0.5 ngày backend, ~1.5 ngày frontend.
 | N5 | Chuông là `<button aria-expanded aria-controls>` + panel thả xuống, badge ẩn khi `unread_count === 0` (§2.1) | `<Link className="notification-link" to="/notifications">`, route render `<Placeholder title="Notifications" />` | `components/AppShell.tsx:79`, `App.tsx:66` | Cao |
 | N6 | Item = `[chấm chưa đọc][icon theo type][title clamp 2 dòng][thời gian tương đối]`, fallback icon chuông cho `type` lạ (§2.1) | Không có | — | Cao |
 | N7 | Thời gian tương đối `Vừa xong → N phút trước → ... → dd/MM/yyyy` (§2.1) | `lib/format.ts` chỉ có `formatDate`, `formatDateTime`, `deadlineBadge` | `lib/format.ts` | Cao |
-| N8 | Panel dùng `--color-accent`, `--radius-md`, `--shadow-md` (§2.1) | Ba token này **không tồn tại** trong `@theme` | `styles.css:3-15` | Cần quyết định |
+| N8 | Panel dùng `--color-accent` + `--color-primary-soft`, radius/shadow theo `.action-menu-panel` (§2.1 sau khi sửa spec) | Hai token màu chưa có; `.action-menu-panel` đã có sẵn `z-index: 10`, radius `.5rem`, shadow `0 4px 12px #0f172a20` | `styles.css:3-15`, `styles.css:157` | Cao |
 | N9 | Tab "Class resources" liệt kê resource, empty state `(No resources yet.)` (§2.2) | Placeholder text | `pages/student/StudentClassPage.tsx:56` | Cao |
 | N10 | `components/ClassResources` là component hiển thị dùng chung (§2.3) | Không tồn tại | `components/` | Cao |
 | N11 | Resource creation không gắn lifecycle (không `is_open`, không deadline) | ✔ Đúng — `ClassResourcesView.post` chỉ kiểm `teacher=request.user` | `classes/views.py:318` | OK |
 | N12 | Resource creation **không** ghi audit (§2.3, 08 §5.1) | ✔ Đúng trạng thái hôm nay, nhưng 08 §5.1 gọi đây là *inconsistency cần sửa* | `classes/views.py:322` | Chuyển sang [plan 08](08-audit-log-plan.md) |
 | N13 | Fan-out không lọc `is_active` (§5) | ✔ Đúng | `notifications/services.py:5` | OK |
+| N14 | `GET /classes/{id}/resources` trả newest first (§2.2 sau khi sửa spec) | `classroom.resources.all()` — không `order_by`, model không `Meta.ordering`, không có `created_at` → thứ tự do DB quyết | `classes/views.py:316`, `classes/models.py:29` | Trung bình |
+| N15 | Bỏ link `/notifications` khỏi header (§2.1) | `App.test.tsx:48-49` đang assert `getByRole("link", { name: "Notifications" })` cho TEACHER và STUDENT → task 8 làm đỏ test cũ nếu không sửa cùng lúc | `test/App.test.tsx:46-68` | Cao |
+| N16 | Tab "Class resources" trên `TeacherClassPage` (§2.3) | Whitelist tab hiện là `"assignments" \| "gradebook"`, mọi giá trị khác rơi về `"students"` → `?tab=resources` sẽ không bao giờ render | `pages/teacher/TeacherClassPage.tsx:37-38` | Cao |
+| N17 | `link` nullable ở DB (§4) | Migration `0001_initial` khai `link` NOT NULL; chỉ có 1 migration trong app | `notifications/migrations/` | Cao (đi cùng N1) |
 
 Điểm **đúng spec, không đụng vào**: `Notification` không có cơ chế xoá/hết hạn; `read_at` là transition duy nhất; `POST /{id}/read` idempotent qua `if notification.read_at is None`; `get_object_or_404(..., recipient=request.user)` → user khác lấy `404` chứ không `403`; `ClassResourceSerializer` validate title 2–150 và `URLField(max_length=2048)`; `create_notifications` đọc `classroom.enrollments` bằng `values_list` (một query, không N+1).
 
@@ -70,23 +79,36 @@ Spec §5 và §6 nói rõ: giáo viên bị gỡ khỏi Class ra khỏi `scoped_
 
 **Đề xuất: theo spec** — `link = None`, cột `link` thành `null=True`, panel render row không có link. Chi phí: 1 migration + 1 dòng call site + nhánh render.
 
-### D2 — Vị trí chuông: không tái cấu trúc shell
+### D2 — Vị trí chuông: shell không đổi (spec §2.1 đã sửa)
 
-Spec §2.1 mô tả một ca phẫu thuật `.workspace` → thêm `div.workspace-main` bọc `header.workspace-topbar` + `main.workspace-content`, và bỏ `.workspace-topbar { display: none !important }`. **Cấu trúc đó không tồn tại trong code**: `AppShell` hôm nay là `.app-shell > aside.sidebar + main.canvas > header`, và `header` đó đã sticky ở **mọi** breakpoint với sẵn `.header-actions` chứa `UserMenu`. Vấn đề spec đi giải quyết đã không còn.
+Spec cũ mô tả một ca phẫu thuật `.workspace` → `div.workspace-main` bọc `header.workspace-topbar`, và nói chuông hiện là một `<details>` trong sidebar. **Không có gì trong đó tồn tại**: `AppShell` là `.app-shell > aside.sidebar + main.canvas > header`, chuông hiện là `<Link className="notification-link" to="/notifications">` nằm sẵn trong `.header-actions` cạnh `UserMenu`, ở mọi breakpoint. (`header` này *không* sticky — `.canvas header` không có `position: sticky`; đừng khẳng định ngược lại trong doc.)
 
-**Đề xuất:** bỏ toàn bộ phần tái cấu trúc, thay `<Link className="notification-link">` bằng `<NotificationBell />` tại chỗ trong `.header-actions`, xoá route `/notifications` + `Placeholder`. Task 11 sửa lại §2.1 của spec cho khớp.
+**Đã chốt:** spec §2.1 viết lại theo shell thật; plan chỉ thay `<Link>` bằng `<NotificationBell />` tại chỗ và xoá route `/notifications` + `Placeholder`. Không đụng layout.
 
-### D3 — Token `--color-accent` / `--radius-md` / `--shadow-md`
+### D3 — Token: hai màu, không thêm radius/shadow
 
-Ba token spec dùng đều không có. Bảng màu hiện tại: `nav`, `primary`, `success`, `warning`, `danger`, `canvas`, `surface`, `text`, `muted`, `border`, `focus-ring`.
+Bảng màu hiện tại: `nav`, `primary`, `success`, `warning`, `danger`, `canvas`, `surface`, `text`, `muted`, `border`, `focus-ring`.
 
-**Đề xuất:** thêm đúng ba token vào `@theme` (`--color-accent: #7C3AED`, `--radius-md: .5rem`, `--shadow-md: 0 8px 24px rgb(15 23 42 / .12)`) thay vì viết lại spec. `#7C3AED` (violet) tách bạch với `primary` (xanh, dùng cho hành động) và `danger` (đỏ, dùng cho lỗi) — badge chưa đọc không phải lỗi. Phương án thay thế nếu không muốn thêm màu: dùng `--color-danger` cho badge và sửa spec; kém hơn vì `danger` đang mang nghĩa "hỏng".
+**Đã chốt:** thêm đúng hai token màu vào `@theme`:
+
+- `--color-accent: #7C3AED` — badge + chấm chưa đọc. Violet tách bạch với `primary` (xanh, hành động) và `danger` (đỏ, lỗi); một notification chưa đọc không phải lỗi.
+- `--color-primary-soft: #EFF6FF` — nền row chưa đọc. Spec gọi tên token này; `#EFF6FF` là đúng sắc xanh nhạt `.pagination-page:hover` đang hardcode, nên thêm token là dọn dẹp chứ không phải phát minh màu mới.
+
+**Không** thêm `--radius-md` / `--shadow-md`: trong Tailwind v4 đó là namespace của chính Tailwind (`--radius-*`, `--shadow-*` sinh ra `rounded-md`, `shadow-md`), khai trong `@theme` sẽ đổi lặng lẽ mọi utility tương ứng toàn app. Panel dùng lại đúng giá trị của `.action-menu-panel` (radius `.5rem`, shadow `0 4px 12px #0f172a20`) — cùng một idiom dropdown với `UserMenu` ngay cạnh nó.
+
+`z-index` của panel là **15**, không phải `1035` như spec cũ ghi: thang z thật của app là `.action-menu-panel: 10` < panel: 15 < `.drawer-backdrop: 20` < `.sidebar: 21` < `.toast-stack: 100`. Đặt 1035 sẽ khiến panel đè lên cả drawer mobile.
 
 ### D4 — UI tạo resource cho Teacher (mở rộng phạm vi có chủ ý)
 
 Spec §2.3 nói "chưa có màn hình teacher nào, coi việc tạo resource thuộc về màn hình nào nhúng `ClassResources`". Thực tế: **không màn hình nào nhúng nó**, nên `POST /api/classes/{id}/resources` hôm nay không thể gọi từ trong app, và tab Student sẽ vĩnh viễn rỗng sau khi làm xong Task 9.
 
-**Đề xuất:** làm Task 10 (tab "Class resources" trên `TeacherClassPage` gồm danh sách + form tạo). Đây là phần mở rộng ngoài chữ nghĩa của spec — nếu bị cắt, Task 1–9 vẫn ship được nhưng feature chỉ chứng minh được bằng data seed.
+**Đã chốt:** làm Task 10 (tab "Class resources" trên `TeacherClassPage` gồm form tạo + danh sách), và spec §2.3 đã được viết lại để mô tả đúng màn hình đó. Nếu bị cắt, Task 1–9 vẫn ship được nhưng feature chỉ chứng minh được bằng data seed.
+
+### D5 — Ngôn ngữ trong form tạo resource
+
+`TeacherClassPage` hiện trộn: label field tiếng Anh (`Title`, `Description`, `Due at`, `Search`), nút hành động tiếng Việt (`Tạo assignment`), nút form tiếng Anh (`Save`, `Cancel`).
+
+**Đã chốt:** form resource theo đúng khuôn hàng xóm trên cùng trang — label `Title` / `Description` / `URL`, nút `Tạo tài liệu`. Nhất quán trong một màn hình thắng nhất quán toàn app; đổi toàn bộ label sang tiếng Việt là một việc riêng, không thuộc plan này. Text *mới hoàn toàn* (panel thông báo, empty state, thông báo lỗi) vẫn tiếng Việt như Global Constraints.
 
 ---
 
@@ -102,6 +124,8 @@ Spec §2.3 nói "chưa có màn hình teacher nào, coi việc tạo resource th
 | `backend/notifications/urls.py` | sửa: route `notifications/read-all` |
 | `backend/notifications/tests/__init__.py`, `test_notifications.py` | tạo: toàn bộ coverage cho app |
 | `backend/classes/views.py:112` | sửa: `notify_user(..., link=None)` |
+| `backend/classes/views.py:316` | sửa: `resources.order_by("-id")` (N14) |
+| `backend/classes/tests/test_classes.py` | sửa: test call site + thứ tự resource |
 
 **Frontend**
 
@@ -115,9 +139,10 @@ Spec §2.3 nói "chưa có màn hình teacher nào, coi việc tạo resource th
 | `frontend/src/components/AppShell.tsx` | sửa: thay link chuông bằng `<NotificationBell />` |
 | `frontend/src/App.tsx` | sửa: xoá route `/notifications` |
 | `frontend/src/pages/student/StudentClassPage.tsx` | sửa: tab resources dùng `ClassResources` |
-| `frontend/src/pages/teacher/TeacherClassPage.tsx` | sửa: thêm tab resources + form tạo (D4) |
-| `frontend/src/styles.css` | sửa: token mới + `.notification-*` |
+| `frontend/src/pages/teacher/TeacherClassPage.tsx` | sửa: whitelist tab nhận `"resources"` + tab mới có form tạo (D4, N16) |
+| `frontend/src/styles.css` | sửa: 2 token màu, xoá `.notification-link`, thêm `.notification-*` + `.resource-list` |
 | `frontend/src/test/lib/format.test.ts` | sửa: test `relativeTime` |
+| `frontend/src/test/App.test.tsx` | sửa: bỏ `"Notifications"` khỏi bảng nav `it.each` (N15) + test chuông |
 | `frontend/src/test/components/NotificationBell.test.tsx`, `ClassResources.test.tsx` | tạo |
 
 ---
@@ -478,7 +503,8 @@ class FanOutTests(TestCase):
         self.assertEqual(Notification.objects.filter(recipient=self.teacher).count(), 1)
 ```
 
-> `Class.objects.create(...)` phải khớp các field bắt buộc của model — kiểm bằng `python manage.py shell -c "from classes.models import Class; print([f.name for f in Class._meta.fields])"` trước khi chạy, và bổ sung field còn thiếu (ví dụ `description`) nếu model đòi.
+> `Class` bắt buộc `teacher`, `name`, `starts_at`, `ends_at` (`description` là `blank=True`), nên `create(...)` ở trên là đủ — đã đối chiếu `backend/classes/models.py:5`.
+> `timezone.timedelta` chạy được (Django re-export `datetime.timedelta`) nhưng các test hiện có trong repo dùng `from datetime import timedelta` — theo khuôn đó.
 
 - [ ] **Step 2: Chạy**
 
@@ -490,6 +516,53 @@ Expected: PASS toàn bộ (đây là test đặc tả hành vi đã đúng — n
 ```bash
 git add backend/notifications/tests/test_notifications.py
 git commit -m "test(notifications): pin the roster fan-out and its transaction boundary"
+```
+
+### Task 5b: Thứ tự resource newest-first (N14)
+
+**Files:**
+- Modify: `backend/classes/views.py:316`
+- Test: `backend/classes/tests/test_classes.py`
+
+**Interfaces:**
+- Produces: `GET /api/classes/{id}/resources` trả mới nhất trước. Task 9/10 dựa vào đúng thứ tự này khi assert "tài liệu vừa tạo nằm đầu danh sách".
+
+- [ ] **Step 1: Viết test đỏ**
+
+Thêm vào lớp test đã bao phủ `/resources` (tìm bằng `grep -n "resources" backend/classes/tests/test_classes.py`; nếu chưa có lớp nào, tạo test mới cạnh test `ClassResourcesView` gần nhất):
+
+```python
+    def test_resources_come_back_newest_first(self):
+        for title in ("First", "Second", "Third"):
+            ClassResource.objects.create(classroom=self.class_, title=title, description="", url="https://example.test/x")
+        response = self.authenticate(self.teacher).get(f"/api/classes/{self.class_.id}/resources")
+        self.assertEqual([row["title"] for row in response.data], ["Third", "Second", "First"])
+```
+
+- [ ] **Step 2: Chạy để xác nhận fail**
+
+Run: `cd backend && python manage.py test classes -v 2`
+Expected: FAIL — thứ tự trả về là insert order (`First, Second, Third`). Nếu PASS ngay: SQLite đang tình cờ trả đúng chiều ngược — vẫn làm Step 3, vì `ClassResource` không có `Meta.ordering` nên không có gì bảo đảm điều đó.
+
+- [ ] **Step 3: Sửa view**
+
+```python
+# backend/classes/views.py — trong ClassResourcesView.get
+        return Response(ClassResourceSerializer(classroom.resources.order_by("-id"), many=True).data)
+```
+
+> Sắp theo `-id` chứ không phải `-created_at`: `ClassResource` **không có** cột `created_at` (`classes/models.py:29`). Thêm cột chỉ để sắp xếp là một migration không cần thiết — id tự tăng đã là thứ tự chèn.
+
+- [ ] **Step 4: Chạy lại**
+
+Run: `cd backend && python manage.py test classes -v 2`
+Expected: PASS toàn bộ.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add backend/classes/views.py backend/classes/tests/test_classes.py
+git commit -m "fix(resources): return class resources newest first"
 ```
 
 ---
@@ -515,7 +588,7 @@ Chạy test: `cd frontend && npm test`. Type-check: `npm run build`.
   - `interface ClassResource { id: number; title: string; description: string; url: string }`
   - `relativeTime(value: string, now?: Date): string`
   - icon key `clipboard`
-  - token `--color-accent`, `--radius-md`, `--shadow-md`
+  - token `--color-accent`, `--color-primary-soft` (**không** thêm `--radius-md`/`--shadow-md`, xem D3)
 
 - [ ] **Step 1: Viết test đỏ**
 
@@ -568,14 +641,16 @@ export function relativeTime(value: string, now: Date = new Date()): string {
   const days = Math.floor(elapsed / DAY);
   if (days === 1) return "Hôm qua";
   if (days < 7) return `${days} ngày trước`;
-  return new Intl.DateTimeFormat("en-GB").format(new Date(value)).replace(/-/g, "/");
+  /** Nhánh cuối là đúng cái formatDate đã làm (Intl `en-GB` → dd/MM/yyyy) — dùng lại,
+   * để một ngày đổi định dạng ngày thì chỉ phải đổi một chỗ. */
+  return formatDate(value);
 }
 ```
 
 - [ ] **Step 4: Chạy lại**
 
 Run: `cd frontend && npm test -- format`
-Expected: PASS. Nếu case cuối trả `12/07/2026` sẵn thì bỏ `.replace(...)`; `en-GB` đã cho `dd/MM/yyyy`.
+Expected: PASS. `formatDate` đã ở ngay đầu file nên không cần import gì thêm.
 
 - [ ] **Step 5: Thêm type**
 
@@ -618,11 +693,12 @@ export interface ClassResource {
 - [ ] **Step 7: Thêm token**
 
 ```css
-/* frontend/src/styles.css — trong @theme */
+/* frontend/src/styles.css — trong @theme, cạnh --color-danger */
   --color-accent: #7C3AED;
-  --radius-md: .5rem;
-  --shadow-md: 0 8px 24px rgb(15 23 42 / .12);
+  --color-primary-soft: #EFF6FF;
 ```
+
+> Chỉ hai token màu. `--radius-md` / `--shadow-md` **không** được thêm: Tailwind v4 sinh utility từ chính các namespace đó (`rounded-md`, `shadow-md`), khai lại trong `@theme` là đổi ngầm toàn app (D3).
 
 - [ ] **Step 8: Type-check + commit**
 
@@ -879,11 +955,13 @@ export function NotificationBell() {
 .notification-bell { position: relative; }
 .notification-trigger { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid var(--color-border); border-radius: .35rem; background: transparent; color: var(--color-muted); cursor: pointer; }
 .notification-badge { position: absolute; top: -.25rem; right: -.25rem; min-width: 1.25rem; padding: 0 .25rem; border-radius: 999px; background: var(--color-accent); color: #fff; font-size: .7rem; line-height: 1.25rem; text-align: center; }
-.notification-panel { position: absolute; right: 0; top: 100%; z-index: 1035; width: 22rem; max-width: calc(100vw - 1rem); max-height: 24rem; overflow-y: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-md); box-shadow: var(--shadow-md); }
+/* z-index 15: trên .action-menu-panel (10), dưới .drawer-backdrop (20) và .sidebar (21)
+   để drawer mobile vẫn thắng. Radius/shadow khớp .action-menu-panel — cùng idiom dropdown. */
+.notification-panel { position: absolute; right: 0; top: 100%; z-index: 15; width: 22rem; max-width: calc(100vw - 1rem); max-height: 24rem; overflow-y: auto; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: .5rem; box-shadow: 0 4px 12px #0f172a20; }
 .notification-panel-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .75rem; border-bottom: 1px solid var(--color-border); }
 .notification-list { list-style: none; margin: 0; padding: 0; }
 .notification-item { position: relative; border-bottom: 1px solid var(--color-border); }
-.notification-item.unread { background: color-mix(in srgb, var(--color-primary) 8%, transparent); }
+.notification-item.unread { background: var(--color-primary-soft); }
 .notification-dot { position: absolute; left: .4rem; top: 1.1rem; width: .4rem; height: .4rem; border-radius: 999px; background: var(--color-accent); }
 .notification-row { display: flex; gap: .5rem; width: 100%; padding: .75rem .75rem .75rem 1.1rem; border: 0; background: transparent; text-align: left; color: inherit; cursor: pointer; }
 .notification-icon.tone-primary { color: var(--color-primary); }
@@ -895,7 +973,8 @@ export function NotificationBell() {
 @media (max-width: 479px) { .notification-panel { position: fixed; left: .5rem; right: .5rem; width: auto; } }
 ```
 
-> Nếu `.link-button` chưa tồn tại trong `styles.css`, thêm: `.link-button { border: 0; background: transparent; color: var(--color-primary); cursor: pointer; } .link-button:disabled { color: var(--color-muted); cursor: default; }`
+> `.link-button` **chưa tồn tại** trong `styles.css` (đã kiểm) — thêm: `.link-button { min-height: auto; min-width: auto; border: 0; background: transparent; color: var(--color-primary); cursor: pointer; } .link-button:disabled { color: var(--color-muted); cursor: default; }`. `min-height/min-width: auto` là bắt buộc: reset toàn cục đặt `button { min-height: 44px; min-width: 44px }` (`styles.css:25-26`), để nguyên thì nút text trong header panel bị phình.
+> `.notification-trigger` là bản thay thế của `.notification-link` (`styles.css:74`) — **sửa tại chỗ**, đừng để hai rule cùng nội dung; Task 8 xoá nốt phần còn lại nếu sót.
 
 - [ ] **Step 5: Chạy lại**
 
@@ -920,24 +999,49 @@ git commit -m "feat(notifications): add the bell and its dropdown panel"
 - Consumes: `NotificationBell` (Task 7).
 - Produces: không còn route `/notifications` — bất kỳ link cũ nào tới đó sẽ rơi vào `NotFoundPage`.
 
-- [ ] **Step 1: Viết test đỏ**
+- [ ] **Step 1: Sửa test nav sẵn có (N15) + viết test đỏ**
+
+`App.test.tsx:46-49` đang khẳng định điều ngược lại với việc sắp làm:
 
 ```tsx
-// thêm vào frontend/src/test/App.test.tsx, trong describe sẵn có
-  it("shows the notification bell in the shell header and no longer routes to /notifications", async () => {
-    // Dùng đúng helper render + auth stub mà các test khác trong file này đang dùng.
-    // Sau khi đăng nhập xong:
-    expect(await screen.findByRole("button", { name: /Thông báo/ })).toBeTruthy();
+  it.each([
+    ["ADMIN", ["Dashboard", "Accounts", "Classes", "Audit"]],
+    ["TEACHER", ["Dashboard", "My Classes", "Notifications"]],   // <- "Notifications" là <Link aria-label> của chuông cũ
+    ["STUDENT", ["Dashboard", "My Classes", "Notifications"]],
+  ] as const)
+```
+
+Bỏ `"Notifications"` khỏi hai dòng TEACHER/STUDENT — bảng đó liệt kê **link điều hướng**, và chuông mới là `<button>`, không phải link. Rồi thêm test mới trong cùng `describe`:
+
+```tsx
+  it("shows the notification bell in the shell header for a student and drops the /notifications link", async () => {
+    window.history.replaceState({}, "", "/dashboard");
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 1, full_name: "Ada", email: "ada@example.test", role: "STUDENT", phone: null,
+      date_of_birth: null, gender: null, hometown: null, address: null, is_active: true, must_change_password: false,
+    }), { headers: { "Content-Type": "application/json" } })));
+
+    render(<App />);
+
+    await screen.findByRole("heading", { name: "Dashboard" });
+    expect(screen.getByRole("button", { name: /Thông báo/ })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Notifications" })).toBeNull();
+  });
+
+  it("hides the bell for an admin", async () => {
+    // như trên nhưng role: "ADMIN"
+    expect(screen.queryByRole("button", { name: /Thông báo/ })).toBeNull();
   });
 ```
 
-> Đọc `frontend/src/test/App.test.tsx` trước: nó đã có sẵn cách stub `fetch` cho `/api/auth/*` và render `<App />`. Tái dùng, không dựng lại.
+> Stub `fetch` ở đây trả về profile cho **mọi** request, kể cả `/api/notifications` — chấp nhận được vì hai test này không mở panel. Test hành vi panel nằm ở Task 7, trên component đứng riêng.
 
 - [ ] **Step 2: Chạy để xác nhận fail**
 
 Run: `cd frontend && npm test -- App`
-Expected: FAIL — không tìm thấy button `Thông báo` (hiện là một `<Link aria-label="Notifications">`).
+Expected: FAIL ở hai test mới (không có button `Thông báo`; và với STUDENT thì `<Link aria-label="Notifications">` vẫn còn ở `AppShell.tsx:75`). `it.each` vừa sửa vẫn xanh — nó chỉ khẳng định link nào *phải có*, không khẳng định link nào *không được có*, nên việc bỏ `"Notifications"` khỏi bảng là dọn trước để Step 3 không làm nó đỏ.
 
 - [ ] **Step 3: Thay link bằng chuông**
 
@@ -1075,6 +1179,9 @@ export function ClassResources({ classId, reloadKey = 0 }: { classId: number; re
 }
 ```
 
+> `.resource-list` chưa có trong `styles.css` — thêm cạnh khối `.page-stack`: `.resource-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; } .resource-list a { color: var(--color-primary); } .resource-list p { margin: .15rem 0 0; }`.
+> `EmptyState` chỉ nhận `children: string` (`components/EmptyState.tsx`) — không truyền element vào.
+
 - [ ] **Step 4: Nối vào tab Student**
 
 ```tsx
@@ -1123,8 +1230,15 @@ git commit -m "feat(resources): list class resources in the student class tab"
 
 - [ ] **Step 1: Đọc trang trước khi sửa**
 
-Run: `sed -n '1,80p' frontend/src/pages/teacher/TeacherClassPage.tsx`
-Mục tiêu: tìm cơ chế tab hiện có (trang này đã có tab `gradebook` theo `?tab=`), tên biến tab, và cách nó dựng `Card`. Form mới phải bám đúng khuôn đó — không dựng cơ chế tab thứ hai.
+Run: `sed -n '1,45p' frontend/src/pages/teacher/TeacherClassPage.tsx`
+Trang đã có cơ chế tab qua `?tab=`, nhưng whitelist là **đóng** (N16):
+
+```tsx
+  const requestedTab = searchParams.get("tab");
+  const tab = requestedTab === "assignments" || requestedTab === "gradebook" ? requestedTab : "students";
+```
+
+`?tab=resources` hôm nay rơi về `students`. Không dựng cơ chế tab thứ hai — chỉ mở rộng whitelist này.
 
 - [ ] **Step 2: Viết test đỏ**
 
@@ -1133,14 +1247,14 @@ Mục tiêu: tìm cơ chế tab hiện có (trang này đã có tab `gradebook` 
   it("creates a resource and reloads the list", async () => {
     // fetch: 1) class detail  2) GET resources (rỗng)  3) POST resource  4) GET resources (1 dòng)
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(classDetail()))
+      .mockResolvedValueOnce(json(classDetail))
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json({ id: 1, title: "Slide deck", description: "", url: "https://example.test/s" }, 201))
       .mockResolvedValueOnce(json([{ id: 1, title: "Slide deck", description: "", url: "https://example.test/s" }]));
     openPage(fetchMock, "?tab=resources");
-    await userEvent.type(await screen.findByLabelText("Tiêu đề"), "Slide deck");
-    await userEvent.type(screen.getByLabelText("Đường dẫn"), "https://example.test/s");
-    await userEvent.click(screen.getByRole("button", { name: "Thêm tài liệu" }));
+    await userEvent.type(await screen.findByLabelText("Title"), "Slide deck");
+    await userEvent.type(screen.getByLabelText("URL"), "https://example.test/s");
+    await userEvent.click(screen.getByRole("button", { name: "Tạo tài liệu" }));
     expect(await screen.findByRole("link", { name: /Slide deck/ })).toBeTruthy();
     const [path, init] = fetchMock.mock.calls[2];
     expect(path).toBe("/api/classes/9/resources");
@@ -1149,79 +1263,98 @@ Mục tiêu: tìm cơ chế tab hiện có (trang này đã có tab `gradebook` 
 
   it("shows the server validation message when the URL is rejected", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(json(classDetail()))
+      .mockResolvedValueOnce(json(classDetail))
       .mockResolvedValueOnce(json([]))
       .mockResolvedValueOnce(json({ url: ["Enter a valid URL."] }, 422));
     openPage(fetchMock, "?tab=resources");
-    await userEvent.type(await screen.findByLabelText("Tiêu đề"), "Bad");
-    await userEvent.type(screen.getByLabelText("Đường dẫn"), "not-a-url");
-    await userEvent.click(screen.getByRole("button", { name: "Thêm tài liệu" }));
+    await userEvent.type(await screen.findByLabelText("Title"), "Bad");
+    await userEvent.type(screen.getByLabelText("URL"), "not-a-url");
+    await userEvent.click(screen.getByRole("button", { name: "Tạo tài liệu" }));
     expect(await screen.findByText("Enter a valid URL.")).toBeTruthy();
   });
 ```
 
-> `openPage` trong file test này có thể chưa nhận tham số query — mở rộng helper sẵn có thay vì viết helper mới.
+> Trong file test này `classDetail` là **object**, không phải factory (khác `StudentClassPage.test.tsx`) — dùng `json(classDetail)`, không `json(classDetail())`.
+> `openPage` chưa nhận query — mở rộng helper sẵn có để `initialEntries` thành `/teacher/classes/9${search ?? ""}`, đừng viết helper mới. Trang được bọc `ToastProvider` trong helper đó, giữ nguyên.
+> Label tiếng Anh (`Title`, `URL`) là cố ý — khớp form assignment ngay trên cùng trang (D5).
 
 - [ ] **Step 3: Chạy để xác nhận fail**
 
 Run: `cd frontend && npm test -- TeacherClassPage`
-Expected: FAIL — không tìm thấy label `Tiêu đề`.
+Expected: FAIL — không tìm thấy label `Title` của form resource (tab rơi về `students`).
 
-- [ ] **Step 4: Thêm tab + form**
+- [ ] **Step 4: Mở whitelist tab + thêm nút tab**
 
 ```tsx
-// frontend/src/pages/teacher/TeacherClassPage.tsx — import
+// frontend/src/pages/teacher/TeacherClassPage.tsx
+  const tab = requestedTab === "assignments" || requestedTab === "gradebook" || requestedTab === "resources" ? requestedTab : "students";
+```
+
+```tsx
+// trong <div className="tabs" role="tablist">, sau nút Bảng điểm
+      <button type="button" className="tab" role="tab" aria-selected={tab === "resources"} onClick={() => setSearchParams({ tab: "resources" })}>Class resources</button>
+```
+
+> Nhãn tab `Class resources` khớp đúng nhãn tab bên Student (`StudentClassPage.tsx:54`) — cùng một thứ thì cùng một tên.
+
+- [ ] **Step 5: Thêm form**
+
+```tsx
+// import — Field, Textarea, Button, Card, ApiFailure, request đã được import sẵn ở trang này
 import { ClassResources } from "../../components/ClassResources";
-import { ApiFailure } from "../../lib/errors";
 ```
 
 ```tsx
 // state cạnh các state hiện có của trang
   const [resourceForm, setResourceForm] = useState({ title: "", description: "", url: "" });
-  const [resourceErrors, setResourceErrors] = useState<Record<string, string[]>>({});
+  const [resourceErrors, setResourceErrors] = useState<FieldErrors>({});
+  const [resourceBusy, setResourceBusy] = useState(false);
   const [resourceReload, setResourceReload] = useState(0);
 
-  const submitResource = async (event: React.FormEvent) => {
+  async function submitResource(event: FormEvent) {
     event.preventDefault();
     setResourceErrors({});
+    setResourceBusy(true);
     try {
       /** Resource cố ý không theo lifecycle của assignment: không kiểm is_open,
        * không hạn — đăng tài liệu cho một lớp đã kết thúc là chuyện bình thường (07 §2.3). */
-      await request(`/classes/${classId}/resources`, {
-        method: "POST", body: resourceForm, token: sessionStorage.getItem("access_token") ?? undefined,
-      });
+      await request(`/classes/${classId}/resources`, { method: "POST", token: token(), body: resourceForm });
       setResourceForm({ title: "", description: "", url: "" });
       setResourceReload((value) => value + 1);
     } catch (error) {
-      setResourceErrors(error instanceof ApiFailure && error.fields ? error.fields : { url: ["Không thêm được tài liệu."] });
+      if (error instanceof ApiFailure && error.fields) setResourceErrors(error.fields);
+      else toast.error(error instanceof Error ? error.message : "Unable to add resource.");
+    } finally {
+      setResourceBusy(false);
     }
-  };
+  }
 ```
 
 ```tsx
 // nhánh render, cạnh các tab hiện có
     {tab === "resources" && <Card>
-      <form className="stack" onSubmit={submitResource}>
-        <Field id="resource-title" label="Tiêu đề" value={resourceForm.title} error={resourceErrors.title?.[0]}
-          onChange={(event) => setResourceForm((form) => ({ ...form, title: event.target.value }))} />
-        <Field id="resource-description" label="Mô tả" value={resourceForm.description} error={resourceErrors.description?.[0]}
-          onChange={(event) => setResourceForm((form) => ({ ...form, description: event.target.value }))} />
-        <Field id="resource-url" label="Đường dẫn" value={resourceForm.url} error={resourceErrors.url?.[0]}
-          onChange={(event) => setResourceForm((form) => ({ ...form, url: event.target.value }))} />
-        <Button type="submit">Thêm tài liệu</Button>
+      <form noValidate className="form-grid" onSubmit={submitResource}>
+        <Field id="resource-title" label="Title" required wide value={resourceForm.title} error={resourceErrors.title?.[0]}
+          onChange={(event) => setResourceForm({ ...resourceForm, title: event.target.value })} />
+        <Textarea id="resource-description" label="Description" wide rows={3} value={resourceForm.description} error={resourceErrors.description?.[0]}
+          onChange={(event) => setResourceForm({ ...resourceForm, description: event.target.value })} />
+        <Field id="resource-url" label="URL" required wide value={resourceForm.url} error={resourceErrors.url?.[0]}
+          onChange={(event) => setResourceForm({ ...resourceForm, url: event.target.value })} />
+        <div className="form-actions field-full"><Button type="submit" disabled={resourceBusy}>{resourceBusy ? "Saving…" : "Tạo tài liệu"}</Button></div>
       </form>
       <ClassResources classId={Number(classId)} reloadKey={resourceReload} />
     </Card>}
 ```
 
-> `Field` là `InputHTMLAttributes<HTMLInputElement> & { id, label, error?, hint?, wide?, adornment? }` (`frontend/src/components/Field.tsx:18`) — `error` là **một chuỗi**, không phải mảng, và `onChange` là handler DOM chuẩn. `AccountForm.tsx` và `ClassForm.tsx` là ví dụ mẫu đang chạy.
+> Khuôn này sao chép form assignment ngay phía dưới trong cùng file: `noValidate`, `className="form-grid"`, `error={errors.x?.[0]}`, `disabled={busy}` với nhãn `Saving…`, lỗi không-theo-field đẩy vào `toast.error`. `Field.error` là **một chuỗi**, không phải mảng (`components/Field.tsx:19`); `description` dùng `Textarea` vì cột là `TextField(max_length=1000)`.
+> `FieldErrors`, `FormEvent`, `token()` và `toast` đều đã tồn tại trong file — không khai lại.
 
-- [ ] **Step 5: Chạy lại**
+- [ ] **Step 6: Chạy lại**
 
 Run: `cd frontend && npm test -- TeacherClassPage && npm run build`
 Expected: PASS, build sạch.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add frontend/src/pages/teacher/TeacherClassPage.tsx frontend/src/test/pages/TeacherClassPage.test.tsx
@@ -1230,32 +1363,36 @@ git commit -m "feat(resources): let a teacher add class resources from the class
 
 ---
 
-## 6. Task 11: Đồng bộ lại spec
+## 6. Task 11: Kiểm lại spec sau khi code xong
+
+Spec đã được sửa **trước** khi plan chạy, nên đây không còn là task viết lại — chỉ là đối chiếu cuối cùng giữa `docs/overview/07-notifications-and-resources.md` và thứ vừa ship.
 
 **Files:**
-- Modify: `docs/overview/07-notifications-and-resources.md`
+- Verify (sửa nếu lệch): `docs/overview/07-notifications-and-resources.md`
 
-- [ ] **Step 1: Sửa §2.1 theo D2**
+- [ ] **Step 1: Đối chiếu §2.1**
 
-Thay đoạn mô tả tái cấu trúc `.workspace` / `.workspace-topbar` / `div.workspace-main` bằng mô tả đúng shell hiện tại: `AppShell` là `.app-shell > aside.sidebar + main.canvas`, `header` bên trong `.canvas` đã sticky ở mọi breakpoint và đã có `.header-actions`; chuông thay chỗ `notification-link` cũ. Xoá câu "the one place these docs go below the component level".
+| Spec nói | Kiểm bằng |
+|---|---|
+| Shell `.app-shell > aside.sidebar + main.canvas > header > .header-actions`, chuông thay `notification-link` | `grep -n "header-actions\|NotificationBell" frontend/src/components/AppShell.tsx` |
+| Panel `z-index: 15`, radius `.5rem`, shadow `0 4px 12px #0f172a20` | `grep -n "notification-panel" frontend/src/styles.css` |
+| Đúng hai token mới, **không** có `--radius-md`/`--shadow-md` | `grep -n "color-accent\|primary-soft\|radius-md\|shadow-md" frontend/src/styles.css` |
+| `Notification` có đủ 6 field + `NotificationList` | `grep -n "interface Notification" -A 10 frontend/src/types.ts` |
 
-- [ ] **Step 2: Sửa câu về type TS**
+- [ ] **Step 2: Đối chiếu §2.2 / §2.3 / §3 / §4**
 
-Câu "The frontend `Notification` type has to pick up `type` and `created_at`; ... only the TS type omits them" là sai — trước Task 6 không có type nào. Sửa thành: type được định nghĩa ở `frontend/src/types.ts` với đủ 6 field của serializer.
+- resource newest first → `grep -n 'order_by("-id")' backend/classes/views.py`
+- tab teacher `?tab=resources` → `grep -n "resources" frontend/src/pages/teacher/TeacherClassPage.tsx`
+- `read-all` có route → `grep -n "read-all" backend/notifications/urls.py`
+- `link` nullable → `grep -n "link" backend/notifications/models.py`
 
-- [ ] **Step 3: Sửa §2.3**
+Chỗ nào lệch: sửa spec nếu code đúng ý đồ, sửa code nếu không — đừng để nguyên.
 
-"No dedicated teacher UI screen is wired up yet" đã hết đúng sau Task 10 — mô tả tab "Class resources" trên `TeacherClassPage` (danh sách + form tạo), giữ nguyên đoạn giải thích vì sao resource không theo lifecycle.
-
-- [ ] **Step 4: Đánh dấu `read-all` đã tồn tại**
-
-Ở §3, bỏ "**Not built yet**"; giữ nguyên đoạn lý giải vì sao là endpoint riêng thay vì loop.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Commit (chỉ khi có sửa)**
 
 ```bash
 git add docs/overview/07-notifications-and-resources.md
-git commit -m "docs(07): reconcile the notification spec with the shipped shell"
+git commit -m "docs(07): correct the spec against the shipped notification bell"
 ```
 
 ---
@@ -1267,6 +1404,9 @@ git commit -m "docs(07): reconcile the notification spec with the shipped shell"
 - [ ] `cd frontend && npm run build` — không lỗi TS.
 - [ ] Chạy tay: đăng nhập Teacher → tạo assignment → đăng nhập Student trong lớp đó → badge hiện `1` → mở panel → click row → tới `/student/assignments/{id}` → mở lại panel, badge biến mất.
 - [ ] Chạy tay: Admin đổi giáo viên của một Class → giáo viên cũ thấy row `CLASS_UNASSIGNED` không click được; giáo viên mới thấy row `CLASS_ASSIGNED` click vào mở được Class.
+- [ ] Chạy tay: Teacher mở tab "Class resources" → tạo 2 tài liệu → tài liệu mới nhất nằm đầu danh sách; Student trong lớp mở tab resources thấy đúng 2 dòng và có badge `RESOURCE_CREATED`.
+- [ ] Chạy tay: đăng nhập Admin → header **không** có chuông.
+- [ ] Chạy tay ở khổ mobile (<1024px): mở drawer sidebar trong khi panel thông báo đang mở → drawer nằm trên panel (z-index 21 > 15), không bị panel che.
 
 ---
 

@@ -15,21 +15,23 @@ No email/push — local-only, read inside the app shell.
 
 ### 2.1 Notification bell (`AppShell`, Teacher/Student only — not shown for Admin)
 
-The bell lives in a **top bar pinned to the right edge of the content column, at every breakpoint**. Today `.workspace-topbar` is `d-md-none` — mobile only — so on desktop there is no bar to hang it off; the bell sits inside the sidebar as a `<details>`. Moving it out needs one structural change to the shell — the one place these docs go below the component level, because the bell cannot be where the design puts it until this lands (see the Altitude note at the top of [00](00-system-overview.md)):
+The bell lives in the **header at the top of the content column, right-aligned, at every breakpoint**. The shell already provides that slot — no structural change is needed:
 
 ```
-.workspace (display: flex)
-├── aside.workspace-sidebar          fixed overlay < 768px, sticky column >= 768px
-└── div.workspace-main               flex column, flex: 1, min-width: 0   <- NEW wrapper
-    ├── header.workspace-topbar      sticky top, all breakpoints
-    └── main.workspace-content
+.app-shell
+├── aside.sidebar                    fixed drawer < 1024px, grid column >= 1024px
+└── main.canvas
+    ├── header                       present at every breakpoint
+    │   └── .header-actions          [bell] [UserMenu]
+    └── (page content)
 ```
 
-The wrapper exists because `.workspace` is a flex **row**: with the header as a direct child it becomes a third column on desktop instead of a bar. Drop `.workspace-topbar { display: none !important }` from the `min-width: 768px` block once it's in place. On desktop the brand hides (the sidebar already shows it) and the bar is otherwise empty — deliberate, it's the slot the next global control lands in.
+The bell replaces the `<Link className="notification-link" to="/notifications">` that sits in `.header-actions` today, and the `/notifications` route (a placeholder heading) goes away with it — the panel is the whole feature, there is no full-page notification list.
 
 ```
 +---------------------------------------------------------------+
-|  [=]  Class Management                              ( 🔔 3 )   |  <- badge = unread
+|  [=]                              ( 🔔 3 )  ( 👤 Ada Teacher ) |  <- badge = unread
+|   ^ menu button, mobile only                                  |
 +---------------------------------------------------------------+
                                   +----------------------------------------+
                                   | Thông báo         Đánh dấu đã đọc tất cả|
@@ -44,9 +46,9 @@ The wrapper exists because `.workspace` is a flex **row**: with the header as a 
                                   (Chưa có thông báo nào.)
 ```
 
-**Bell button** — `<button aria-expanded aria-controls="notif-panel" aria-label="Thông báo, 3 chưa đọc">`. The badge is a `--color-accent` pill positioned over the icon's top-right, capped at `99+`, and **not rendered at all when `unread_count` is 0** (an empty badge reads as a bug). It replaces the current `<details>`, which cannot close on an outside click.
+**Bell button** — `<button aria-expanded aria-controls="notif-panel" aria-label="Thông báo, 3 chưa đọc">`. The badge is a `--color-accent` pill positioned over the icon's top-right, capped at `99+`, and **not rendered at all when `unread_count` is 0** (an empty badge reads as a bug). It replaces the current link, which navigates away instead of opening in place.
 
-**Panel** — `position: absolute; right: 0; top: 100%`, `width: 22rem`, `max-width: calc(100vw - 1rem)`, `max-height: 24rem` with `overflow-y: auto`, on `--color-surface` with `--radius-md` / `--shadow-md`, `z-index: 1035` (above `.workspace-topbar`'s 1030, below the sidebar's 1050 so the mobile drawer still wins). Below 480px it stretches to a full-width sheet.
+**Panel** — the same dropdown idiom as `UserMenu` (`.action-menu-panel`: `--color-surface`, 1px `--color-border`, `.5rem` radius, `0 4px 12px #0f172a20`), sized for a list: `position: absolute; right: 0; top: 100%`, `width: 22rem`, `max-width: calc(100vw - 1rem)`, `max-height: 24rem` with `overflow-y: auto`. `z-index: 15` — above `.action-menu-panel`'s 10, below the drawer backdrop (20) and the sidebar (21) so the mobile drawer still wins. Below 480px it stretches to a full-width sheet. Radius and shadow stay literal rather than becoming `--radius-md` / `--shadow-md` tokens: those names are Tailwind v4's own `@theme` namespace, and declaring them would silently reshape every `rounded-md` / `shadow-md` utility in the app.
 
 **Item** — `[unread dot] [type icon] [title, clamped to 2 lines] [relative time]`. Unread rows get a `--color-primary-soft` background plus an accent dot; read rows are plain. `ASSIGNMENT_CREATED` takes the clipboard icon in primary, `RESOURCE_CREATED` the book icon in accent, `CLASS_ASSIGNED` / `CLASS_UNASSIGNED` the people icon in primary, anything else falls back to the bell — the fallback matters because `type` is a free `CharField` ([§4](#4-db)), not a constrained enum.
 
@@ -62,7 +64,9 @@ A Teacher's bell only ever holds `CLASS_ASSIGNED` / `CLASS_UNASSIGNED` rows — 
 | Click outside / `Escape` | Closes and returns focus to the bell |
 | Any of the above fails | The optimistic state rolls back and the badge returns to its server value |
 
-Relative time is computed client-side from `created_at`: `Vừa xong` → `N phút trước` → `N giờ trước` → `Hôm qua` → `N ngày trước` (under 7 days) → `dd/MM/yyyy`. The frontend `Notification` type has to pick up `type` and `created_at`; `NotificationSerializer` already returns both, only the TS type omits them.
+Relative time is computed client-side from `created_at` by `relativeTime` in `lib/format`: `Vừa xong` → `N phút trước` → `N giờ trước` → `Hôm qua` → `N ngày trước` (under 7 days) → `dd/MM/yyyy`, the last step reusing `formatDate`. There is no frontend `Notification` type yet — `types.ts` has none; it is defined with all six serializer fields (`id`, `type`, `title`, `link`, `created_at`, `read_at`), plus `NotificationList` for `{unread_count, items}`, and `type` stays a widened string so an unrecognised value still type-checks into the icon fallback.
+
+**Two new theme tokens**, both in the `@theme` block of `styles.css` (colours are never hardcoded in a component): `--color-accent` for the badge and the unread dot — deliberately not `--color-danger`, an unread notification is not an error — and `--color-primary-soft` for the unread row background.
 
 **Deliberately out of scope**: no pagination (the panel scrolls; `ponytail:` add `?limit=20` when a real account makes the list long), no All/Unread tabs (the unread background already carries that), no dismiss or delete — `read_at` stays the only state transition ([§5](#5-key-functions--rules)).
 
@@ -76,12 +80,18 @@ Relative time is computed client-side from `created_at`: `Vừa xong` → `N ph�
 Class resources
 - Slide deck (external link) — Week 1 slides
 - Reference repo (external link)
-(No resources yet.)
+(Chưa có tài liệu nào.)
 ```
+
+The tab is the Student class page's **default** tab (`?tab=resources`), so this list is the first thing a student sees on the page — an unordered dump would read as a bug. `GET /api/classes/{id}/resources` returns newest first (`order_by("-id")`); `ClassResource` has no `created_at` and no `Meta.ordering`, so without that clause the order is whatever the database happens to return. Each row is `<a target="_blank" rel="noopener noreferrer">` on the title, with the description below it when there is one. A failed load shows `Không tải được tài liệu.` rather than the empty state — "no resources" and "we could not ask" are different facts.
+
+The same `components/ClassResources` renders both roles' lists ([§2.3](#23-teacher-side-resource-management)); it takes the class id and a reload key, and owns nothing but the fetch and the list.
 
 ### 2.3 Teacher-side resource management
 
-Resources are created via `POST /api/classes/{id}/resources` (title, description, URL). No dedicated teacher UI screen is wired up yet beyond the API + the `components/ClassResources` display component — treat resource *creation* UI as owned by whichever screen embeds `ClassResources`; verify against the current `TeacherClassPage`/related component before building on it.
+Resources are created via `POST /api/classes/{id}/resources` (title, description, URL) from a **"Class resources" tab on `TeacherClassPage`** (`?tab=resources`, alongside Students / Assignments / Bảng điểm): a small create form above the same `components/ClassResources` list the student sees. Creation is inline rather than in a `Dialog` like assignment create — three plain fields with no lifecycle rules behind them do not earn a modal, and the teacher wants to see the list grow as they add.
+
+Without this tab the endpoint is unreachable from inside the app and the student tab is permanently empty, so the two ship together. Field errors come straight from the serializer's `422` body (`title` 2–150 chars after strip, `url` a valid URL up to 2048 chars) onto the matching field.
 
 Resources are deliberately **not** on the assignment lifecycle. Unlike assignments, `ClassResourcesView.post` checks neither `is_open(classroom)` nor any deadline ([03 §5](03-assignments-and-rubrics.md#5-key-functions--rules)), and there is no expiry, edit-freeze or delete path. A link is reference material, not graded work: posting slides to a finished Class is a normal thing to do, and nothing downstream reads a resource for state. Two consequences follow, both real today:
 
@@ -92,11 +102,13 @@ Resources are deliberately **not** on the assignment lifecycle. Unlike assignmen
 
 | Method | Path | Access | Notes |
 |---|---|---|---|
-| GET | `/api/notifications` | Authenticated | Returns `{unread_count, items[]}`, newest first |
-| POST | `/api/notifications/{id}/read` | Authenticated (own) | Idempotent — no-op if already read |
-| POST | `/api/notifications/read-all` | Authenticated (own) | **Not built yet** — see below. One bulk `update(read_at=now())` over `recipient=user, read_at IS NULL`; returns `{unread_count: 0}`. Idempotent |
-| GET | `/api/classes/{id}/resources` | Teacher, Student (scoped) | List resources for a Class |
+| GET | `/api/notifications` | Authenticated | Returns `{unread_count, items[]}`, ordered `-created_at, -id` |
+| POST | `/api/notifications/{id}/read` | Authenticated (own) | Idempotent — no-op if already read. Someone else's id is a `404`, not a `403` |
+| POST | `/api/notifications/read-all` | Authenticated (own) | One bulk `update(read_at=now())` over `recipient=user, read_at IS NULL`; returns `{unread_count: 0}`. Idempotent |
+| GET | `/api/classes/{id}/resources` | Teacher, Student (scoped) | List resources for a Class, newest first. Admin is in `scoped_classes` but gets `403` here — resources are course material, not an admin surface |
 | POST | `/api/classes/{id}/resources` | Owning Teacher | Create a resource; triggers notification fan-out |
+
+The list orders by `-created_at, -id`, not `-created_at` alone: a roster fan-out is one `bulk_create`, so every row it writes shares a `created_at` to the microsecond, and without the tie-break their relative order is whatever the database returns — different between SQLite and Postgres, and not necessarily stable between two calls.
 
 `read-all` is a new endpoint rather than the client looping `POST /{id}/read` over the list: the loop fires one request per unread row (30 assignments in a Class is 30 requests), and a partial failure leaves the badge disagreeing with the database with no obvious way to reconcile. The server-side version is a single queryset `update()` — it never loads a row, and there is no per-row failure to half-apply. Unlike the per-id route it takes no `read_at IS NULL` guard in Python because the `WHERE` clause already carries it.
 
