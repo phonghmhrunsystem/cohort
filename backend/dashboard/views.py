@@ -4,8 +4,8 @@ from rest_framework.views import APIView
 from accounts.models import User
 from accounts.permissions import IsAuthenticated
 
-from .serializers import AdminDashboardSerializer
-from .services import admin_dashboard
+from .serializers import AdminDashboardSerializer, TeacherDashboardSerializer
+from .services import admin_dashboard, teacher_dashboard
 
 
 class DashboardView(APIView):
@@ -18,4 +18,6 @@ class DashboardView(APIView):
     def get(self, request):
         if request.user.role == User.Role.ADMIN:
             return Response(AdminDashboardSerializer(admin_dashboard(request.user)).data)
+        if request.user.role == User.Role.TEACHER:
+            return Response(TeacherDashboardSerializer(teacher_dashboard(request.user)).data)
         return Response({"role": request.user.role})

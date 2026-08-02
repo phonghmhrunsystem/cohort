@@ -33,3 +33,16 @@ class AdminDashboardSerializer(serializers.Serializer):
     accounts = AccountCountsSerializer()
     classes = ClassBucketsSerializer()
     recent_audit = RecentAuditSerializer(many=True)
+
+
+class TeacherCardsSerializer(serializers.Serializer):
+    my_classes = serializers.IntegerField()
+    running_classes = serializers.IntegerField()
+    open_assignments = serializers.IntegerField()
+    pending_grading = serializers.IntegerField()
+    students = serializers.IntegerField()
+
+
+class TeacherDashboardSerializer(serializers.Serializer):
+    role = serializers.CharField()
+    cards = TeacherCardsSerializer()

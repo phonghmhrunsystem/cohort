@@ -201,3 +201,103 @@ class AdminEmptyAuditTests(TestCase):
         response = client.get("/api/dashboard")
 
         self.assertEqual(response.data["recent_audit"], [])
+
+
+class TeacherCardTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        now = timezone.now()
+        self.teacher = User.objects.create_user("cards-teacher@example.test", "pw", role="TEACHER")
+        self.other = User.objects.create_user("cards-other@example.test", "pw", role="TEACHER")
+        self.running = Class.objects.create(
+            teacher=self.teacher, name="running", starts_at=now - timedelta(days=1),
+            ends_at=now + timedelta(days=5), is_active=True,
+        )
+        self.ended = Class.objects.create(
+            teacher=self.teacher, name="ended", starts_at=now - timedelta(days=9),
+            ends_at=now - timedelta(days=1), is_active=True,
+        )
+        self.foreign = Class.objects.create(
+            teacher=self.other, name="foreign", starts_at=now - timedelta(days=1),
+            ends_at=now + timedelta(days=5), is_active=True,
+        )
+        self.students = [
+            User.objects.create_user(f"cards-student{i}@example.test", "pw", role="STUDENT")
+            for i in range(3)
+        ]
+        for student in self.students:
+            Enrollment.objects.create(classroom=self.running, student=student)
+        # Cùng một người, học thêm lớp thứ hai của chính teacher này.
+        Enrollment.objects.create(classroom=self.ended, student=self.students[0])
+        Enrollment.objects.create(classroom=self.foreign, student=self.students[0])
+
+        self.open_assignment = Assignment.objects.create(
+            classroom=self.running, title="Lab 1", description="d", due_at=now + timedelta(days=2),
+        )
+        Assignment.objects.create(
+            classroom=self.running, title="Lab 0", description="d", due_at=now - timedelta(days=1),
+        )
+        Assignment.objects.create(
+            classroom=self.ended, title="Old lab", description="d", due_at=now + timedelta(days=2),
+        )
+        self.client.force_authenticate(self.teacher)
+
+    def test_class_cards_count_only_my_classes(self):
+        cards = self.client.get("/api/dashboard").data["cards"]
+
+        self.assertEqual(cards["my_classes"], 2)
+        self.assertEqual(cards["running_classes"], 1)
+
+    def test_open_assignments_need_both_an_open_class_and_a_future_due_date(self):
+        cards = self.client.get("/api/dashboard").data["cards"]
+
+        self.assertEqual(cards["open_assignments"], 1)
+
+    def test_students_are_counted_once_across_my_classes(self):
+        cards = self.client.get("/api/dashboard").data["cards"]
+
+        self.assertEqual(cards["students"], 3)
+
+    def test_pending_grading_counts_pairs_not_versions(self):
+        for version in (1, 2, 3):
+            make_submission(self.open_assignment, self.students[0], version)
+        make_submission(self.open_assignment, self.students[1])
+
+        cards = self.client.get("/api/dashboard").data["cards"]
+
+        self.assertEqual(cards["pending_grading"], 2)
+
+    def test_a_graded_pair_stops_being_pending(self):
+        make_submission(self.open_assignment, self.students[0])
+        make_submission(self.open_assignment, self.students[1])
+        AssignmentGrade.objects.create(
+            assignment=self.open_assignment, student=self.students[0], score=85,
+        )
+
+        cards = self.client.get("/api/dashboard").data["cards"]
+
+        self.assertEqual(cards["pending_grading"], 1)
+
+    def test_a_disabled_class_vanishes_from_every_teacher_number(self):
+        """Lớp `is_active=False` vô hình với Teacher hoàn toàn (§6.2), không phải
+        chỉ read-only — kể cả bài chờ chấm nằm trong đó."""
+        make_submission(self.open_assignment, self.students[0])
+        Class.objects.filter(id=self.running.id).update(is_active=False)
+
+        cards = self.client.get("/api/dashboard").data["cards"]
+
+        self.assertEqual(cards["my_classes"], 1)
+        self.assertEqual(cards["running_classes"], 0)
+        self.assertEqual(cards["open_assignments"], 0)
+        self.assertEqual(cards["pending_grading"], 0)
+
+    def test_another_teachers_submissions_are_invisible(self):
+        foreign_assignment = Assignment.objects.create(
+            classroom=self.foreign, title="Foreign lab", description="d",
+            due_at=timezone.now() + timedelta(days=2),
+        )
+        make_submission(foreign_assignment, self.students[0])
+
+        cards = self.client.get("/api/dashboard").data["cards"]
+
+        self.assertEqual(cards["pending_grading"], 0)
