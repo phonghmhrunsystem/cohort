@@ -684,4 +684,6 @@ class AccountApiTests(TestCase):
             for file in Path(settings.BASE_DIR / "accounts").glob("**/*.py")
             if not {"migrations", "tests"}.intersection(file.parts)
         )
-        self.assertFalse(any("PasswordResetRequest" in file.read_text() for file in files))
+        # Without an explicit encoding this reads through the platform locale, which is cp1252
+        # on Windows and chokes on the Vietnamese seed data.
+        self.assertFalse(any("PasswordResetRequest" in file.read_text(encoding="utf-8") for file in files))
