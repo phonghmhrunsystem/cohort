@@ -1,9 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { request } from "../lib/api";
+import { clearTokens, getAccessToken, setTokens } from "../lib/session";
 import type { LoginPayload, LoginResponse, User } from "../types";
-
-const tokenKey = "access_token";
 
 type AuthState = {
   user: User | null;
@@ -25,12 +24,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const started = useRef(false);
 
   const clear = useCallback(() => {
-    sessionStorage.removeItem(tokenKey);
+    clearTokens();
     setUser(null);
   }, []);
 
   const refresh = useCallback(async () => {
-    const token = sessionStorage.getItem(tokenKey);
+    const token = getAccessToken();
     if (!token) {
       setUser(null);
       setLoading(false);
@@ -56,13 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (payload: LoginPayload) => {
     const response = await request<LoginResponse>("/auth/login", { method: "POST", body: payload });
     if (!response) throw new Error("Login failed.");
-    sessionStorage.setItem(tokenKey, response.access_token);
+    setTokens(response.access_token, response.refresh_token);
     setUser(response.user);
     return response.user;
   }, []);
 
   const logout = useCallback(async () => {
-    const token = sessionStorage.getItem(tokenKey);
+    const token = getAccessToken();
     try {
       if (token) await request("/auth/logout", { method: "POST", token });
     } finally {

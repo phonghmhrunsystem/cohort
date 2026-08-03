@@ -30,7 +30,7 @@ class LoginSerializer(TokenObtainPairSerializer):
             raise AuthenticationFailed(self.error_messages["no_active_account"], "no_active_account")
         user = UserSerializer(self.user).data
         user["must_change_password"] = self.user.must_change_password
-        return {"access_token": data["access"], "user": user}
+        return {"access_token": data["access"], "refresh_token": data["refresh"], "user": user}
 
 
 class ProfileValidationMixin:

@@ -1,11 +1,49 @@
 import type { ClassFilters, FieldErrors, UserFilters } from "../types";
 import { ApiFailure } from "./errors";
+import { clearTokens, getAccessToken, getRefreshToken, setAccessToken } from "./session";
 
 type RequestOptions = Omit<RequestInit, "body" | "headers"> & {
   body?: unknown;
   headers?: HeadersInit;
   token?: string;
 };
+
+/** Session is truly over: no refresh token, or the backend rejected it too
+ * (idle longer than the refresh lifetime). Bounce to login instead of leaving
+ * the user stuck on a page that only shows an error message. */
+function sessionExpired(): void {
+  clearTokens();
+  window.location.assign("/login");
+}
+
+let refreshing: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  const refresh = getRefreshToken();
+  if (!refresh) return null;
+  if (!refreshing) {
+    refreshing = fetch("/api/auth/refresh", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh }),
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const data = await response.json();
+        setAccessToken(data.access);
+        return data.access as string;
+      })
+      .catch(() => null)
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  return refreshing;
+}
+
+async function doFetch(path: string, init: RequestInit): Promise<Response> {
+  return fetch(`/api${path}`, init);
+}
 
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T | undefined> {
   const { body, headers: providedHeaders, token, ...init } = options;
@@ -14,11 +52,23 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const isFormData = body instanceof FormData;
   if (body !== undefined && !isFormData) headers["Content-Type"] = "application/json";
 
-  const response = await fetch(`/api${path}`, {
+  const requestInit: RequestInit = {
     ...init,
     body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
     headers,
-  });
+  };
+  let response = await doFetch(path, requestInit);
+
+  if (response.status === 401 && token && path !== "/auth/refresh") {
+    const newToken = await refreshAccessToken();
+    if (!newToken) {
+      sessionExpired();
+      throw new ApiFailure(401, undefined, "Session expired.");
+    }
+    headers.Authorization = `Bearer ${newToken}`;
+    response = await doFetch(path, { ...requestInit, headers });
+  }
+
   const data = response.status !== 204 && response.headers.get("content-type")?.includes("application/json")
     ? await response.json()
     : undefined;
@@ -107,9 +157,17 @@ export function gradebookCsvUrl(classId: number): string {
 /** Downloads are authenticated with the Bearer token, so a plain <a href> cannot
  * be used; fetch the bytes and hand the browser a blob URL instead. */
 async function downloadBlob(url: string, suggestedFilename?: string): Promise<void> {
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${sessionStorage.getItem("access_token") ?? ""}` },
+  let response = await fetch(url, {
+    headers: { Authorization: `Bearer ${getAccessToken() ?? ""}` },
   });
+  if (response.status === 401) {
+    const newToken = await refreshAccessToken();
+    if (!newToken) {
+      sessionExpired();
+      throw new Error("Session expired.");
+    }
+    response = await fetch(url, { headers: { Authorization: `Bearer ${newToken}` } });
+  }
   if (!response.ok) throw new Error("Download failed.");
   const blob = await response.blob();
   const objectUrl = URL.createObjectURL(blob);

@@ -88,7 +88,7 @@ class AccountApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(set(response.data), {"access_token", "user"})
+        self.assertEqual(set(response.data), {"access_token", "refresh_token", "user"})
         self.assertEqual(response.data["user"]["email"], self.student.email)
         self.assertEqual(response.data["user"]["role"], "STUDENT")
 

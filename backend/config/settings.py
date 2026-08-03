@@ -1,5 +1,6 @@
 import os
 
+from datetime import timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -62,7 +63,14 @@ AUTH_USER_MODEL = "accounts.User"
 REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication"]}
 
 JWT_SIGNING_KEY = DJANGO_SECRET_KEY
-SIMPLE_JWT = {"SIGNING_KEY": JWT_SIGNING_KEY}
+# Refresh token lifetime is the idle-timeout window: any authenticated request
+# rotates it, so an active user never times out, only a genuinely idle one does.
+SIMPLE_JWT = {
+    "SIGNING_KEY": JWT_SIGNING_KEY,
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=2),
+    "REFRESH_TOKEN_LIFETIME": timedelta(minutes=10),
+    "ROTATE_REFRESH_TOKENS": True,
+}
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
