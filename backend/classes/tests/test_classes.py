@@ -10,9 +10,37 @@ from rest_framework.test import APIClient
 from accounts.models import User
 from assignments.models import Assignment
 from audit.models import AuditLog
-from classes.models import Class, Enrollment
+from classes.models import Class, ClassResource, Enrollment
+from classes.views import is_open, open_class_q
 from grading.models import Grade
 from submissions.models import Submission
+
+
+class ClassLifecycleModelTests(TestCase):
+    def test_class_is_active_by_default(self):
+        classroom = Class.objects.create(
+            teacher=User.objects.create_user("teacher-lifecycle@example.test", "pw", role=User.Role.TEACHER),
+            name="Lifecycle",
+            starts_at=timezone.now(),
+            ends_at=timezone.now() + timedelta(days=1),
+        )
+
+        self.assertTrue(classroom.is_active)
+
+    def test_class_and_enrollment_carry_timestamps(self):
+        classroom = Class.objects.create(
+            teacher=User.objects.create_user("teacher-ts@example.test", "pw", role=User.Role.TEACHER),
+            name="Timestamps",
+            starts_at=timezone.now(),
+            ends_at=timezone.now() + timedelta(days=1),
+        )
+        enrollment = Enrollment.objects.create(
+            classroom=classroom,
+            student=User.objects.create_user("student-ts@example.test", "pw", role=User.Role.STUDENT),
+        )
+        self.assertIsNotNone(classroom.created_at)
+        self.assertIsNotNone(classroom.updated_at)
+        self.assertIsNotNone(enrollment.created_at)
 
 
 class ClassApiTests(TestCase):
@@ -48,6 +76,33 @@ class ClassApiTests(TestCase):
         self.other_student_client = APIClient()
         self.other_student_client.force_authenticate(self.other_student)
 
+    def test_resources_come_back_newest_first(self):
+        for title in ("First", "Second", "Third"):
+            ClassResource.objects.create(classroom=self.course, title=title, description="", url="https://example.test/x")
+        response = self.teacher_client.get(f"/api/classes/{self.course.id}/resources")
+        self.assertEqual([row["title"] for row in response.data], ["Third", "Second", "First"])
+
+    def test_creating_a_resource_writes_an_audit_row_in_the_same_transaction(self):
+        response = self.teacher_client.post(
+            f"/api/classes/{self.course.id}/resources",
+            {"title": "Slide deck", "description": "Week 1", "url": "https://example.test/slides"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201)
+        log = AuditLog.objects.get(action="class_resource.created")
+        self.assertEqual(log.actor_id, self.teacher.id)
+        self.assertEqual(log.target_type, "classes.classresource")
+        self.assertEqual(log.target_id, response.data["id"])
+        self.assertEqual(log.metadata, {"class_id": self.course.id, "resource_id": response.data["id"]})
+
+    def test_a_rejected_resource_leaves_no_audit_row(self):
+        response = self.teacher_client.post(
+            f"/api/classes/{self.course.id}/resources",
+            {"title": "x", "url": "not-a-url"}, format="json",
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertFalse(AuditLog.objects.filter(action="class_resource.created").exists())
+
     def test_only_admin_can_mutate_classes_and_enrollment(self):
         payload = self.class_payload()
         self.assertEqual(self.teacher_client.post("/api/classes", payload, format="json").status_code, 403)
@@ -55,6 +110,28 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.post(f"/api/classes/{self.course.id}/enrollments", {"student_id": self.other_student.id}, format="json").status_code, 403)
         self.assertEqual(self.teacher_client.delete(f"/api/classes/{self.course.id}/enrollments/{self.student.id}").status_code, 403)
         self.assertEqual(self.teacher_client.put(f"/api/classes/{self.course.id}/enrollments", {"student_ids": []}, format="json").status_code, 403)
+
+    def test_status_toggle_admin_only_and_blocks_disable_after_start(self):
+        self.assertEqual(
+            self.teacher_client.patch(f"/api/classes/{self.course.id}/status", {"is_active": False}, format="json").status_code,
+            403,
+        )
+        # self.course already started (starts_at = now - 1 day) -> disabling is blocked.
+        response = self.admin_client.patch(f"/api/classes/{self.course.id}/status", {"is_active": False}, format="json")
+        self.assertEqual(response.status_code, 422)
+
+        future_course = Class.objects.create(
+            teacher=self.teacher, name="Future", starts_at=timezone.now() + timedelta(days=1),
+            ends_at=timezone.now() + timedelta(days=2),
+        )
+        disable = self.admin_client.patch(f"/api/classes/{future_course.id}/status", {"is_active": False}, format="json")
+        self.assertEqual(disable.status_code, 200)
+        self.assertFalse(disable.data["is_active"])
+        self.assertEqual(AuditLog.objects.filter(target_type="classes.class", target_id=future_course.id, action="class.status_changed").count(), 1)
+
+        enable = self.admin_client.patch(f"/api/classes/{future_course.id}/status", {"is_active": True}, format="json")
+        self.assertEqual(enable.status_code, 200)
+        self.assertTrue(enable.data["is_active"])
 
     def test_successful_class_and_enrollment_mutations_are_audited(self):
         response = self.admin_client.post("/api/classes", self.class_payload(), format="json")
@@ -65,16 +142,95 @@ class ClassApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(AuditLog.objects.get(target_type="classes.enrollment", target_id=response.data["id"]).action, "enrollment.created")
 
-    def test_create_requires_an_active_teacher_and_teacher_cannot_change(self):
+    def test_create_requires_an_active_teacher(self):
         self.teacher.is_active = False
         self.teacher.save(update_fields=("is_active",))
         response = self.admin_client.post("/api/classes", self.class_payload(teacher_id=self.teacher.id), format="json")
         self.assertEqual(response.status_code, 422)
 
-        response = self.admin_client.patch(f"/api/classes/{self.course.id}", {"teacher_id": self.other_teacher.id}, format="json")
-        self.assertEqual(response.status_code, 422)
+    def test_teacher_reassignment_is_allowed_until_class_ends_and_notifies_both_teachers(self):
+        response = self.admin_client.patch(
+            f"/api/classes/{self.course.id}", {"teacher_id": self.other_teacher.id}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
         self.course.refresh_from_db()
-        self.assertEqual(self.course.teacher_id, self.teacher.id)
+        self.assertEqual(self.course.teacher_id, self.other_teacher.id)
+
+        audit = AuditLog.objects.get(target_type="classes.class", target_id=self.course.id, action="class.teacher_changed")
+        self.assertEqual(audit.metadata["from_teacher_id"], self.teacher.id)
+        self.assertEqual(audit.metadata["to_teacher_id"], self.other_teacher.id)
+
+        from notifications.models import Notification
+        self.assertTrue(Notification.objects.filter(recipient=self.teacher, type="CLASS_UNASSIGNED").exists())
+        self.assertTrue(Notification.objects.filter(recipient=self.other_teacher, type="CLASS_ASSIGNED").exists())
+
+        ended = Class.objects.create(
+            teacher=self.teacher, name="Ended", starts_at=timezone.now() - timedelta(days=10),
+            ends_at=timezone.now() - timedelta(days=1),
+        )
+        blocked = self.admin_client.patch(f"/api/classes/{ended.id}", {"teacher_id": self.other_teacher.id}, format="json")
+        self.assertEqual(blocked.status_code, 422)
+
+    def test_reassigning_a_class_notifies_both_teachers_and_leaves_the_outgoing_row_linkless(self):
+        from notifications.models import Notification
+
+        response = self.admin_client.patch(
+            f"/api/classes/{self.course.id}", {"teacher_id": self.other_teacher.id}, format="json"
+        )
+        self.assertEqual(response.status_code, 200)
+        outgoing = Notification.objects.get(recipient=self.teacher, type="CLASS_UNASSIGNED")
+        incoming = Notification.objects.get(recipient=self.other_teacher, type="CLASS_ASSIGNED")
+        self.assertIsNone(outgoing.link)
+        self.assertEqual(incoming.link, f"/teacher/classes/{self.course.id}")
+
+    def test_deleted_accounts_cannot_be_selected_or_appear_in_rosters(self):
+        deleted_teacher = User.objects.create_user(
+            "deleted-teacher@example.test", "pw", role="TEACHER", is_deleted=True
+        )
+        deleted_student = User.objects.create_user(
+            "deleted-student@example.test", "pw", role="STUDENT", is_deleted=True
+        )
+        Enrollment.objects.create(classroom=self.course, student=deleted_student)
+
+        create = self.admin_client.post(
+            "/api/classes",
+            self.class_payload(teacher_id=deleted_teacher.id),
+            format="json",
+        )
+        enroll = self.admin_client.post(
+            f"/api/classes/{self.course.id}/enrollments",
+            {"student_id": deleted_student.id},
+            format="json",
+        )
+        candidates = self.admin_client.get(
+            f"/api/classes/{self.course.id}/students", {"candidates": "1"}
+        )
+        roster = self.admin_client.get(f"/api/classes/{self.course.id}/students")
+
+        self.assertEqual(create.status_code, 422)
+        self.assertEqual(enroll.status_code, 422)
+        self.assertNotIn(deleted_student.id, [student["id"] for student in candidates.data])
+        self.assertNotIn(deleted_student.id, [student["id"] for student in roster.data["students"]["results"]])
+
+    def test_disabled_student_remains_in_roster(self):
+        self.student.is_active = False
+        self.student.save(update_fields=("is_active",))
+
+        response = self.admin_client.get(f"/api/classes/{self.course.id}/students")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(self.student.id, [student["id"] for student in response.data["students"]["results"]])
+
+    def test_roster_is_paginated_with_full_fields_and_whole_roster_totals(self):
+        for index in range(12):
+            student = User.objects.create_user(f"bulk-student-{index}@example.test", "pw", role="STUDENT", hometown="Ha Noi")
+            Enrollment.objects.create(classroom=self.course, student=student)
+        response = self.admin_client.get(f"/api/classes/{self.course.id}/students")
+        self.assertEqual(len(response.data["students"]["results"]), 10)
+        self.assertEqual(response.data["enrolled_students"], 13)  # self.student + 12 bulk
+        row = response.data["students"]["results"][0]
+        for key in ("phone", "hometown", "enrolled_at", "is_active"):
+            self.assertIn(key, row)
 
     def test_create_requires_start_before_end(self):
         now = timezone.now()
@@ -109,12 +265,33 @@ class ClassApiTests(TestCase):
 
     def test_list_search_is_scoped_by_role(self):
         response = self.admin_client.get("/api/classes", {"q": "redorange"})
-        self.assertEqual([item["id"] for item in response.data], [self.course.id])
+        self.assertEqual([item["id"] for item in response.data["results"]], [self.course.id])
         response = self.teacher_client.get("/api/classes", {"q": "redorange"})
-        self.assertEqual([item["id"] for item in response.data], [self.course.id])
+        self.assertEqual([item["id"] for item in response.data["results"]], [self.course.id])
         response = self.student_client.get("/api/classes", {"q": "redorange"})
-        self.assertEqual([item["id"] for item in response.data], [self.course.id])
-        self.assertEqual(self.other_student_client.get("/api/classes").data, [])
+        self.assertEqual([item["id"] for item in response.data["results"]], [self.course.id])
+        self.assertEqual(self.other_student_client.get("/api/classes").data["results"], [])
+
+    def test_list_is_paginated_with_student_count_and_teacher_filter(self):
+        baseline = Class.objects.count()
+        for index in range(11):
+            Class.objects.create(
+                teacher=self.teacher, name=f"Bulk {index}",
+                starts_at=timezone.now(), ends_at=timezone.now() + timedelta(days=1),
+            )
+        response = self.admin_client.get("/api/classes")
+        self.assertEqual(len(response.data["results"]), 10)
+        # baseline (self.course, self.other_course, and any migration-seeded classes) + 11 bulk.
+        self.assertEqual(response.data["count"], baseline + 11)
+
+        page2 = self.admin_client.get("/api/classes?page=2")
+        self.assertEqual(len(page2.data["results"]), 5)
+
+        row = next(r for r in response.data["results"] if r["id"] == self.course.id)
+        self.assertEqual(row["student_count"], 1)
+
+        by_teacher = self.admin_client.get(f"/api/classes?teacher={self.teacher.id}")
+        self.assertTrue(all(r["teacher"]["id"] == self.teacher.id for r in by_teacher.data["results"]))
 
     def test_enrolled_student_sees_safe_teacher_details_but_not_another_class(self):
         self.teacher.full_name = "Teacher Example"
@@ -151,7 +328,6 @@ class ClassApiTests(TestCase):
             original_filename="graded.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
         Grade.objects.create(
             assignment=graded_assignment,
@@ -165,14 +341,9 @@ class ClassApiTests(TestCase):
         response = self.student_client.get(f"/api/classes/{self.course.id}")
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.data["progress"],
-            {
-                "graded_assignments": 1,
-                "total_assignments": 2,
-                "nearest_deadline": open_assignment.due_at.isoformat(),
-            },
-        )
+        self.assertEqual(response.data["graded_count"], 1)
+        self.assertEqual(response.data["assignment_count"], 2)
+        self.assertEqual(response.data["next_due_at"], open_assignment.due_at.isoformat())
 
     def test_detail_and_students_reads_are_role_scoped(self):
         self.assertEqual(self.admin_client.get(f"/api/classes/{self.other_course.id}").status_code, 200)
@@ -188,21 +359,30 @@ class ClassApiTests(TestCase):
         self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}/students?candidates=1").status_code, 403)
         self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/students?candidates=1").status_code, 403)
 
-    def test_enrollment_read_returns_current_roster_to_admin_and_assigned_teacher(self):
-        expected = [{"id": self.student.id, "full_name": None, "email": "student@example.test"}]
-
-        for client in (self.admin_client, self.teacher_client):
-            response = client.get(f"/api/classes/{self.course.id}/enrollments")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(response.data, expected)
-        self.assertEqual(self.other_teacher_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 404)
-        self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 403)
+    def test_enrollment_get_route_is_removed(self):
+        self.assertEqual(self.admin_client.get(f"/api/classes/{self.course.id}/enrollments").status_code, 405)
 
     def test_ended_class_is_read_only_for_admin(self):
         self.course.ends_at = timezone.now() - timedelta(seconds=1)
         self.course.save(update_fields=("ends_at",))
         self.assertEqual(self.admin_client.patch(f"/api/classes/{self.course.id}", {"name": "Changed"}, format="json").status_code, 422)
         self.assertEqual(self.admin_client.post(f"/api/classes/{self.course.id}/enrollments", {"student_id": self.other_student.id}, format="json").status_code, 422)
+
+    def test_ends_at_only_extension_reopens_an_ended_class(self):
+        ended = Class.objects.create(
+            teacher=self.teacher, name="Ended", starts_at=timezone.now() - timedelta(days=10),
+            ends_at=timezone.now() - timedelta(days=1),
+        )
+        new_end = timezone.now() + timedelta(days=5)
+
+        mixed = self.admin_client.patch(f"/api/classes/{ended.id}", {"ends_at": new_end.isoformat(), "name": "Renamed"}, format="json")
+        self.assertEqual(mixed.status_code, 422)
+
+        extend = self.admin_client.patch(f"/api/classes/{ended.id}", {"ends_at": new_end.isoformat()}, format="json")
+        self.assertEqual(extend.status_code, 200)
+        ended.refresh_from_db()
+        self.assertAlmostEqual(ended.ends_at.timestamp(), new_end.timestamp(), delta=1)
+        self.assertTrue(AuditLog.objects.filter(target_type="classes.class", target_id=ended.id, action="class.reopened").exists())
 
     def test_enrollment_rejects_duplicate_and_inactive_student(self):
         self.assertEqual(self.admin_client.post(f"/api/classes/{self.course.id}/enrollments", {"student_id": self.student.id}, format="json").status_code, 422)
@@ -228,7 +408,10 @@ class ClassApiTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data, [{"id": self.other_student.id, "full_name": None, "email": "other-student@example.test"}])
+        self.assertEqual(response.data, [{
+            "id": self.other_student.id, "full_name": None, "email": "other-student@example.test",
+            "phone": None, "hometown": None, "is_active": True,
+        }])
         self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), [self.other_student.id])
         audit = AuditLog.objects.get(action="enrollment.replaced")
         self.assertEqual((audit.target_type, audit.target_id), ("classes.class", self.course.id))
@@ -293,6 +476,21 @@ class ClassApiTests(TestCase):
         with patch("classes.views.student_has_submission", return_value=True):
             self.assertEqual(self.admin_client.put(url, {"student_ids": []}, format="json").status_code, 422)
         self.assertEqual(list(self.course.enrollments.values_list("student_id", flat=True)), before)
+
+    def test_disabled_class_is_invisible_and_404s_for_teacher_and_student(self):
+        self.course.is_active = False
+        self.course.save(update_fields=("is_active",))
+
+        list_response = self.teacher_client.get("/api/classes")
+        self.assertNotIn(self.course.id, [row["id"] for row in list_response.data["results"]])
+        self.assertEqual(self.teacher_client.get(f"/api/classes/{self.course.id}").status_code, 404)
+
+        student_list = self.student_client.get("/api/classes")
+        self.assertNotIn(self.course.id, [row["id"] for row in student_list.data["results"]])
+        self.assertEqual(self.student_client.get(f"/api/classes/{self.course.id}").status_code, 404)
+
+        # Admin is unaffected.
+        self.assertEqual(self.admin_client.get(f"/api/classes/{self.course.id}").status_code, 200)
 
     def class_payload(self, **overrides):
         now = timezone.now()
@@ -360,7 +558,6 @@ class TeacherRosterProgressTests(TestCase):
             original_filename="submission.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
 
     def client_for(self, user):
@@ -375,7 +572,7 @@ class TeacherRosterProgressTests(TestCase):
         self.assertEqual(response.data["enrolled_students"], 2)
         self.assertEqual(response.data["submitted_students"], 1)
         self.assertEqual(response.data["graded_students"], 1)
-        by_id = {row["id"]: row for row in response.data["students"]}
+        by_id = {row["id"]: row for row in response.data["students"]["results"]}
         self.assertEqual(by_id[self.student.id]["submitted_assignments"], 1)
         self.assertEqual(by_id[self.student.id]["graded_assignments"], 1)
         # 0/total edge case: no submissions or grades at all.
@@ -390,7 +587,7 @@ class TeacherRosterProgressTests(TestCase):
 
         response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/students?q=nguyen")
         self.assertEqual(response.status_code, 200)
-        ids = [row["id"] for row in response.data["students"]]
+        ids = [row["id"] for row in response.data["students"]["results"]]
         self.assertIn(self.student.id, ids)
         self.assertNotIn(self.other_student.id, ids)
         # Summary counts stay computed from the full roster, unaffected by the filter.
@@ -400,7 +597,7 @@ class TeacherRosterProgressTests(TestCase):
             f"/api/classes/{self.classroom.id}/students?q={self.other_student.email}"
         )
         self.assertEqual(response.status_code, 200)
-        ids = [row["id"] for row in response.data["students"]]
+        ids = [row["id"] for row in response.data["students"]["results"]]
         self.assertEqual(ids, [self.other_student.id])
 
     def test_owner_teacher_sees_student_profile_with_progress(self):
@@ -510,7 +707,6 @@ class GradebookApiTests(TestCase):
             original_filename="submission.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
 
     def test_assigned_teacher_gets_empty_gradebook_only(self):
@@ -518,17 +714,95 @@ class GradebookApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data, {"assignments": [], "students": [
-            {"id": self.student.id, "full_name": None, "email": "gradebook-student@example.test", "grades": []},
-            {"id": self.other_student.id, "full_name": None, "email": "gradebook-other-student@example.test", "grades": []},
+            {"id": self.student.id, "full_name": None, "email": "gradebook-student@example.test", "is_active": True, "grades": []},
+            {"id": self.other_student.id, "full_name": None, "email": "gradebook-other-student@example.test", "is_active": True, "grades": []},
         ]})
+
+    def test_gradebook_hides_itself_from_everyone_but_its_own_teacher(self):
+        student_client = self.client_for(self.student)
+
         self.assertEqual(
             self.other_teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook").status_code,
+            404,
+        )
+        self.assertEqual(
+            student_client.get(f"/api/classes/{self.classroom.id}/gradebook").status_code,
             404,
         )
         self.assertEqual(
             self.admin_client.get(f"/api/classes/{self.classroom.id}/gradebook").status_code,
             403,
         )
+
+    def test_gradebook_sorts_students_by_name_and_assignments_by_creation(self):
+        for student, name in ((self.student, "Chi"), (self.other_student, "An")):
+            student.full_name = name
+            student.save(update_fields=("full_name",))
+        bao = User.objects.create_user("gradebook-bao@example.test", "pw", role="STUDENT", full_name="Bảo")
+        Enrollment.objects.create(classroom=self.classroom, student=bao)
+        first = Assignment.objects.create(
+            classroom=self.classroom, title="First", description="x", due_at=timezone.now() + timedelta(days=1)
+        )
+        second = Assignment.objects.create(
+            classroom=self.classroom, title="Second", description="x", due_at=timezone.now() + timedelta(days=1)
+        )
+
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([student["full_name"] for student in response.data["students"]], ["An", "Bảo", "Chi"])
+        self.assertEqual([assignment["id"] for assignment in response.data["assignments"]], [first.id, second.id])
+
+    def test_gradebook_keeps_disabled_students_and_drops_unenrolled_ones(self):
+        self.other_student.is_active = False
+        self.other_student.save(update_fields=("is_active",))
+        left = User.objects.create_user("gradebook-left@example.test", "pw", role="STUDENT")
+        Enrollment.objects.create(classroom=self.classroom, student=left).delete()
+
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook")
+
+        self.assertEqual(response.status_code, 200)
+        rows = {student["email"]: student["is_active"] for student in response.data["students"]}
+        self.assertEqual(rows, {
+            "gradebook-student@example.test": True,
+            "gradebook-other-student@example.test": False,
+        })
+
+    def test_assignment_created_after_grading_starts_ungraded_for_everyone(self):
+        now = timezone.now()
+        graded_assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Graded", description="x", due_at=now + timedelta(days=1)
+        )
+        submission = self.make_submission(graded_assignment, self.student)
+        Grade.objects.create(
+            assignment=graded_assignment,
+            student=self.student,
+            teacher=self.teacher,
+            submission=submission,
+            total_score=75,
+            feedback="Fine.",
+        )
+        late_assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Late", description="x", due_at=now + timedelta(days=1)
+        )
+
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook")
+
+        self.assertEqual(response.status_code, 200)
+        cells = {
+            (student["id"], grade["assignment_id"]): grade
+            for student in response.data["students"]
+            for grade in student["grades"]
+        }
+        self.assertEqual(cells[(self.student.id, graded_assignment.id)], {
+            "assignment_id": graded_assignment.id, "learning_state": "GRADED", "score": 75,
+        })
+        self.assertEqual(cells[(self.student.id, late_assignment.id)], {
+            "assignment_id": late_assignment.id, "learning_state": "OPEN", "score": None,
+        })
+        self.assertEqual(cells[(self.other_student.id, late_assignment.id)], {
+            "assignment_id": late_assignment.id, "learning_state": "OPEN", "score": None,
+        })
 
     def test_gradebook_reports_every_student_assignment_state_and_score(self):
         now = timezone.now()
@@ -614,10 +888,67 @@ class GradebookApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "text/csv; charset=utf-8")
+        self.assertEqual(
+            response["Content-Disposition"],
+            f'attachment; filename="gradebook-{self.classroom.id}.csv"',
+        )
         self.assertTrue(response.content.startswith(b"\xef\xbb\xbf"))
         content = response.content.decode("utf-8-sig")
         self.assertIn("Họ tên,Email,Essay (100)\r\n", content)
-        self.assertIn("Nguyễn Văn A,gradebook-student@example.test,GRADED: 91\r\n", content)
-        self.assertIn(",gradebook-other-student@example.test,OPEN\r\n", content)
+        self.assertIn("Nguyễn Văn A,gradebook-student@example.test,91\r\n", content)
+        self.assertIn(",gradebook-other-student@example.test,Chưa nộp\r\n", content)
         self.assertNotIn("file_path", content)
         self.assertNotIn("private/submission.pdf", content)
+
+    def test_gradebook_csv_labels_every_state_and_defuses_formulas(self):
+        now = timezone.now()
+        self.student.full_name = "=cmd|' /C calc'!A0"
+        self.student.save(update_fields=("full_name",))
+        submitted_assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Submitted", description="x", due_at=now + timedelta(days=1)
+        )
+        closed_assignment = Assignment.objects.create(
+            classroom=self.classroom, title="Closed", description="x", due_at=now - timedelta(seconds=1)
+        )
+        self.make_submission(submitted_assignment, self.student)
+
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/gradebook.csv")
+
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode("utf-8-sig")
+        self.assertIn("'=cmd|' /C calc'!A0,gradebook-student@example.test,Đã nộp,Đã đóng\r\n", content)
+        self.assertIn(",gradebook-other-student@example.test,Chưa nộp,Đã đóng\r\n", content)
+
+
+class OpenClassWindowTests(TestCase):
+    """`is_open` (in-memory) và `open_class_q` (SQL) là hai cách viết cùng một
+    luật §6.2. Test này là thứ duy nhất giữ chúng khớp nhau — đừng xoá."""
+
+    def setUp(self):
+        self.teacher = User.objects.create_user("window-teacher@example.test", "pw", role="TEACHER")
+        now = timezone.now()
+        make = lambda name, starts, ends, active: Class.objects.create(
+            teacher=self.teacher, name=name, starts_at=starts, ends_at=ends, is_active=active
+        )
+        self.running = make("running", now - timedelta(days=1), now + timedelta(days=1), True)
+        self.scheduled = make("scheduled", now + timedelta(days=1), now + timedelta(days=2), True)
+        self.ended = make("ended", now - timedelta(days=2), now - timedelta(days=1), True)
+        self.disabled = make("disabled", now - timedelta(days=1), now + timedelta(days=1), False)
+        # DB test đã có lớp demo do migration gieo sẵn; khẳng định tập chính xác
+        # chỉ nói về bốn lớp dựng ở đây.
+        self.mine = {self.running.id, self.scheduled.id, self.ended.id, self.disabled.id}
+
+    def test_the_query_selects_exactly_the_classes_is_open_accepts(self):
+        by_query = set(Class.objects.filter(open_class_q()).values_list("id", flat=True))
+        by_instance = {c.id for c in Class.objects.all() if is_open(c)}
+
+        self.assertEqual(by_query, by_instance)
+        self.assertEqual(by_query & self.mine, {self.running.id})
+
+    def test_the_query_accepts_an_explicit_now(self):
+        before_start = self.scheduled.starts_at + timedelta(hours=1)
+
+        selected = set(Class.objects.filter(open_class_q(before_start)).values_list("id", flat=True))
+
+        self.assertIn(self.scheduled.id, selected)
+        self.assertNotIn(self.ended.id, selected)

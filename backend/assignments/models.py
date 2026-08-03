@@ -10,9 +10,10 @@ class Assignment(models.Model):
     description = models.TextField(max_length=5000)
     due_at = models.DateTimeField()
     maximum_score = models.PositiveSmallIntegerField(default=100, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ("id",)
+        ordering = ("-created_at", "-id")
 
 
 class RubricCriterion(models.Model):

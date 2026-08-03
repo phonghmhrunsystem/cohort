@@ -3,6 +3,10 @@ from submissions.models import Submission
 
 _MISSING = object()
 
+# Display labels for the non-GRADED states; the API returns raw enums and lets
+# each client translate, so this map only serves server-rendered output (CSV).
+LEARNING_STATE_LABELS = {"SUBMITTED": "Đã nộp", "OPEN": "Chưa nộp", "CLOSED": "Đã đóng"}
+
 
 def assignment_learning_state(assignment, student, now, latest_submission=_MISSING):
     latest = latest_submission

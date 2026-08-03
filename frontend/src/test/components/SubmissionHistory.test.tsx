@@ -1,0 +1,212 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { SubmissionHistory } from "../../components/SubmissionHistory";
+import type { Submission } from "../../types";
+
+const submission = (overrides: Partial<Submission> = {}): Submission => ({
+  id: 1, assignment_id: 5, student_id: 3, student_name: "Nguyen Van A",
+  version: 1, original_filename: "homework_v1.docx", content_type: "application/pdf",
+  size: 943718, created_at: "2026-08-10T09:15:00Z", graded: false,
+  ...overrides,
+});
+
+function pdfFile(name = "homework.pdf", sizeBytes = 1024) {
+  const file = new File(["%PDF-1.4"], name, { type: "application/pdf" });
+  Object.defineProperty(file, "size", { value: sizeBytes });
+  return file;
+}
+
+/** The dropzone label swaps text once a file is picked ("Click để chọn file" -> "Đổi file"),
+ * and the filled state adds a "Xóa file" button, so match the two dropzone labels only. */
+const fileInput = () => screen.getByLabelText(/(chọn|đổi) file/i);
+
+/** The input carries accept=".pdf,.docx" and userEvent honours it, which would drop a bad
+ * file before the component ever sees it. A real user can still get past accept (the OS
+ * dialog's "All files", drag-and-drop), so the inline validation has to stay reachable. */
+const badFile = () => new File(["hi"], "notes.txt", { type: "text/plain" });
+const eventsIgnoringAccept = () => userEvent.setup({ applyAccept: false });
+
+describe("SubmissionHistory", () => {
+  afterEach(() => {
+    sessionStorage.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it("shows the empty state when there are no submissions", () => {
+    render(
+      <SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />,
+    );
+    expect(screen.getByText("Bạn chưa nộp bài nào.")).toBeTruthy();
+  });
+
+  it("lists versions newest first with size and a download control", () => {
+    render(
+      <SubmissionHistory
+        assignmentId={5}
+        submissions={[submission({ id: 2, version: 2, original_filename: "homework_v2.pdf" }), submission()]}
+        canSubmit
+        closureReason={null}
+        onSubmitted={() => {}}
+      />,
+    );
+    const rows = screen.getAllByRole("row");
+    expect(rows[1].textContent).toContain("v2");
+    expect(rows[1].textContent).toContain("homework_v2.pdf");
+    expect(rows[2].textContent).toContain("v1");
+  });
+
+  it("downloads a submission with an authenticated fetch when Download is clicked", async () => {
+    sessionStorage.setItem("access_token", "token");
+    vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:mock"), revokeObjectURL: vi.fn() });
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response("file bytes", { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <SubmissionHistory assignmentId={5} submissions={[submission()]} canSubmit closureReason={null} onSubmitted={() => {}} />,
+    );
+    const events = userEvent.setup();
+
+    await events.click(screen.getByRole("button", { name: "Download" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      "/api/submissions/1/download",
+      expect.objectContaining({ headers: { Authorization: "Bearer token" } }),
+    ));
+  });
+
+  it("rejects a non-pdf/docx file inline without calling the API", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
+    const events = eventsIgnoringAccept();
+
+    await events.upload(fileInput(), badFile());
+
+    expect(screen.getByText("Chỉ nhận file PDF hoặc DOCX.")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a file over 25MB inline without calling the API", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
+    const events = userEvent.setup();
+
+    const input = fileInput();
+    await events.upload(input, pdfFile("big.pdf", 26 * 1024 * 1024));
+
+    expect(screen.getByText("File vượt quá 25 MB.")).toBeTruthy();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reports pending-file false when a valid pick is followed by an invalid one", async () => {
+    const onPendingFileChange = vi.fn();
+    render(
+      <SubmissionHistory
+        assignmentId={5}
+        submissions={[]}
+        canSubmit
+        closureReason={null}
+        onSubmitted={() => {}}
+        onPendingFileChange={onPendingFileChange}
+      />,
+    );
+    const events = eventsIgnoringAccept();
+
+    await events.upload(fileInput(), pdfFile());
+    expect(onPendingFileChange).toHaveBeenLastCalledWith(true);
+
+    await events.upload(fileInput(), badFile());
+
+    expect(screen.getByText("Chỉ nhận file PDF hoặc DOCX.")).toBeTruthy();
+    expect(onPendingFileChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("clears the chosen file with the Xóa file button", async () => {
+    render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
+    const events = userEvent.setup();
+    await events.upload(fileInput(), pdfFile());
+    expect(screen.getByText("homework.pdf")).toBeTruthy();
+
+    await events.click(screen.getByRole("button", { name: "Xóa file" }));
+    expect(screen.queryByText("homework.pdf")).toBeNull();
+  });
+
+  it("submits the file, disables the button while in flight, and reports success", async () => {
+    sessionStorage.setItem("access_token", "token");
+    const created = submission();
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify(created), { status: 201, headers: { "Content-Type": "application/json" } }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onSubmitted = vi.fn();
+    render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={onSubmitted} />);
+    const events = userEvent.setup();
+
+    await events.upload(fileInput(), pdfFile());
+    await events.click(screen.getByRole("button", { name: "Nộp bài" }));
+
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalledWith(created));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/assignments/5/submissions",
+      expect.objectContaining({ method: "POST" }),
+    );
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBeInstanceOf(FormData);
+  });
+
+  it("on a 400 keeps the file and shows the error inline", async () => {
+    sessionStorage.setItem("access_token", "token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "Chỉ nhận file PDF hoặc DOCX." }), {
+        status: 400, headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<SubmissionHistory assignmentId={5} submissions={[]} canSubmit closureReason={null} onSubmitted={() => {}} />);
+    const events = userEvent.setup();
+    await events.upload(fileInput(), pdfFile());
+    await events.click(screen.getByRole("button", { name: "Nộp bài" }));
+
+    await waitFor(() => expect(screen.getByText("Chỉ nhận file PDF hoặc DOCX.")).toBeTruthy());
+    expect(screen.getByText("homework.pdf")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Nộp bài" }).hasAttribute("disabled")).toBe(false);
+  });
+
+  it("calls onClosed on a 422 (window closed) response", async () => {
+    sessionStorage.setItem("access_token", "token");
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "This Assignment has already been graded." }), {
+        status: 422, headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const onClosed = vi.fn();
+    render(
+      <SubmissionHistory
+        assignmentId={5}
+        submissions={[]}
+        canSubmit
+        closureReason={null}
+        onSubmitted={() => {}}
+        onClosed={onClosed}
+      />,
+    );
+    const events = userEvent.setup();
+    await events.upload(fileInput(), pdfFile());
+    await events.click(screen.getByRole("button", { name: "Nộp bài" }));
+
+    await waitFor(() => expect(onClosed).toHaveBeenCalled());
+  });
+
+  it("hides the submit form when canSubmit is false and shows the closure reason", () => {
+    render(
+      <SubmissionHistory assignmentId={5} submissions={[]} canSubmit={false} closureReason="Đã chấm, không thể nộp lại" onSubmitted={() => {}} />,
+    );
+    expect(screen.queryByLabelText(/(chọn|đổi) file/i)).toBeNull();
+    expect(screen.getByText("Đã chấm, không thể nộp lại")).toBeTruthy();
+  });
+});

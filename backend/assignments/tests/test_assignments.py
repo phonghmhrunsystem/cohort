@@ -160,7 +160,6 @@ class AssignmentApiTests(TestCase):
             original_filename="submission.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
         criterion_ids = [c["id"] for c in criteria_before]
         graded = self.teacher_client.put(
@@ -219,7 +218,6 @@ class AssignmentApiTests(TestCase):
             original_filename="submitted.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
         graded_submission = Submission.objects.create(
             assignment=graded_assignment,
@@ -229,7 +227,6 @@ class AssignmentApiTests(TestCase):
             original_filename="graded.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
         Grade.objects.create(
             assignment=graded_assignment,
@@ -272,6 +269,81 @@ class AssignmentApiTests(TestCase):
             "due_at": (timezone.now() + timedelta(days=1)).isoformat(),
             **overrides,
         }
+
+    def test_assignment_default_ordering_is_newest_first(self):
+        older = Assignment.objects.create(
+            classroom=self.classroom, title="Older",
+            description="Build and document a small application.",
+            due_at=timezone.now() + timedelta(days=1),
+        )
+        newer = Assignment.objects.create(
+            classroom=self.classroom, title="Newer",
+            description="Build and document a small application.",
+            due_at=timezone.now() + timedelta(days=2),
+        )
+        self.assertEqual(
+            list(Assignment.objects.values_list("id", flat=True)),
+            [newer.id, older.id],
+        )
+
+    def test_teacher_assignment_list_orders_by_created_at_desc_and_includes_counts(self):
+        first = self.teacher_client.post(
+            f"/api/classes/{self.classroom.id}/assignments", self.payload(title="First"), format="json"
+        ).data
+        second = self.teacher_client.post(
+            f"/api/classes/{self.classroom.id}/assignments", self.payload(title="Second"), format="json"
+        ).data
+
+        other_student = User.objects.create_user("other-student@example.test", "pw", role="STUDENT")
+        Enrollment.objects.create(classroom=self.classroom, student=other_student)
+
+        Submission.objects.create(
+            assignment_id=first["id"], student=self.student, version=1,
+            file_path="submissions/a.pdf", original_filename="a.pdf",
+            content_type="application/pdf", size=10,
+        )
+        submission_two = Submission.objects.create(
+            assignment_id=first["id"], student=other_student, version=1,
+            file_path="submissions/b.pdf", original_filename="b.pdf",
+            content_type="application/pdf", size=10,
+        )
+        Grade.objects.create(
+            assignment_id=first["id"], student=other_student, teacher=self.teacher,
+            submission=submission_two, total_score=90, feedback="Nice.",
+        )
+
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/assignments")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row["id"] for row in response.data], [second["id"], first["id"]])
+
+        first_row = next(row for row in response.data if row["id"] == first["id"])
+        second_row = next(row for row in response.data if row["id"] == second["id"])
+        self.assertEqual(first_row["submitted_count"], 2)
+        self.assertEqual(first_row["graded_count"], 1)
+        self.assertEqual(first_row["enrolled_count"], 2)
+        self.assertEqual(second_row["submitted_count"], 0)
+        self.assertEqual(second_row["graded_count"], 0)
+        self.assertEqual(second_row["enrolled_count"], 2)
+        self.assertIsNotNone(first_row["created_at"])
+
+        student_response = self.student_client.get(f"/api/classes/{self.classroom.id}/assignments")
+        self.assertIsNone(student_response.data[0]["submitted_count"])
+        self.assertIsNone(student_response.data[0]["graded_count"])
+        self.assertIsNone(student_response.data[0]["enrolled_count"])
+
+    def test_teacher_assignment_list_excludes_soft_deleted_students_from_enrolled_count(self):
+        assignment = self.teacher_client.post(
+            f"/api/classes/{self.classroom.id}/assignments", self.payload(), format="json"
+        ).data
+
+        # Create a soft-deleted student and enroll them
+        deleted_student = User.objects.create_user("deleted@example.test", "pw", role="STUDENT", is_deleted=True)
+        Enrollment.objects.create(classroom=self.classroom, student=deleted_student)
+
+        # Verify enrolled_count excludes the soft-deleted student
+        response = self.teacher_client.get(f"/api/classes/{self.classroom.id}/assignments")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["enrolled_count"], 1)  # Only self.student, not deleted_student
 
     def assignment_operation_statuses(self, client, assignment_id):
         return [

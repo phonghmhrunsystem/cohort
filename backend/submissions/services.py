@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 from time import sleep
 from uuid import uuid4
@@ -10,6 +11,7 @@ from django.utils import timezone
 from audit.services import write_audit
 from assignments.models import Assignment, AssignmentGrade
 from classes.models import Enrollment
+from classes.views import is_open
 
 from .models import Submission
 
@@ -21,15 +23,23 @@ class SubmissionRejected(Exception):
     pass
 
 
+_UNSAFE_FILENAME_CHARS = re.compile(r"[\\/\x00-\x1f]")
+
+
+def teacher_download_filename(submission):
+    name = submission.student.full_name or f"Student {submission.student_id}"
+    name = _UNSAFE_FILENAME_CHARS.sub("", name).strip()
+    if not name:
+        name = f"Student {submission.student_id}"
+    name = name[:150]
+    return f"{name}_{submission.original_filename}"
+
+
 def can_submit(assignment):
-    now = timezone.now()
-    return (
-        assignment.classroom.starts_at <= now < assignment.classroom.ends_at
-        and now < assignment.due_at
-    )
+    return is_open(assignment.classroom) and timezone.now() < assignment.due_at
 
 
-def create_submission(*, assignment, student, upload, note):
+def create_submission(*, assignment, student, upload):
     for attempt in range(3):
         storage_name = None
         try:
@@ -74,7 +84,6 @@ def create_submission(*, assignment, student, upload, note):
                     original_filename=upload.name,
                     content_type=upload.content_type,
                     size=upload.size,
-                    note=note,
                 )
                 write_audit(
                     actor=student,

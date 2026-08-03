@@ -29,11 +29,19 @@ class AssignmentSerializer(serializers.ModelSerializer):
     learning_state = serializers.SerializerMethodField()
     deadline_badge = serializers.SerializerMethodField()
     closure_reason = serializers.SerializerMethodField()
+    submitted_count = serializers.SerializerMethodField()
+    graded_count = serializers.SerializerMethodField()
+    enrolled_count = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
 
     class Meta:
         model = Assignment
-        fields = ("id", "classroom_id", "title", "description", "due_at", "maximum_score", "criteria", "learning_state", "deadline_badge", "closure_reason")
-        read_only_fields = ("id", "classroom_id", "maximum_score", "criteria")
+        fields = (
+            "id", "classroom_id", "title", "description", "due_at", "maximum_score",
+            "criteria", "created_at", "learning_state", "deadline_badge", "closure_reason",
+            "submitted_count", "graded_count", "enrolled_count", "score",
+        )
+        read_only_fields = ("id", "classroom_id", "maximum_score", "criteria", "created_at")
 
     def validate_title(self, value):
         value = value.strip()
@@ -75,6 +83,29 @@ class AssignmentSerializer(serializers.ModelSerializer):
             return None
         now = timezone.now()
         return closure_reason(assignment, now) if assignment_learning_state(assignment, student, now) == "CLOSED" else None
+
+    def get_submitted_count(self, assignment):
+        counts = self.context.get("counts")
+        return counts[assignment.id]["submitted"] if counts else None
+
+    def get_graded_count(self, assignment):
+        counts = self.context.get("counts")
+        return counts[assignment.id]["graded"] if counts else None
+
+    def get_score(self, assignment):
+        student = self.context.get("student")
+        if not student:
+            return None
+        scores = self.context.get("scores")
+        if scores is not None:
+            return scores.get(assignment.id)
+        from .models import AssignmentGrade
+
+        grade = AssignmentGrade.objects.filter(assignment=assignment, student=student).first()
+        return grade.score if grade else None
+
+    def get_enrolled_count(self, assignment):
+        return self.context.get("enrolled_count")
 
 
 class RubricSerializer(serializers.Serializer):

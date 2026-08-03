@@ -1,4 +1,6 @@
-from rest_framework.permissions import IsAuthenticated as DRFIsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated as DRFIsAuthenticated
+
+from .models import User
 
 
 class IsAuthenticated(DRFIsAuthenticated):
@@ -8,3 +10,8 @@ class IsAuthenticated(DRFIsAuthenticated):
         return super().has_permission(request, view) and (
             not request.user.must_change_password or request.path in self.allowed_while_forced
         )
+
+
+class IsAdmin(BasePermission):
+    def has_permission(self, request, view):
+        return request.user.is_authenticated and not request.user.must_change_password and request.user.role == User.Role.ADMIN

@@ -11,37 +11,50 @@ Teacher-authored coursework items within a Class, with an optional rubric. Drive
 ### 2.1 Teacher — Assignments tab (`/teacher/classes/{id}?tab=assignments`)
 
 ```
-+----------------------------------------------------------------------+
-| Assignments                                    [ Tạo assignment ]     |
-|                                                                       |
-| Tên          | Ngày tạo   | Hạn nộp            | Trạng thái | Đã nộp | Action      |
-|--------------|------------|--------------------|------------|--------|-------------|
-| Homework 1   | 2026-07-20 | 2026-08-15 20:00   | Đang mở    | 12/24  | [Xem][Sửa]  |
-|              |            | Còn 3 ngày         |            |        |             |
-| Homework 2   | 2026-06-18 | 2026-07-01 20:00   | Hết hạn    | 22/24  | [Xem][Sửa]  |
-|              |            | Đã hết hạn         |            |        |  ^ disabled |
-+----------------------------------------------------------------------+
++------------------------------------------------------------------------+
+| Assignments                                      [ Tạo assignment ]     |
+|                                                                         |
+| Tên          | Ngày tạo   | Hạn nộp            | Trạng thái | Đã nộp | Action  |
+|--------------|------------|--------------------|------------|--------|---------|
+| Homework 1   | 2026-07-20 | 2026-08-15 20:00   | Đang mở    | 12/24  | (👁)(✎) |
+|              |            | Còn 3 ngày         |            |        |         |
+| Homework 2   | 2026-06-18 | 2026-07-01 20:00   | Hết hạn    | 22/24  | (👁)(✎) |
+|              |            | Đã hết hạn         |            |        | ✎ grey  |
++------------------------------------------------------------------------+
 ```
 
-- Same table shape as the Student view (§2.2) — one row per assignment, no cards.
+`(👁)` / `(✎)` = icon-only buttons (eye = Xem, pencil = Sửa), `aria-label`/`title` carry the Vietnamese name — the table has no visible button text.
+
+- Same table shape as the Student view (§2.2) — one row per assignment, no cards. Both tables use the shared `DataTable` component ([`Table.tsx`](../../frontend/src/components/Table.tsx)), the same one behind the paginated lists in [01](01-auth-and-accounts.md)/[02](02-classes-and-enrollment.md) — but neither assignments table is paginated (no `Pagination` component here): per-Class assignment counts are small, so the full list renders in one page.
 - **Ngày tạo** = `created_at`, date only. Default sort is `-created_at` (newest first) so a freshly created assignment lands at the top.
 - **Trạng thái** is teacher-side, not `learning_state`: `Đang mở` (Class open and `now < due_at`), `Hết hạn` (`due_at` passed), `Đã đóng` (Class window closed).
 - **Đã nộp** = `submitted_count/enrolled_count`; a `graded_count` badge appears next to it once grading starts. Both come from the list endpoint (§3), not from N extra calls.
 - **`Xem`** goes to `/teacher/assignments/{id}` — the single teacher assignment page, which is assignment detail *and* the submissions list in one (see [04 §2.2](04-submissions.md#22-teacher--assignment-submissions-teacherassignmentsid)). There is no separate "view assignment" screen; `Sửa rubric` lives in that page's header, not in this table.
 - **`Sửa` is disabled once `due_at` has passed**, with a tooltip ("Assignment đã hết hạn, không thể chỉnh sửa."). Nothing survives the deadline — title, description, `due_at` and rubric are all frozen. A deadline can only be moved *before* it passes; there is no gia hạn after the fact, so a teacher who wants more time has to change `due_at` while the assignment is still `Đang mở`.
+- **Loading/error/empty states** (both this table and the Class header above it): a `Spinner` while fetching, an `Alert` if the fetch fails (no stuck spinner), an `EmptyState` ("No assignments.") when the list comes back empty.
 
 ```
-Create/Edit dialog: title, description, due_at. (max_score fixed 100,
-not editable.)  Only reachable while now < due_at; after that the whole
-dialog is unreachable.
+Create dialog:  Title [____________]           (editable)
+                Description [________]          (editable)
+                Due at [datetime-local]          (editable)
+                Max score: 100                   (static text, not an input)
+
+Edit dialog:    Title [____________] GREYED OUT  (locked once created — not editable)
+                Description [________]           (editable)
+                Due at [datetime-local]          (editable, must stay in the future)
+                Max score: 100                   (static text, not an input)
+
+Only reachable while now < due_at; after that the whole dialog is unreachable.
 
 Edit rubric dialog (in the assignment page header):
   Total: 70 / 100        Còn lại: 30      <- red until it sums to 100
-  Criterion [___________] Points [___] [Xóa]
-  Criterion [___________] Points [___] [Xóa]
+  Criterion [___________] Points [1-100] [Xóa]
+  Criterion [___________] Points [1-100] [Xóa]
   [ Add criterion ]  [ Chia đều ]  [ Dùng mẫu mặc định ]
-  [ Save rubric ]  <- disabled unless total == 100
+  [ Save rubric ]  <- disabled unless total == 100 and at least 1 criterion
 ```
+
+- **`Title` is locked (disabled input) on the edit dialog** — only `Description` and `Due at` can change after creation. Doc previously implied all three fields were freely editable; the code only disables `title`.
 
 - `Dùng mẫu mặc định` fills three criteria — Đúng yêu cầu 40 / Chất lượng 30 / Trình bày 30 — editable afterwards. Rubrics are optional; an assignment with no criteria is graded by a manual total ([05](05-grading-and-results.md)).
 - `Chia đều` splits 100 across the current criteria (remainder to the first).
@@ -49,16 +62,16 @@ Edit rubric dialog (in the assignment page header):
 
 ### 2.2 Student — Assignments tab (`/student/classes/{id}`)
 
-Full mock in [02 §2.5](02-classes-and-enrollment.md#25-student--my-classes--class-detail). A table of Tên assignment / Hạn nộp / Trạng thái / Điểm / Action, where `learning_state` drives both the Trạng thái cell and the second Action button:
+Full mock in [02 §2.5](02-classes-and-enrollment.md#25-student--my-classes--class-detail). A table of Tên assignment / Hạn nộp / Trạng thái / Điểm / Action, where every row always shows a `Xem` icon button (eye icon, first action) plus a second, state-driven action:
 
 | `learning_state` | Trạng thái | Second action | Điểm |
 |---|---|---|---|
 | `OPEN` | Chưa nộp | `Nộp bài` | `—` |
 | `SUBMITTED` | Đã nộp | `Xem lịch sử` | `—` |
-| `GRADED` | Đã chấm | `Xem kết quả` | `score/100` |
+| `GRADED` | Đã chấm | `Xem kết quả` | denormalized `assignment_grades.score` |
 | `CLOSED` | Đã đóng | none — `closure_reason` as a tooltip ("Class has ended." / "Deadline has passed.") | `—` |
 
-Every action lands on the same page, `/student/assignments/{id}` ([04](04-submissions.md)); the second button only anchors to the relevant section. `deadline_badge` renders next to `due_at` in the Hạn nộp cell.
+Every action lands on the same page, `/student/assignments/{id}` ([04](04-submissions.md)) — currently a stub there, full detail lives in [04](04-submissions.md); the second button only anchors to the relevant section. `deadline_badge` renders next to `due_at` in the Hạn nộp cell. `Xem` is an icon button like the teacher table; `Nộp bài` is also icon (upload); `Xem lịch sử`/`Xem kết quả` render as text buttons, not icons. Same loading/error/empty-state pattern as §2.1 (spinner → alert on failure, no stuck spinner; empty state when the list is empty).
 
 ## 3. API
 
@@ -117,5 +130,5 @@ Every action lands on the same page, `/student/assignments/{id}` ([04](04-submis
 - Teacher realises the deadline was too tight *after* it passed → nothing to do on this assignment; create a new one. Stated here because it's the predictable support ticket, not an oversight.
 - A request racing the deadline (sent at `due_at - 1s`, arriving after) → `422`; the check reads `now` server-side at handling time, so the boundary belongs to the server clock, not the browser's.
 - Pushing `due_at` beyond the Class's `ends_at` while still open → accepted by this rule but pointless; `can_submit` ([04 §5](04-submissions.md#5-key-functions--rules)) still stops at `ends_at`.
-- Rubric criteria total ≠ 100 → rejected by `RubricSerializer` validation, `422`.
+- Rubric criteria total ≠ 100 → rejected by `RubricSerializer` validation, `422`. Client also blocks it earlier: the Points input is `min=1 max=100`, so a 0/negative/>100 single criterion never reaches the total check.
 - A teacher viewing a Student's `learning_state`/`deadline_badge` never sees them — those fields are only populated when `context["student"]` is set (Student caller).

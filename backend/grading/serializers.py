@@ -52,9 +52,12 @@ class GradeInputSerializer(serializers.Serializer):
 
 
 class CriterionScoreSerializer(serializers.ModelSerializer):
+    criterion_title = serializers.CharField(source="criterion.title", read_only=True)
+    maximum_score = serializers.IntegerField(source="criterion.maximum_score", read_only=True)
+
     class Meta:
         model = CriterionScore
-        fields = ("criterion_id", "score")
+        fields = ("criterion_id", "criterion_title", "maximum_score", "score")
 
 
 class GradeSerializer(serializers.ModelSerializer):

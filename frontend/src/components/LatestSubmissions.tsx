@@ -1,21 +1,88 @@
 import { useState } from "react";
 
-import { accessToken } from "../session";
+import { GradeResultDialog } from "./GradeResultDialog";
+import { DownloadIcon, EyeIcon, GradeIcon, IconButton, IconLinkButton } from "./IconButton";
+import { Pagination } from "./Pagination";
+import { DataTable, type Column } from "./Table";
+import { downloadSubmission } from "../lib/api";
+import { formatDateTime } from "../lib/format";
+import type { TeacherSubmissionRow } from "../types";
 
-type Submission = { id: number; assignment_id: number; student_id: number; student_name: string | null; version: number; original_filename: string; created_at: string; graded: boolean };
+const PAGE_SIZE = 6;
 
-export async function downloadSubmission(id: number, filename: string) {
-  const response = await fetch(`/api/submissions/${id}/download`, { headers: { Authorization: `Bearer ${accessToken()}` } });
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({})) as { detail?: string };
-    throw new Error(body.detail || "Unable to download this submission.");
-  }
-  const url = URL.createObjectURL(await response.blob());
-  const link = document.createElement("a");
-  link.href = url; link.download = filename; link.click(); URL.revokeObjectURL(url);
+export interface LatestSubmissionsProps {
+  assignmentId: number;
+  rows: TeacherSubmissionRow[];
 }
 
-export function LatestSubmissions({ submissions }: { submissions: Submission[] }) {
-  const [error, setError] = useState("");
-  return <section className="card border-0 shadow-sm"><div className="card-body"><h2 className="h4">Latest submissions</h2>{error && <div className="alert alert-danger" role="alert">{error}</div>}{submissions.length ? <ul className="list-group list-group-flush">{submissions.map((submission) => <li className="list-group-item px-0 d-flex justify-content-between align-items-center gap-2" key={submission.id}><span><strong>{submission.student_name?.trim() || `Student #${submission.student_id}`}</strong><br />{submission.original_filename} · <small className="text-secondary">{new Date(submission.created_at).toLocaleString()}</small><br /><small className="text-secondary">Version {submission.version}</small></span><span className="d-flex align-items-center gap-2"><a href={`/api/submissions/${submission.id}/download`} onClick={(event) => { event.preventDefault(); setError(""); void downloadSubmission(submission.id, submission.original_filename).catch((response: unknown) => setError(response instanceof Error ? response.message : "Unable to download this submission.")); }}>Download {submission.original_filename}</a>{submission.graded ? <span className="badge text-bg-secondary">Đã chấm</span> : <a className="btn btn-outline-primary btn-sm" href={`/teacher/assignments/${submission.assignment_id}/submissions/${submission.id}/grade`}>Chấm điểm</a>}</span></li>)}</ul> : <p className="text-secondary mb-0">No submissions yet.</p>}</div></section>;
+export function LatestSubmissions({ assignmentId, rows }: LatestSubmissionsProps) {
+  const [page, setPage] = useState(1);
+  const [reviewing, setReviewing] = useState<TeacherSubmissionRow>();
+  const submittedCount = rows.filter((row) => row.submission).length;
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const columns: Column<TeacherSubmissionRow>[] = [
+    {
+      key: "student",
+      header: "Học viên",
+      render: (row) => <>{row.student_name}{!row.is_active && <span className="tag-inactive"> đã tắt</span>}</>,
+    },
+    {
+      key: "file",
+      header: "File",
+      render: (row) => (row.submission ? row.submission.original_filename : "chưa nộp"),
+    },
+    {
+      key: "submitted_at",
+      header: "Nộp lúc",
+      render: (row) => (row.submission ? formatDateTime(row.submission.created_at) : ""),
+    },
+    {
+      key: "score",
+      header: "Điểm",
+      render: (row) => (row.submission && row.graded ? row.score : ""),
+    },
+    {
+      key: "actions",
+      header: "",
+      render: (row) => {
+        if (!row.submission) return null;
+        return (
+          <div className="row-actions">
+            <IconButton
+              icon={<DownloadIcon />}
+              label="Tải"
+              onClick={() => downloadSubmission(row.submission!.id, row.submission!.original_filename)}
+            />
+            {row.graded ? (
+              <IconButton icon={<EyeIcon />} label="Xem kết quả" onClick={() => setReviewing(row)} />
+            ) : (
+              <IconLinkButton
+                icon={<GradeIcon />}
+                label="Chấm"
+                to={`/teacher/assignments/${assignmentId}/grade/${row.submission.id}`}
+              />
+            )}
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <>
+      <p className="section-title">Bài nộp {submittedCount}/{rows.length}</p>
+      <DataTable columns={columns} data={pageRows} rowKey={(row) => row.student_id} />
+      <Pagination page={page} count={rows.length} pageSize={PAGE_SIZE} onChange={setPage} label="Danh sách bài nộp" />
+      {reviewing && (
+        <GradeResultDialog
+          assignmentId={assignmentId}
+          studentId={reviewing.student_id}
+          studentName={reviewing.student_name}
+          open
+          onClose={() => setReviewing(undefined)}
+        />
+      )}
+    </>
+  );
 }

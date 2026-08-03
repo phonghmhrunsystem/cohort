@@ -12,7 +12,6 @@ class Submission(models.Model):
     original_filename = models.CharField(max_length=255)
     content_type = models.CharField(max_length=100)
     size = models.PositiveBigIntegerField()
-    note = models.TextField(blank=True, max_length=1000)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

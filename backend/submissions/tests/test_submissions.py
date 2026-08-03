@@ -60,10 +60,22 @@ class SubmissionApiTests(TestCase):
         client.force_authenticate(user)
         return client
 
+    FILE_BYTES = {
+        "pdf": b"%PDF-1.4\n%fake pdf body for tests\n",
+        "docx": b"PK\x03\x04\x14\x00\x00\x00\x08\x00fake docx body",
+    }
+
+    def content_type(self, filename):
+        return {
+            "pdf": "application/pdf",
+            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        }[filename.rsplit(".", 1)[1]]
+
     def submit(self, filename, *, client=None):
+        ext = filename.rsplit(".", 1)[1]
         return (client or self.student_client).post(
             self.submit_url,
-            {"file": SimpleUploadedFile(filename, b"content", self.content_type(filename))},
+            {"file": SimpleUploadedFile(filename, self.FILE_BYTES[ext], self.content_type(filename))},
             format="multipart",
         )
 
@@ -75,12 +87,6 @@ class SubmissionApiTests(TestCase):
         with patch("submissions.views.create_submission", side_effect=change_then_create):
             return self.submit("race.pdf")
 
-    def content_type(self, filename):
-        return {
-            "pdf": "application/pdf",
-            "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        }[filename.rsplit(".", 1)[1]]
-
     def test_invalid_upload_writes_no_file_or_row(self):
         before = list(Path(settings.MEDIA_ROOT).rglob("*"))
 
@@ -90,7 +96,8 @@ class SubmissionApiTests(TestCase):
             format="multipart",
         )
 
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "Upload a PDF or DOCX file."})
         self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
         from submissions.models import Submission
         self.assertEqual(Submission.objects.count(), 0)
@@ -105,18 +112,60 @@ class SubmissionApiTests(TestCase):
         self.assertEqual([item["version"] for item in response.json()], [2, 1])
         self.assertNotIn("file_path", response.json()[0])
 
-    def test_teacher_sees_only_greatest_version_per_student(self):
+    def test_teacher_list_is_roster_shaped(self):
         self.submit("one.pdf")
         self.submit("two.pdf")
         self.submit("other.docx", client=self.other_student_client)
 
         response = self.teacher_client.get(self.teacher_list_url)
-
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            {(item["student_id"], item["version"]) for item in response.json()},
-            {(self.student.id, 2), (self.other_student.id, 1)},
-        )
+        rows = {row["student_id"]: row for row in response.json()}
+
+        self.assertEqual(set(rows), {self.student.id, self.other_student.id})
+        self.assertNotIn(self.unenrolled_student.id, rows)
+        self.assertIsNotNone(rows[self.student.id]["submission"])
+        self.assertNotIn("version", rows[self.student.id]["submission"])
+        self.assertEqual(rows[self.student.id]["submission"]["original_filename"], "two.pdf")
+        self.assertIsNotNone(rows[self.other_student.id]["submission"])
+
+    def test_teacher_list_includes_non_submitters(self):
+        self.submit("one.pdf")  # only self.student submits
+
+        response = self.teacher_client.get(self.teacher_list_url)
+        rows = {row["student_id"]: row for row in response.json()}
+
+        self.assertIsNotNone(rows[self.student.id]["submission"])
+        self.assertIsNone(rows[self.other_student.id]["submission"])
+        self.assertFalse(rows[self.other_student.id]["graded"])
+        self.assertIsNone(rows[self.other_student.id]["score"])
+
+    def test_teacher_list_is_sorted_by_student_name(self):
+        self.student.full_name = "Zed Student"
+        self.student.save(update_fields=("full_name",))
+        self.other_student.full_name = "Anh Student"
+        self.other_student.save(update_fields=("full_name",))
+
+        response = self.teacher_client.get(self.teacher_list_url)
+        names = [row["student_name"] for row in response.json()]
+        self.assertEqual(names, sorted(names))
+
+    def test_teacher_list_excludes_unenrolled_and_removed_students(self):
+        self.submit("one.pdf")
+        Enrollment.objects.filter(classroom=self.classroom, student=self.student).delete()
+
+        response = self.teacher_client.get(self.teacher_list_url)
+        ids = {row["student_id"] for row in response.json()}
+        self.assertNotIn(self.student.id, ids)
+
+    def test_teacher_list_tags_disabled_accounts_but_keeps_them_gradeable(self):
+        self.submit("one.pdf")
+        self.student.is_active = False
+        self.student.save(update_fields=("is_active",))
+
+        response = self.teacher_client.get(self.teacher_list_url)
+        rows = {row["student_id"]: row for row in response.json()}
+        self.assertFalse(rows[self.student.id]["is_active"])
+        self.assertIsNotNone(rows[self.student.id]["submission"])
 
     def test_submission_serializer_exposes_student_name(self):
         self.student.full_name = "Nguyen Van A"
@@ -127,20 +176,46 @@ class SubmissionApiTests(TestCase):
         self.assertEqual(student_response.json()[0]["student_name"], "Nguyen Van A")
 
         teacher_response = self.teacher_client.get(self.teacher_list_url)
-        self.assertEqual(teacher_response.json()[0]["student_name"], "Nguyen Van A")
+        rows = {row["student_id"]: row["student_name"] for row in teacher_response.json()}
+        self.assertEqual(rows[self.student.id], "Nguyen Van A")
 
         detail_response = self.teacher_client.get(f"/api/submissions/{submission_id}")
         self.assertEqual(detail_response.json()["student_name"], "Nguyen Van A")
 
-        # A student without a full_name should serialize as null, not error.
+        # A student without a full_name should fall back to "Student {id}", not blank/null.
         self.other_student_client.post(
             self.submit_url,
-            {"file": SimpleUploadedFile("other.pdf", b"content", "application/pdf")},
+            {"file": SimpleUploadedFile("other.pdf", self.FILE_BYTES["pdf"], "application/pdf")},
             format="multipart",
         )
         teacher_response = self.teacher_client.get(self.teacher_list_url)
         rows = {row["student_id"]: row["student_name"] for row in teacher_response.json()}
-        self.assertIsNone(rows[self.other_student.id])
+        self.assertEqual(rows[self.other_student.id], f"Student {self.other_student.id}")
+
+    def test_teacher_submission_detail_omits_version(self):
+        submission_id = self.submit("one.pdf").json()["id"]
+        response = self.teacher_client.get(f"/api/submissions/{submission_id}")
+        self.assertNotIn("version", response.json())
+
+    def test_student_submission_detail_still_has_version(self):
+        submission_id = self.submit("one.pdf").json()["id"]
+        response = self.student_client.get(f"/api/submissions/{submission_id}")
+        self.assertEqual(response.json()["version"], 1)
+
+    def test_inactive_class_blocks_submission_even_inside_the_time_window(self):
+        before = list(Path(settings.MEDIA_ROOT).rglob("*"))
+
+        response = self.submit_after_view_checks(
+            lambda: Class.objects.filter(id=self.classroom.id).update(is_active=False)
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json(),
+            {"detail": "Submissions are accepted only before the deadline while the Class is open."},
+        )
+        self.assertEqual(Submission.objects.count(), 0)
+        self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
 
     def test_late_and_unenrolled_students_cannot_submit(self):
         self.assignment.due_at = timezone.now() - timedelta(seconds=1)
@@ -230,11 +305,12 @@ class SubmissionApiTests(TestCase):
         self.assertEqual(Submission.objects.count(), 0)
         self.assertEqual(list(Path(settings.MEDIA_ROOT).rglob("*")), before)
 
-    def test_graded_flag_flips_after_teacher_grades_submission(self):
+    def test_graded_flag_and_score_appear_after_teacher_grades_submission(self):
         submission_id = self.submit("one.pdf").json()["id"]
 
-        before = self.teacher_client.get(self.teacher_list_url).json()
-        self.assertEqual(before[0]["graded"], False)
+        before = {row["student_id"]: row for row in self.teacher_client.get(self.teacher_list_url).json()}
+        self.assertFalse(before[self.student.id]["graded"])
+        self.assertIsNone(before[self.student.id]["score"])
 
         Grade.objects.create(
             assignment=self.assignment,
@@ -245,8 +321,20 @@ class SubmissionApiTests(TestCase):
             feedback="Nice work.",
         )
 
-        after = self.teacher_client.get(self.teacher_list_url).json()
-        self.assertEqual(after[0]["graded"], True)
+        after = {row["student_id"]: row for row in self.teacher_client.get(self.teacher_list_url).json()}
+        self.assertTrue(after[self.student.id]["graded"])
+        self.assertEqual(after[self.student.id]["score"], 90)
+
+    def test_file_over_25mb_is_rejected(self):
+        oversized = SimpleUploadedFile(
+            "big.pdf", b"%PDF-1.4" + b"0" * (settings.MAX_UPLOAD_BYTES), "application/pdf"
+        )
+        response = self.student_client.post(
+            self.submit_url, {"file": oversized}, format="multipart"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "File exceeds the upload size limit."})
+        self.assertEqual(Submission.objects.count(), 0)
 
     def test_download_is_limited_to_submitter_or_assigned_teacher(self):
         submission = self.submit("one.pdf").json()
@@ -260,6 +348,41 @@ class SubmissionApiTests(TestCase):
         teacher_download.close()
         self.assertEqual(self.other_student_client.get(download_url).status_code, 404)
         self.assertEqual(self.unenrolled_student_client.get(download_url).status_code, 404)
+
+    def test_teacher_download_filename_is_prefixed_with_student_name(self):
+        self.student.full_name = "Nguyen Van A"
+        self.student.save(update_fields=("full_name",))
+        submission_id = self.submit("homework.pdf").json()["id"]
+
+        response = self.teacher_client.get(f"/api/submissions/{submission_id}/download")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Nguyen Van A_homework.pdf", response["Content-Disposition"])
+        response.close()
+
+        student_response = self.student_client.get(f"/api/submissions/{submission_id}/download")
+        self.assertIn("homework.pdf", student_response["Content-Disposition"])
+        self.assertNotIn("Nguyen Van A_", student_response["Content-Disposition"])
+        student_response.close()
+
+    def test_teacher_download_filename_falls_back_to_student_id_when_name_is_blank(self):
+        self.student.full_name = ""
+        self.student.save(update_fields=("full_name",))
+        submission_id = self.submit("homework.pdf").json()["id"]
+
+        response = self.teacher_client.get(f"/api/submissions/{submission_id}/download")
+        self.assertIn(f"Student {self.student.id}_homework.pdf", response["Content-Disposition"])
+        response.close()
+
+    def test_submission_response_has_no_note_field(self):
+        response = self.submit("one.pdf")
+        self.assertNotIn("note", response.json())
+
+    def test_file_renamed_to_pdf_but_not_actually_a_pdf_is_rejected(self):
+        fake = SimpleUploadedFile("homework.pdf", b"this is just plain text, not a pdf", "application/pdf")
+        response = self.student_client.post(self.submit_url, {"file": fake}, format="multipart")
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"detail": "Upload a PDF or DOCX file."})
+        self.assertEqual(Submission.objects.count(), 0)
 
     def test_teacher_detail_and_download_are_limited_to_latest_version(self):
         first = self.submit("one.pdf").json()
@@ -328,8 +451,7 @@ class SubmissionConcurrencyTests(TransactionTestCase):
                 return create_submission(
                     assignment=self.assignment,
                     student=self.student,
-                    upload=SimpleUploadedFile(filename, b"content", "application/pdf"),
-                    note="",
+                    upload=SimpleUploadedFile(filename, b"%PDF-1.4\nconcurrent\n", "application/pdf"),
                 ).version
             except Exception as exc:
                 return type(exc).__name__

@@ -71,7 +71,6 @@ class GradingApiTests(TestCase):
             original_filename="submission.pdf",
             content_type="application/pdf",
             size=10,
-            note="",
         )
 
     def client_for(self, user):
@@ -300,3 +299,54 @@ class GradingApiTests(TestCase):
 
     def test_result_missing_before_grading(self):
         self.assertEqual(self.student_client.get(self.my_result_url).status_code, 404)
+
+    # -- teacher grade review --------------------------------------------
+
+    def result_url(self, assignment, student):
+        return f"/api/assignments/{assignment.id}/students/{student.id}/result"
+
+    def grade_the_submission(self):
+        return self.teacher_client.put(
+            self.grade_url,
+            {
+                "feedback": "Solid work.",
+                "scores": [
+                    {"criterion_id": self.c1.id, "score": 45},
+                    {"criterion_id": self.c2.id, "score": 40},
+                ],
+            },
+            format="json",
+        )
+
+    def test_teacher_reads_back_a_grade_with_feedback_and_criteria(self):
+        self.grade_the_submission()
+
+        response = self.teacher_client.get(self.result_url(self.assignment, self.student))
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["total_score"], 85)
+        self.assertEqual(body["feedback"], "Solid work.")
+        self.assertEqual(
+            [(item["criterion_title"], item["score"], item["maximum_score"]) for item in body["scores"]],
+            [("Correctness", 45, 50), ("Style", 40, 50)],
+        )
+
+    def test_teacher_of_another_class_cannot_read_the_grade(self):
+        self.grade_the_submission()
+
+        response = self.other_teacher_client.get(self.result_url(self.assignment, self.student))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_student_cannot_use_the_teacher_result_endpoint(self):
+        self.grade_the_submission()
+
+        response = self.student_client.get(self.result_url(self.assignment, self.student))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_reading_an_ungraded_submission_returns_404(self):
+        response = self.teacher_client.get(self.result_url(self.assignment, self.student))
+
+        self.assertEqual(response.status_code, 404)
