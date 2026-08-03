@@ -37,6 +37,6 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='classresource',
-            constraint=models.CheckConstraint(condition=models.Q(models.Q(('file_path__gt', ''), ('url', '')), models.Q(('file_path', ''), ('url__gt', '')), _connector='OR'), name='class_resource_link_xor_file'),
+            constraint=models.CheckConstraint(check=models.Q(models.Q(('file_path__gt', ''), ('url', '')), models.Q(('file_path', ''), ('url__gt', '')), _connector='OR'), name='class_resource_link_xor_file'),
         ),
     ]

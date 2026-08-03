@@ -1,6 +1,6 @@
-"""Bulk demo data: 1 admin, 12 teachers, 80 students, 20 classes (15 students
-each), 4 resources + 4 assignments per class, ~60% submission rate, ~70% of
-submissions graded.
+"""Bulk demo data: 1 admin, 12 teachers, 80 students, 12 classes (15 students
+each: 4 disabled, 2 finished, 2 not started, 4 ongoing), 4 resources + 4
+assignments per class, ~60% submission rate, ~70% of submissions graded.
 
 Usage:
     python manage.py seed_demo            # create (skip if demo classes exist)
@@ -110,15 +110,25 @@ class Command(BaseCommand):
     def _create_classes(self, teachers):
         now = timezone.now()
         classes = []
-        for i in range(20):
+        # 12 classes: 4 disabled, 2 finished, 2 not started, 4 ongoing.
+        for i in range(12):
             subject = SUBJECTS[i % len(SUBJECTS)]
             grade = GRADES[i % len(GRADES)]
+            if i < 4:  # disabled
+                starts_at, ends_at, is_active = now - timedelta(days=60), now + timedelta(days=120), False
+            elif i < 6:  # finished
+                starts_at, ends_at, is_active = now - timedelta(days=120), now - timedelta(days=10), True
+            elif i < 8:  # not started
+                starts_at, ends_at, is_active = now + timedelta(days=10), now + timedelta(days=120), True
+            else:  # ongoing
+                starts_at, ends_at, is_active = now - timedelta(days=60), now + timedelta(days=120), True
             classroom = Class.objects.create(
                 teacher=teachers[i % len(teachers)],
                 name=f"{CLASS_PREFIX} {i + 1:02d} - {subject} {grade}",
                 description=f"Lop {subject} khoi {grade} - du lieu demo.",
-                starts_at=now - timedelta(days=60),
-                ends_at=now + timedelta(days=120),
+                starts_at=starts_at,
+                ends_at=ends_at,
+                is_active=is_active,
             )
             classes.append(classroom)
         return classes
