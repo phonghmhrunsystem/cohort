@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from accounts.models import User
 from accounts.seed_data import HOMETOWNS, PHONE_PREFIXES
-from assignments.models import Assignment, RubricCriterion
+from assignments.models import Assignment, AssignmentGrade, RubricCriterion
 from classes.models import Class, ClassResource, Enrollment
 from grading.models import CriterionScore, Grade
 from submissions.models import Submission
@@ -134,6 +134,7 @@ class Command(BaseCommand):
         return classes
 
     def _populate_classes(self, classes, students):
+        now = timezone.now()
         for classroom in classes:
             roster = random.sample(students, 15)
             Enrollment.objects.bulk_create(
@@ -160,6 +161,8 @@ class Command(BaseCommand):
                 content_crit = RubricCriterion.objects.create(assignment=assignment, title="Noi dung", maximum_score=70)
                 form_crit = RubricCriterion.objects.create(assignment=assignment, title="Hinh thuc", maximum_score=30)
 
+                if not classroom.is_active or classroom.starts_at > now:
+                    continue
                 for student in roster:
                     if random.random() >= 0.6:
                         continue
@@ -189,3 +192,6 @@ class Command(BaseCommand):
                         CriterionScore(grade=grade, criterion=content_crit, score=content_score),
                         CriterionScore(grade=grade, criterion=form_crit, score=form_score),
                     ])
+                    AssignmentGrade.objects.create(
+                        assignment=assignment, student=student, score=grade.total_score
+                    )

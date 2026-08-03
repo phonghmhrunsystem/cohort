@@ -62,7 +62,7 @@ describe("Student class page", () => {
 
   it.each([
     ["OPEN", "Chưa nộp", "Nộp bài"],
-    ["SUBMITTED", "Đã nộp", null],
+    ["SUBMITTED", "Chờ chấm", null],
     ["GRADED", "Đã chấm", null],
   ] as const)("maps learning_state %s to the correct Trạng thái and action label", async (learningState, label, actionLabel) => {
     const fetchMock = vi.fn()
@@ -99,7 +99,7 @@ describe("Student class page", () => {
       .mockResolvedValueOnce(json([{
         id: 1, classroom_id: 9, title: "Homework 1", description: "Build a small app.",
         due_at: "2026-07-01T20:00:00Z", maximum_score: 100, criteria: [], created_at: "2026-06-20T00:00:00Z",
-        learning_state: "CLOSED", deadline_badge: "Đã hết hạn", closure_reason: "Deadline has passed.",
+        learning_state: "CLOSED", deadline_badge: "Đã hết hạn", closure_reason: "Deadline has passed.", score: 0,
       }]));
     openPage(fetchMock);
     const events = userEvent.setup();
@@ -108,6 +108,7 @@ describe("Student class page", () => {
 
     await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
     expect(screen.getByText("Đã đóng").getAttribute("title")).toBe("Deadline has passed.");
+    expect(screen.getByText("0")).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Nộp bài" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Xem lịch sử" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Xem kết quả" })).toBeNull();

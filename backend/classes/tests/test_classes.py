@@ -843,11 +843,11 @@ class GradebookApiTests(TestCase):
             {"assignment_id": open_assignment.id, "learning_state": "OPEN", "score": None},
             {"assignment_id": submitted_assignment.id, "learning_state": "SUBMITTED", "score": None},
             {"assignment_id": graded_assignment.id, "learning_state": "GRADED", "score": 88},
-            {"assignment_id": closed_assignment.id, "learning_state": "CLOSED", "score": None},
+            {"assignment_id": closed_assignment.id, "learning_state": "CLOSED", "score": 0},
         ])
         self.assertEqual(
             response.data["students"][1]["grades"],
-            [{"assignment_id": assignment.id, "learning_state": "OPEN" if assignment != closed_assignment else "CLOSED", "score": None}
+            [{"assignment_id": assignment.id, "learning_state": "OPEN" if assignment != closed_assignment else "CLOSED", "score": 0 if assignment == closed_assignment else None}
              for assignment in (open_assignment, submitted_assignment, graded_assignment, closed_assignment)],
         )
 
@@ -916,8 +916,8 @@ class GradebookApiTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         content = response.content.decode("utf-8-sig")
-        self.assertIn("'=cmd|' /C calc'!A0,gradebook-student@example.test,Đã nộp,Đã đóng\r\n", content)
-        self.assertIn(",gradebook-other-student@example.test,Chưa nộp,Đã đóng\r\n", content)
+        self.assertIn("'=cmd|' /C calc'!A0,gradebook-student@example.test,Chờ chấm,0\r\n", content)
+        self.assertIn(",gradebook-other-student@example.test,Chưa nộp,0\r\n", content)
 
 
 class OpenClassWindowTests(TestCase):

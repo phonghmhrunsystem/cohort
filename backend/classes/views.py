@@ -498,7 +498,7 @@ def gradebook_data(classroom):
 
 
 def gradebook_cell_text(grade):
-    if grade["learning_state"] == "GRADED":
+    if grade["score"] is not None:
         return str(grade["score"])
     return LEARNING_STATE_LABELS[grade["learning_state"]]
 

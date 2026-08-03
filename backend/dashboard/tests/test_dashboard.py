@@ -279,6 +279,22 @@ class TeacherCardTests(TestCase):
 
         self.assertEqual(cards["pending_grading"], 1)
 
+    def test_an_actual_grade_stops_being_pending_without_the_legacy_lock_row(self):
+        submission = make_submission(self.open_assignment, self.students[0])
+        Grade.objects.create(
+            assignment=self.open_assignment,
+            student=self.students[0],
+            teacher=self.teacher,
+            submission=submission,
+            total_score=85,
+            feedback="Good work.",
+        )
+
+        data = self.client.get("/api/dashboard").data
+
+        self.assertEqual(data["cards"]["pending_grading"], 0)
+        self.assertEqual(data["pending"], [])
+
     def test_a_disabled_class_vanishes_from_every_teacher_number(self):
         """Lớp `is_active=False` vô hình với Teacher hoàn toàn (§6.2), không phải
         chỉ read-only — kể cả bài chờ chấm nằm trong đó."""

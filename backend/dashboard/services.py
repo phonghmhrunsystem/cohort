@@ -68,15 +68,17 @@ def admin_dashboard(user):
 
 
 def _ungraded_submissions(class_ids):
-    """Bản nộp thuộc một cặp (assignment, student) chưa có `AssignmentGrade`.
-    Task 7 dùng lại chính queryset này cho danh sách chờ chấm."""
-    graded = AssignmentGrade.objects.filter(
+    """Submissions whose (assignment, student) pair has neither grade nor lock."""
+    graded = Grade.objects.filter(
+        assignment=OuterRef("assignment_id"), student=OuterRef("student_id")
+    )
+    lock = AssignmentGrade.objects.filter(
         assignment=OuterRef("assignment_id"), student=OuterRef("student_id")
     )
     return (
         Submission.objects.filter(assignment__classroom_id__in=class_ids)
-        .annotate(is_graded=Exists(graded))
-        .filter(is_graded=False)
+        .annotate(has_grade=Exists(graded), has_lock=Exists(lock))
+        .filter(has_grade=False, has_lock=False)
     )
 
 

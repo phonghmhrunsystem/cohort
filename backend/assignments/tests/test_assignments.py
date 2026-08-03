@@ -254,6 +254,7 @@ class AssignmentApiTests(TestCase):
         self.assertEqual(by_id[graded_assignment.id]["learning_state"], "GRADED")
         self.assertEqual(by_id[closed_assignment.id]["learning_state"], "CLOSED")
         self.assertEqual(by_id[closed_assignment.id]["closure_reason"], "Deadline has passed.")
+        self.assertEqual(by_id[closed_assignment.id]["score"], 0)
         self.assertEqual(by_id[open_assignment.id]["deadline_badge"], "Còn 1 ngày")
 
         self.classroom.ends_at = now - timedelta(seconds=1)
@@ -261,6 +262,32 @@ class AssignmentApiTests(TestCase):
         self.assertEqual(
             assignment_learning_state(open_assignment, self.student, now), "CLOSED"
         )
+
+    def test_submitted_work_stays_pending_after_the_deadline(self):
+        assignment = Assignment.objects.create(
+            classroom=self.classroom,
+            title="Late review",
+            description="Build and document a small application.",
+            due_at=timezone.now() - timedelta(minutes=1),
+        )
+        Submission.objects.create(
+            assignment=assignment,
+            student=self.student,
+            version=1,
+            file_path="submissions/late-review.pdf",
+            original_filename="late-review.pdf",
+            content_type="application/pdf",
+            size=10,
+        )
+
+        row = next(
+            item for item in self.student_client.get(
+                f"/api/classes/{self.classroom.id}/assignments"
+            ).data if item["id"] == assignment.id
+        )
+
+        self.assertEqual(row["learning_state"], "SUBMITTED")
+        self.assertIsNone(row["score"])
 
     def payload(self, **overrides):
         return {

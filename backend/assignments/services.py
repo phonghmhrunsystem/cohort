@@ -5,7 +5,7 @@ _MISSING = object()
 
 # Display labels for the non-GRADED states; the API returns raw enums and lets
 # each client translate, so this map only serves server-rendered output (CSV).
-LEARNING_STATE_LABELS = {"SUBMITTED": "Đã nộp", "OPEN": "Chưa nộp", "CLOSED": "Đã đóng"}
+LEARNING_STATE_LABELS = {"SUBMITTED": "Chờ chấm", "OPEN": "Chưa nộp", "CLOSED": "Đã đóng"}
 
 
 def assignment_learning_state(assignment, student, now, latest_submission=_MISSING):
@@ -19,11 +19,13 @@ def assignment_learning_state(assignment, student, now, latest_submission=_MISSI
         )
     if latest and hasattr(latest, "grade"):
         return "GRADED"
+    if latest:
+        return "SUBMITTED"
     if (
         assignment.classroom.starts_at <= now < assignment.classroom.ends_at
         and now < assignment.due_at
     ):
-        return "SUBMITTED" if latest else "OPEN"
+        return "OPEN"
     return "CLOSED"
 
 

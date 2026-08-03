@@ -14,7 +14,7 @@ import type { Assignment, ClassRow } from "../../types";
 
 const LEARNING_STATE_LABEL: Record<string, { label: string }> = {
   OPEN: { label: "Chưa nộp" },
-  SUBMITTED: { label: "Đã nộp" },
+  SUBMITTED: { label: "Chờ chấm" },
   GRADED: { label: "Đã chấm" },
   CLOSED: { label: "Đã đóng" },
 };

@@ -48,6 +48,20 @@ describe("Student assignment page", () => {
     expect(screen.getByText("Chưa nộp")).toBeTruthy();
   });
 
+  it("shows submitted work as waiting and does not reopen uploads after the deadline", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(json(assignment({
+        learning_state: "SUBMITTED",
+        due_at: "2020-08-15T20:00:00Z",
+      })))
+      .mockResolvedValueOnce(json([]));
+    openPage(fetchMock);
+
+    await waitFor(() => expect(screen.getByText("Homework 1")).toBeTruthy());
+    expect(screen.getByText("Chờ chấm")).toBeTruthy();
+    expect(screen.queryByText("Submit a file")).toBeNull();
+  });
+
   it("hides the submit form and shows the closure reason once graded", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(json(assignment({ learning_state: "GRADED", closure_reason: "Đã chấm, không thể nộp lại" })))

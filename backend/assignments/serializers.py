@@ -98,11 +98,18 @@ class AssignmentSerializer(serializers.ModelSerializer):
             return None
         scores = self.context.get("scores")
         if scores is not None:
-            return scores.get(assignment.id)
-        from .models import AssignmentGrade
+            score = scores.get(assignment.id)
+        else:
+            from .models import AssignmentGrade
 
-        grade = AssignmentGrade.objects.filter(assignment=assignment, student=student).first()
-        return grade.score if grade else None
+            grade = AssignmentGrade.objects.filter(assignment=assignment, student=student).first()
+            score = grade.score if grade else None
+        if score is not None:
+            return score
+        now = timezone.now()
+        if assignment_learning_state(assignment, student, now) in ("SUBMITTED", "GRADED"):
+            return None
+        return 0 if now >= assignment.due_at else None
 
     def get_enrolled_count(self, assignment):
         return self.context.get("enrolled_count")

@@ -142,10 +142,11 @@ class GradebookSerializer(serializers.Serializer):
     def _cell(self, assignment, student, now, latest_submissions):
         submission = latest_submissions.get((assignment.id, student.id))
         grade = getattr(submission, "grade", None) if submission else None
+        state = assignment_learning_state(assignment, student, now, submission)
         return {
             "assignment_id": assignment.id,
-            "learning_state": assignment_learning_state(assignment, student, now, submission),
-            "score": grade.total_score if grade else None,
+            "learning_state": state,
+            "score": grade.total_score if grade else 0 if not submission and now >= assignment.due_at else None,
         }
 
 

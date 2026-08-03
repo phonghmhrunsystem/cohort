@@ -21,7 +21,7 @@ const gradebook = (overrides: { assignments?: unknown[]; students?: unknown[] } 
         { assignment_id: 11, learning_state: "GRADED", score: 88 },
         { assignment_id: 12, learning_state: "SUBMITTED", score: null },
         { assignment_id: 13, learning_state: "OPEN", score: null },
-        { assignment_id: 14, learning_state: "CLOSED", score: null },
+        { assignment_id: 14, learning_state: "CLOSED", score: 0 },
       ],
     },
     {
@@ -30,7 +30,7 @@ const gradebook = (overrides: { assignments?: unknown[]; students?: unknown[] } 
         { assignment_id: 11, learning_state: "GRADED", score: 42 },
         { assignment_id: 12, learning_state: "OPEN", score: null },
         { assignment_id: 13, learning_state: "OPEN", score: null },
-        { assignment_id: 14, learning_state: "CLOSED", score: null },
+        { assignment_id: 14, learning_state: "CLOSED", score: 0 },
       ],
     },
   ],
@@ -59,13 +59,13 @@ describe("GradebookPanel", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders a score for graded cells and a Vietnamese label for every other state", async () => {
+  it("renders scores, pending grading, and zero for overdue missing work", async () => {
     openPanel(vi.fn().mockResolvedValueOnce(json(gradebook())));
 
     await waitFor(() => expect(screen.getByText("88")).toBeTruthy());
-    expect(screen.getByText("Đã nộp")).toBeTruthy();
+    expect(screen.getByText("Chờ chấm")).toBeTruthy();
     expect(screen.getAllByText("Chưa nộp").length).toBe(3);
-    expect(screen.getAllByText("Đã đóng").length).toBe(2);
+    expect(screen.getAllByText("0").length).toBe(2);
     expect(screen.queryByText("Đã chấm")).toBeNull();
   });
 
@@ -106,7 +106,7 @@ describe("GradebookPanel", () => {
   it("leaves ungraded cells unclickable", async () => {
     openPanel(vi.fn().mockResolvedValueOnce(json(gradebook())));
 
-    await waitFor(() => expect(screen.getByText("Đã nộp")).toBeTruthy());
+    await waitFor(() => expect(screen.getByText("Chờ chấm")).toBeTruthy());
     expect(screen.queryByRole("button", { name: /Submitted one/ })).toBeNull();
   });
 

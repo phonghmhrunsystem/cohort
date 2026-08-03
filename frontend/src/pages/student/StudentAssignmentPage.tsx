@@ -14,7 +14,7 @@ const token = () => sessionStorage.getItem("access_token") ?? undefined;
 
 const STATE_LABEL: Record<NonNullable<Assignment["learning_state"]>, string> = {
   OPEN: "Chưa nộp",
-  SUBMITTED: "Đã nộp",
+  SUBMITTED: "Chờ chấm",
   GRADED: "Đã chấm",
   CLOSED: "Đã đóng",
 };
@@ -66,7 +66,9 @@ export function StudentAssignmentPage() {
   if (failure) return <Alert>{failure}</Alert>;
   if (!assignment) return <Spinner label="Loading assignment" />;
 
-  const canSubmit = assignment.learning_state === "OPEN" || assignment.learning_state === "SUBMITTED";
+  const canSubmit =
+    (assignment.learning_state === "OPEN" || assignment.learning_state === "SUBMITTED") &&
+    new Date() < new Date(assignment.due_at);
 
   return (
     <section className="page-stack">

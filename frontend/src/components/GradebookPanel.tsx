@@ -14,7 +14,7 @@ import { classGradebookPath, downloadGradebookCsv, request } from "../lib/api";
 import type { GradebookResponse, GradebookStudent, LearningState } from "../types";
 
 const stateLabels: Record<Exclude<LearningState, "GRADED">, string> = {
-  SUBMITTED: "Đã nộp",
+  SUBMITTED: "Chờ chấm",
   OPEN: "Chưa nộp",
   CLOSED: "Đã đóng",
 };
@@ -67,7 +67,7 @@ export function GradebookPanel({ classId }: { classId: number }) {
       render: (student: GradebookStudent) => {
         const cell = student.grades.find((grade) => grade.assignment_id === assignment.id);
         if (!cell) return "";
-        if (cell.learning_state !== "GRADED") return stateLabels[cell.learning_state];
+        if (cell.learning_state !== "GRADED") return cell.score ?? stateLabels[cell.learning_state];
         const studentName = student.full_name || student.email;
         return (
           <button
