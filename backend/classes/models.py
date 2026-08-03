@@ -42,7 +42,7 @@ class ClassResource(models.Model):
             # constraint lives in the DB so a code path that forgets to validate
             # cannot write a row nothing can render.
             models.CheckConstraint(
-                check=(
+                condition=(
                     models.Q(url="", file_path__gt="") | models.Q(url__gt="", file_path="")
                 ),
                 name="class_resource_link_xor_file",
