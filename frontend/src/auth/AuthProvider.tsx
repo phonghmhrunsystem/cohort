@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { request } from "../lib/api";
-import { clearTokens, getAccessToken, setTokens } from "../lib/session";
+import { clearTokens, getAccessToken, getRefreshToken, setTokens } from "../lib/session";
 import type { LoginPayload, LoginResponse, User } from "../types";
 
 type AuthState = {
@@ -62,8 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     const token = getAccessToken();
+    const refreshToken = getRefreshToken();
     try {
-      if (token) await request("/auth/logout", { method: "POST", token });
+      if (token) await request("/auth/logout", { method: "POST", token, body: { refresh: refreshToken } });
     } finally {
       clear();
     }

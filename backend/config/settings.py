@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "grading",
     "notifications",
     "dashboard",
+    "rest_framework_simplejwt.token_blacklist",
 ]
 
 MIDDLEWARE = [
@@ -70,6 +71,7 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=2),
     "REFRESH_TOKEN_LIFETIME": timedelta(minutes=10),
     "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
